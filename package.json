@@ -4,8 +4,8 @@
   "description": "Caturan MVP 1 — Platform pembelajaran catur interaktif berbahasa Indonesia",
   "type": "module",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js",
+    "start": "node dev-server.js",
+    "dev": "node dev-server.js",
     "build": "node scripts/generate-env.js"
   },
   "keywords": [

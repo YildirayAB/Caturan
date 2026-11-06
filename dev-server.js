@@ -1,3 +1,13 @@
+/**
+ * Development Server Lokal — Caturan
+ * Digunakan khusus untuk pengembangan lokal (`npm run dev` / `npm start`) di http://localhost:3000.
+ * Menyajikan file statis frontend, endpoint dinamis `/js/env.js` dari `.env.local`,
+ * serta memblokir akses HTTP langsung ke file sensitif dan direktori internal.
+ *
+ * Catatan: Untuk deployment production di Vercel, Caturan di-build sebagai
+ * static website murni ke direktori `dist/` melalui `npm run build`.
+ */
+
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -23,7 +33,7 @@ export const MIME_TYPES = {
 export function handleRequest(req, res) {
   const urlPath = (req.url || '/').split('?')[0];
 
-  // Sajikan konfigurasi environment publik secara dinamis dari .env.local / process.env
+  // Sajikan konfigurasi environment publik secara dinamis dari .env.local / process.env saat development
   if (urlPath === '/js/env.js') {
     const publicEnv = loadPublicEnv(__dirname);
     const body = `window.__CATURAN_ENV__ = ${JSON.stringify(publicEnv)};\n`;
@@ -38,12 +48,17 @@ export function handleRequest(req, res) {
   const relativePath = urlPath === '/' ? 'index.html' : urlPath.replace(/^\/+/, '');
   const safePath = path.normalize(relativePath).replace(/^(\.\.(\/|\\|$))+/, '');
 
-  // Blokir akses HTTP langsung ke file sensitif (.env*, .git*, supabase/)
+  // Blokir akses HTTP langsung ke file konfigurasi sensitif & direktori internal
   const normalizedForward = safePath.replace(/\\/g, '/');
   if (
     normalizedForward.startsWith('.env') ||
     normalizedForward.startsWith('.git') ||
-    normalizedForward.startsWith('supabase/')
+    normalizedForward.startsWith('supabase/') ||
+    normalizedForward.startsWith('scripts/') ||
+    normalizedForward === 'dev-server.js' ||
+    normalizedForward === 'package.json' ||
+    normalizedForward === 'package-lock.json' ||
+    normalizedForward === 'vercel.json'
   ) {
     res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
     res.end('403 - Akses ditolak');
@@ -81,6 +96,6 @@ const isMainModule =
 
 if (isMainModule) {
   server.listen(PORT, () => {
-    console.log(`Caturan berjalan di http://localhost:${PORT}`);
+    console.log(`Caturan Development Server berjalan di http://localhost:${PORT}`);
   });
 }

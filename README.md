@@ -75,7 +75,7 @@ Proyek ini dibangun dengan arsitektur **Modular Vanilla JavaScript (ES Modules)*
 - **Chess Engine & Move Validation**: `Chess.js` (implementasi penuh aturan FIDE, parser FEN, generator langkah legal, dan deteksi akhir permainan).
 - **Backend & Cloud Database**: **Supabase** (`@supabase/supabase-js` v2, PostgreSQL `JSONB`, Supabase Auth, dan Row Level Security).
 - **Local Persistence**: `LocalStorage` dengan lapisan sanitasi skema dan *automatic backup snapshot*.
-- **Development Server & Deployment**: Node.js HTTP Server (`server.js`) & konfigurasi siap pakai untuk **Vercel** (`vercel.json`).
+- **Development Server & Static Deployment**: Node.js Development Server (`dev-server.js`) & Static Build Output (`dist/`) untuk **Vercel** (`vercel.json`).
 
 ### Struktur Direktori Proyek
 
@@ -118,8 +118,8 @@ Caturan/
 ├── .env.example               # Template variabel environment publik
 ├── index.html                 # Dokumen utama aplikasi
 ├── package.json               # Manifes proyek & dependensi
-├── server.js                  # Server HTTP lokal Node.js
-└── vercel.json                # Konfigurasi deployment Vercel
+├── dev-server.js              # Server HTTP pengembangan lokal Node.js
+└── vercel.json                # Konfigurasi static website deployment Vercel
 ```
 
 ---

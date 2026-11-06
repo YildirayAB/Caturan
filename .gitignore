@@ -1,6 +1,9 @@
 # Dependencies
 node_modules/
 
+# Production Static Build Output (dibuat saat npm run build)
+dist/
+
 # Environment Variables & Secrets (JANGAN PERNAH COMMIT KE GITHUB)
 .env
 .env.*
