@@ -1,0 +1,147 @@
+/**
+ * Variabel Desain & Sistem Tema Chess Academy
+ * Tanpa gradient (100% solid colors), minimalis, kontras tinggi.
+ *
+ * Light Mode:
+ * - Background utama: #F8F5EF
+ * - Warna aksen utama: #E98232
+ * - Warna teks utama: #17243A
+ *
+ * Dark Mode:
+ * - Background utama: #101C30
+ * - Warna aksen utama: #E98232
+ * - Warna teks utama: #F5F3EF
+ */
+
+:root,
+[data-theme="light"] {
+  --bg-main: #F8F5EF;
+  --bg-surface: #FFFFFF;
+  --bg-subtle: #EFECE6;
+  --bg-muted: #E5E0D8;
+
+  --text-main: #17243A;
+  --text-secondary: #4A5568;
+  --text-muted: #6B7280;
+
+  --accent-main: #E98232;
+  --accent-hover: #D46F20;
+  --accent-soft: #FDF0E6;
+  --accent-border: #F3C39D;
+
+  --border-color: #DFDBD2;
+  --border-strong: #C9C3B8;
+
+  --status-success-bg: #EBF7EE;
+  --status-success-text: #1E6F3D;
+  --status-success-border: #B7E1C3;
+
+  --status-warning-bg: #FEF5E7;
+  --status-warning-text: #9C5700;
+  --status-warning-border: #F5D39E;
+
+  --status-danger-bg: #FDECEC;
+  --status-danger-text: #B42318;
+  --status-danger-border: #F5B7B1;
+
+  /* Warna Papan Catur Turnamen yang Harmonis dengan Tema */
+  --board-light-sq: #EFECE6;
+  --board-dark-sq: #8B9BB4;
+  --board-selected-sq: #F6D096;
+  --board-lastmove-sq: #F7E1BE;
+  --board-highlight-sq: #FCE3C6;
+  --board-border: #17243A;
+
+  --shadow-card: 0 2px 8px rgba(23, 36, 58, 0.05);
+  --shadow-elevated: 0 6px 20px rgba(23, 36, 58, 0.09);
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+
+  --sidebar-width: 268px;
+  --topbar-height: 64px;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+}
+
+[data-theme="dark"] {
+  --bg-main: #101C30;
+  --bg-surface: #17263F;
+  --bg-subtle: #1E304F;
+  --bg-muted: #263B5E;
+
+  --text-main: #F5F3EF;
+  --text-secondary: #CBD5E1;
+  --text-muted: #94A3B8;
+
+  --accent-main: #E98232;
+  --accent-hover: #F2944B;
+  --accent-soft: #2C2729;
+  --accent-border: #7A4B2A;
+
+  --border-color: #263854;
+  --border-strong: #374E70;
+
+  --status-success-bg: #15322B;
+  --status-success-text: #6EE7B7;
+  --status-success-border: #235347;
+
+  --status-warning-bg: #33271A;
+  --status-warning-text: #FCD34D;
+  --status-warning-border: #664B24;
+
+  --status-danger-bg: #381D24;
+  --status-danger-text: #FCA5A5;
+  --status-danger-border: #6E2C37;
+
+  /* Warna Papan Catur Dark Mode */
+  --board-light-sq: #CBD5E1;
+  --board-dark-sq: #475B7A;
+  --board-selected-sq: #C98A4B;
+  --board-lastmove-sq: #8F6F49;
+  --board-highlight-sq: #A86D3B;
+  --board-border: #263854;
+
+  --shadow-card: 0 2px 10px rgba(0, 0, 0, 0.25);
+  --shadow-elevated: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--bg-main);
+  color: var(--text-main);
+  line-height: 1.6;
+  min-height: 100vh;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+ul {
+  list-style: none;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}

@@ -1,0 +1,367 @@
+/**
+ * Gaya Komponen Papan Catur Interaktif (Chessboard CSS)
+ * Responsif untuk desktop, tablet, dan smartphone. Tanpa gradient.
+ */
+
+.chessboard-widget {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+.chessboard-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+}
+
+.turn-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.875rem;
+  font-weight: 800;
+  color: var(--text-main);
+}
+
+.turn-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.turn-dot.dot-white {
+  background-color: #FFFFFF;
+  border: 2px solid #17243A;
+}
+
+.turn-dot.dot-black {
+  background-color: #17243A;
+  border: 2px solid #CBD5E1;
+}
+
+.board-state-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.board-state-badge svg {
+  width: 14px;
+  height: 14px;
+}
+
+.badge-step {
+  background-color: var(--accent-soft);
+  color: var(--accent-main);
+  border: 1px solid var(--accent-border);
+}
+
+.badge-danger {
+  background-color: var(--status-danger-bg);
+  color: var(--status-danger-text);
+  border: 1px solid var(--status-danger-border);
+}
+
+.badge-warning {
+  background-color: var(--status-warning-bg);
+  color: var(--status-warning-text);
+  border: 1px solid var(--status-warning-border);
+}
+
+/* Frame Papan Catur 8x8 */
+.chessboard-frame {
+  position: relative;
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  aspect-ratio: 1 / 1;
+  border: 3px solid var(--board-border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  box-shadow: var(--shadow-elevated);
+  transition: max-width 0.25s ease;
+}
+
+@media (min-width: 861px) {
+  .app-shell.sidebar-collapsed .chessboard-frame {
+    max-width: 540px;
+  }
+}
+
+.chessboard-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  grid-template-rows: repeat(8, 1fr);
+  width: 100%;
+  height: 100%;
+}
+
+.chess-square {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.chess-square.square-light {
+  background-color: var(--board-light-sq);
+}
+
+.chess-square.square-dark {
+  background-color: var(--board-dark-sq);
+}
+
+.chess-square.square-preset-highlight {
+  box-shadow: inset 0 0 0 2px var(--accent-main);
+}
+
+.chess-square.square-last-move {
+  background-color: var(--board-lastmove-sq);
+}
+
+.chess-square.square-selected {
+  background-color: var(--board-selected-sq);
+}
+
+.chess-square.square-hint-highlight {
+  background-color: var(--accent-main);
+}
+
+.chess-square.square-king-check {
+  background-color: #DC2626;
+}
+
+.chess-square:focus-visible {
+  outline: 2px solid var(--accent-main);
+  outline-offset: -2px;
+  z-index: 2;
+}
+
+/* Koordinat Baris & Kolom di Tepi Papan */
+.coord-label {
+  position: absolute;
+  font-size: 0.65rem;
+  font-weight: 800;
+  line-height: 1;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.square-light .coord-label {
+  color: #475B7A;
+}
+
+.square-dark .coord-label {
+  color: #EFECE6;
+}
+
+.coord-rank {
+  top: 3px;
+  left: 4px;
+}
+
+.coord-file {
+  bottom: 3px;
+  right: 4px;
+}
+
+/* Bidak SVG */
+.piece-wrapper {
+  width: 82%;
+  height: 82%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3;
+  pointer-events: none;
+  transition: transform 0.12s ease;
+}
+
+.chess-square:hover .piece-wrapper {
+  transform: scale(1.05);
+}
+
+.chess-piece-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Indikator Langkah Legal (Titik & Cincin Tangkap) */
+.legal-move-dot {
+  position: absolute;
+  width: 28%;
+  height: 28%;
+  border-radius: 50%;
+  background-color: rgba(23, 36, 58, 0.38);
+  z-index: 4;
+  pointer-events: none;
+}
+
+[data-theme="dark"] .legal-move-dot {
+  background-color: rgba(233, 130, 50, 0.65);
+}
+
+.legal-capture-ring {
+  position: absolute;
+  width: 86%;
+  height: 86%;
+  border-radius: 50%;
+  border: 4px solid rgba(233, 130, 50, 0.85);
+  z-index: 4;
+  pointer-events: none;
+}
+
+/* Modal Promosi Pion */
+.promotion-overlay {
+  position: absolute;
+  inset: 0;
+  background-color: rgba(16, 28, 48, 0.82);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+  padding: 16px;
+}
+
+.promotion-dialog {
+  background-color: var(--bg-surface);
+  border: 2px solid var(--accent-main);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  width: 100%;
+  max-width: 340px;
+  text-align: center;
+}
+
+.promotion-title {
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: var(--text-main);
+  margin-bottom: 12px;
+}
+
+.promotion-options {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.promo-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 4px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-subtle);
+  cursor: pointer;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.promo-btn:hover {
+  border-color: var(--accent-main);
+  background-color: var(--accent-soft);
+}
+
+.promo-btn svg {
+  width: 36px;
+  height: 36px;
+}
+
+/* Status Bar Koordinat & Riwayat Langkah */
+.chessboard-coord-statusbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 0.775rem;
+  color: var(--text-muted);
+  padding: 4px 2px;
+}
+
+.coord-inspector-text {
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.move-history-pill {
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-color);
+  padding: 3px 10px;
+  border-radius: var(--radius-sm);
+  font-family: monospace;
+  font-size: 0.75rem;
+  color: var(--text-main);
+}
+
+/* Kotak Feedback Langkah Latihan */
+.chessboard-feedback {
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-subtle);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.feedback-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.chessboard-feedback.feedback-success {
+  background-color: var(--status-success-bg);
+  border-color: var(--status-success-border);
+  color: var(--status-success-text);
+}
+
+.chessboard-feedback.feedback-warning {
+  background-color: var(--status-warning-bg);
+  border-color: var(--status-warning-border);
+  color: var(--status-warning-text);
+}
+
+.chessboard-feedback.feedback-hint {
+  background-color: var(--accent-soft);
+  border-color: var(--accent-border);
+  color: var(--text-main);
+}
+
+/* Tombol Kontrol Papan (Restart, Petunjuk, Balik Papan) */
+.chessboard-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chessboard-controls .btn {
+  flex: 1;
+  min-width: 110px;
+}

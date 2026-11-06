@@ -1,0 +1,25 @@
+{
+  "name": "caturan-mvp1",
+  "version": "1.0.0",
+  "description": "Caturan MVP 1 — Platform pembelajaran catur interaktif berbahasa Indonesia",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "build": "node scripts/generate-env.js"
+  },
+  "keywords": [
+    "caturan",
+    "chess",
+    "catur",
+    "edukasi",
+    "indonesia"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "supabase": "^3.0.0"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.119.0"
+  }
+}

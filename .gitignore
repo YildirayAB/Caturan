@@ -1,0 +1,20 @@
+# Dependencies
+node_modules/
+
+# Environment Variables & Secrets (JANGAN PERNAH COMMIT KE GITHUB)
+.env
+.env.*
+!.env.example
+
+# Supabase CLI Temporary Files (JANGAN abaikan supabase/migrations/)
+supabase/.branches
+supabase/.temp
+!supabase/migrations/
+
+# Vercel
+.vercel/
+
+# OS & Editor Files
+.DS_Store
+Thumbs.db
+*.log

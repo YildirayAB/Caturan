@@ -1,0 +1,7 @@
+-- =============================================================================
+-- Caturan — Supabase Database Seed (seed.sql)
+-- =============================================================================
+-- File ini disiapkan untuk mengisi data awal (seed data) pengembangan lokal.
+-- Catatan: Belum ada tabel yang dibuat pada tahap inisialisasi ini.
+-- Jangan pernah menyimpan kredensial rahasia atau service_role key di file ini.
+-- =============================================================================

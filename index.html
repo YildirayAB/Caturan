@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Caturan — Platform pembelajaran catur interaktif berbahasa Indonesia dari tingkat pemula hingga mahir." />
+  <title>Caturan — Platform Belajar Catur Interaktif</title>
+
+  <!-- Import Map agar bare import @supabase/supabase-js kompatibel langsung di browser -->
+  <script type="importmap">
+    {
+      "imports": {
+        "@supabase/supabase-js": "./js/vendor/supabase.js"
+      }
+    }
+  </script>
+
+  <!-- Stylesheets Modular -->
+  <link rel="stylesheet" href="./css/variables.css" />
+  <link rel="stylesheet" href="./css/layout.css" />
+  <link rel="stylesheet" href="./css/components.css" />
+  <link rel="stylesheet" href="./css/chessboard.css" />
+</head>
+<body>
+  <div id="app-shell" class="app-shell">
+    <!-- Backdrop untuk Navigasi Mobile Drawer -->
+    <div id="sidebar-backdrop" class="sidebar-backdrop" aria-hidden="true"></div>
+
+    <!-- Sidebar Navigasi Utama -->
+    <aside id="app-sidebar" class="app-sidebar" aria-label="Sidebar Navigasi"></aside>
+
+    <!-- Area Konten Utama -->
+    <div class="app-content-area">
+      <!-- Topbar -->
+      <header class="app-topbar">
+        <div class="topbar-left">
+          <button
+            type="button"
+            id="mobile-menu-btn"
+            class="mobile-menu-trigger"
+            aria-controls="app-sidebar"
+            aria-expanded="true"
+            aria-label="Sembunyikan Sidebar Navigasi"
+            title="Buka / Sembunyikan Sidebar"
+          >
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="3" y1="12" x2="21" y2="12"></line>
+              <line x1="3" y1="6" x2="21" y2="6"></line>
+              <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
+          </button>
+          <span class="topbar-app-name">Caturan</span>
+          <span class="topbar-divider" aria-hidden="true">•</span>
+          <span class="topbar-tagline">Tutor Catur Digital &amp; Kurikulum Interaktif</span>
+        </div>
+
+        <div class="topbar-right">
+          <div id="topbar-quick-stats" class="topbar-quick-stats" aria-label="Ringkasan Statistik"></div>
+          <button
+            type="button"
+            id="theme-toggle-btn"
+            class="theme-toggle-btn"
+            aria-label="Ganti Tema Tampilan"
+          ></button>
+        </div>
+      </header>
+
+      <!-- Kontainer Halaman Dinamis (Login, Dashboard, Belajar, Detail Materi) -->
+      <main id="app-main-content" class="app-main" role="main"></main>
+    </div>
+  </div>
+
+  <!-- Konfigurasi Environment Runtime & Script Utama Aplikasi (ES Modules) -->
+  <script src="./js/env.js"></script>
+  <script type="module" src="./js/main.js"></script>
+</body>
+</html>

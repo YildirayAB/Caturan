@@ -1,0 +1,686 @@
+/**
+ * Layout Utama, Sidebar Navigasi (Desktop Toggle & Mobile Drawer), Topbar,
+ * dan Responsivitas (Desktop, Tablet, Smartphone).
+ * Tanpa gradient — 100% warna solid.
+ */
+
+html,
+body {
+  overflow-x: hidden;
+}
+
+body.drawer-open {
+  overflow: hidden;
+}
+
+.app-shell {
+  display: flex;
+  min-height: 100vh;
+  background-color: var(--bg-main);
+  position: relative;
+}
+
+/* Sidebar */
+.app-sidebar {
+  width: var(--sidebar-width);
+  flex-shrink: 0;
+  background-color: var(--bg-surface);
+  border-right: 1px solid var(--border-color);
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(0);
+  visibility: visible;
+  transition: transform 0.25s ease, visibility 0.25s ease, background-color 0.2s ease;
+}
+
+/* Desktop Sidebar Disembunyikan Sepenuhnya */
+@media (min-width: 861px) {
+  .app-shell.sidebar-collapsed .app-sidebar {
+    transform: translateX(-100%);
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  .app-shell.sidebar-collapsed .app-content-area {
+    margin-left: 0;
+  }
+
+  .app-shell.sidebar-collapsed .app-main {
+    max-width: 1400px;
+  }
+}
+
+.sidebar-inner {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 20px 16px;
+}
+
+.sidebar-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px 18px 8px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  flex: 1;
+  min-width: 0;
+}
+
+.sidebar-brand:focus-visible {
+  outline: 2px solid var(--accent-main);
+  outline-offset: 2px;
+}
+
+.sidebar-close-drawer-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-subtle);
+  color: var(--text-main);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.sidebar-close-drawer-btn:hover {
+  background-color: var(--bg-muted);
+}
+
+.brand-logo-box {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  background-color: var(--accent-main);
+  color: #FFFFFF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.brand-name {
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text-main);
+  line-height: 1.2;
+}
+
+.brand-subtitle {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.sidebar-nav {
+  flex: 1;
+  padding-top: 20px;
+  overflow-y: auto;
+}
+
+.sidebar-section-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  padding: 0 12px 10px 12px;
+}
+
+.sidebar-nav-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sidebar-nav-link {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  background-color: transparent;
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-size: 0.925rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.sidebar-nav-link:hover:not(.is-disabled):not(.is-active) {
+  background-color: var(--bg-subtle);
+  color: var(--text-main);
+}
+
+.sidebar-nav-link:focus-visible {
+  outline: 2px solid var(--accent-main);
+  outline-offset: -2px;
+}
+
+.sidebar-nav-link.is-active {
+  background-color: var(--accent-main);
+  color: #FFFFFF;
+}
+
+.sidebar-nav-link.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+  color: var(--text-muted);
+}
+
+.nav-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.nav-label {
+  flex: 1;
+}
+
+.nav-coming-soon-badge {
+  font-size: 0.675rem;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background-color: var(--bg-subtle);
+  color: var(--text-muted);
+  border: 1px solid var(--border-color);
+  white-space: nowrap;
+}
+
+.sidebar-footer {
+  padding-top: 16px;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sidebar-mini-progress {
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+}
+
+.mini-progress-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.mini-level-badge {
+  color: var(--text-main);
+}
+
+.mini-xp-text {
+  color: var(--accent-main);
+}
+
+.mini-progress-bar-track {
+  height: 7px;
+  background-color: var(--bg-muted);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+
+.mini-progress-bar-fill {
+  height: 100%;
+  background-color: var(--accent-main);
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+.mini-progress-caption {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.storage-honest-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  padding: 0 4px;
+}
+
+.storage-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--accent-main);
+  flex-shrink: 0;
+}
+
+.status-dot-synced {
+  background-color: var(--status-success-text);
+}
+
+.status-dot-syncing,
+.status-dot-pending,
+.status-dot-idle {
+  background-color: var(--accent-main);
+}
+
+.status-dot-offline {
+  background-color: var(--status-warning-text);
+}
+
+.status-dot-error {
+  background-color: var(--status-danger-text);
+}
+
+.sync-status-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-color);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.sync-status-box.status-error {
+  background-color: var(--status-danger-bg);
+  border-color: var(--status-danger-border);
+  color: var(--status-danger-text);
+}
+
+.sync-status-box.status-offline {
+  background-color: var(--status-warning-bg);
+  border-color: var(--status-warning-border);
+  color: var(--status-warning-text);
+}
+
+.sync-status-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.sync-status-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sync-retry-btn,
+.topbar-retry-link {
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--accent-border);
+  background-color: var(--accent-soft);
+  color: var(--accent-main);
+  font-size: 0.7rem;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.sync-retry-btn:hover,
+.topbar-retry-link:hover {
+  background-color: var(--accent-main);
+  color: #FFFFFF;
+}
+
+.sidebar-account-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.account-email-pill {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-logout-btn {
+  width: 100%;
+  justify-content: center;
+}
+
+.logout-icon {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Mode Belum Login (Sembunyikan Sidebar & Topbar Dashboard) */
+.app-shell.is-unauthenticated .app-sidebar,
+.app-shell.is-unauthenticated .sidebar-backdrop,
+.app-shell.is-unauthenticated .app-topbar {
+  display: none !important;
+}
+
+.app-shell.is-unauthenticated .app-content-area {
+  margin-left: 0 !important;
+}
+
+.app-shell.is-unauthenticated .app-main {
+  max-width: 100%;
+  padding: 0;
+}
+
+/* Main Content Wrapper */
+.app-content-area {
+  flex: 1;
+  margin-left: var(--sidebar-width);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  transition: margin-left 0.25s ease;
+}
+
+/* Topbar */
+.app-topbar {
+  height: var(--topbar-height);
+  background-color: var(--bg-surface);
+  border-bottom: 1px solid var(--border-color);
+  padding: 0 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 80;
+}
+
+.topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+/* Tombol Hamburger / Sidebar Toggle (Selalu Dapat Diakses di Desktop & Mobile) */
+.mobile-menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 8px;
+  cursor: pointer;
+  color: var(--text-main);
+  flex-shrink: 0;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.mobile-menu-trigger:hover {
+  background-color: var(--bg-muted);
+  border-color: var(--border-strong);
+}
+
+.mobile-menu-trigger:focus-visible {
+  outline: 2px solid var(--accent-main);
+  outline-offset: 2px;
+}
+
+.topbar-app-name {
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--text-main);
+  letter-spacing: -0.01em;
+}
+
+.topbar-divider {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+.topbar-tagline {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-shrink: 0;
+}
+
+.topbar-quick-stats {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.quick-stat-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-color);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--text-main);
+  white-space: nowrap;
+}
+
+.qs-icon {
+  display: inline-flex;
+  color: var(--accent-main);
+}
+
+.qs-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.theme-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-subtle);
+  color: var(--text-main);
+  font-size: 0.825rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.theme-toggle-btn:hover {
+  background-color: var(--bg-muted);
+  border-color: var(--border-strong);
+}
+
+.theme-toggle-btn:focus-visible {
+  outline: 2px solid var(--accent-main);
+  outline-offset: 2px;
+}
+
+.theme-icon {
+  display: inline-flex;
+  color: var(--accent-main);
+}
+
+/* Main View Container */
+.app-main {
+  flex: 1;
+  padding: 28px;
+  max-width: 1280px;
+  width: 100%;
+  margin: 0 auto;
+  transition: max-width 0.25s ease;
+}
+
+/* Backdrop untuk sidebar mobile drawer */
+.sidebar-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background-color: rgba(16, 28, 48, 0.55);
+  z-index: 90;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.sidebar-backdrop.is-visible {
+  display: block;
+  opacity: 1;
+}
+
+/* Layout Grids di Dashboard, Learn, dan Detail Materi */
+.dashboard-page,
+.learn-page,
+.lesson-detail-page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.dashboard-two-col {
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  gap: 20px;
+}
+
+.recommendation-list {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.lesson-workspace-grid {
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  gap: 24px;
+  align-items: start;
+}
+
+/* Responsive Breakpoints */
+@media (max-width: 1100px) {
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .dashboard-two-col,
+  .lesson-workspace-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Tablet & Smartphone: Responsive Drawer */
+@media (max-width: 860px) {
+  .app-sidebar {
+    transform: translateX(-100%);
+    visibility: hidden;
+    pointer-events: none;
+    box-shadow: none;
+  }
+
+  .app-sidebar.is-open {
+    transform: translateX(0);
+    visibility: visible;
+    pointer-events: auto;
+    box-shadow: var(--shadow-elevated);
+  }
+
+  .sidebar-close-drawer-btn {
+    display: inline-flex;
+  }
+
+  .app-content-area {
+    margin-left: 0;
+  }
+
+  .topbar-divider,
+  .topbar-tagline {
+    display: none;
+  }
+
+  .app-topbar {
+    padding: 0 16px;
+  }
+
+  .app-main {
+    padding: 18px 16px;
+  }
+
+  .recommendation-list {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hide-on-xs {
+    display: none;
+  }
+
+  .theme-label {
+    display: none;
+  }
+
+  .theme-toggle-btn {
+    padding: 8px 10px;
+  }
+}
