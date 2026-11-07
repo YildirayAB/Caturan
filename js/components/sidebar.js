@@ -24,8 +24,7 @@ export const NAV_ITEMS = [
     id: 'puzzle',
     label: 'Puzzle',
     icon: UI_ICONS.puzzle,
-    activeInMvp: false,
-    badge: 'Coming Soon'
+    activeInMvp: true
   },
   {
     id: 'play',
@@ -75,7 +74,12 @@ export function renderSidebar(
 ) {
   if (!container) return;
 
-  const activeNavId = currentRoute === 'lesson-detail' ? 'learn' : currentRoute;
+  const activeNavId =
+    currentRoute === 'lesson-detail'
+      ? 'learn'
+      : currentRoute === 'puzzle-play'
+      ? 'puzzle'
+      : currentRoute;
 
   const navLinksHtml = NAV_ITEMS.map(item => {
     const isActive = item.activeInMvp && activeNavId === item.id;

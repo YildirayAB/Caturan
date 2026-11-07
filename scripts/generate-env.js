@@ -158,7 +158,7 @@ export function buildStaticSite(customRoot = rootDir) {
   copyDirectoryFiltered(
     path.join(customRoot, 'js'),
     path.join(distDir, 'js'),
-    new Set(['.js', '.mjs'])
+    new Set(['.js', '.mjs', '.json'])
   );
 
   // 5. Hasilkan dist/js/env.js dari variabel environment tanpa memodifikasi js/env.js di source
