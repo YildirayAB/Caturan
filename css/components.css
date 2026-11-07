@@ -1881,25 +1881,49 @@
 }
 
 /* Halaman Game Interface Melawan Komputer */
+.play-game-page,
+.play-board-card {
+  overflow-anchor: none;
+}
+
+.play-game-topbar [data-testid="play-header-status-badge"] {
+  min-width: 124px;
+  justify-content: center;
+  text-align: center;
+}
+
 .play-info-header-row {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 10px;
 }
 
 .play-thinking-pill {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 12px;
+  gap: 6px;
+  padding: 5px 10px;
   border-radius: 999px;
   background-color: var(--accent-soft);
   border: 1px solid var(--accent-border);
   color: var(--accent-main);
-  font-size: 0.78rem;
+  font-size: 0.76rem;
   font-weight: 800;
+  white-space: nowrap;
+  flex-shrink: 0;
+  visibility: visible;
+  opacity: 1;
+  transition: opacity 0.15s ease;
+}
+
+/* Pertahankan ruang di normal document flow agar transisi berpikir tidak mengubah tinggi parent */
+.play-thinking-pill.is-hidden {
+  display: inline-flex !important;
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .thinking-spinner {
@@ -2323,7 +2347,10 @@
     align-items: center;
     justify-content: space-between;
     gap: 10px;
-    padding: 10px 12px;
+    padding: 8px 12px;
+    height: 64px;
+    min-height: 64px;
+    max-height: 64px;
     background-color: var(--bg-subtle);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
@@ -2336,7 +2363,7 @@
 
   .play-mobile-combatant-main {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     gap: 10px;
     width: 100%;
     max-width: 100%;
@@ -2347,81 +2374,110 @@
     flex: 1 1 0%;
     min-width: 0;
     max-width: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
   }
 
   .play-mobile-combatant-main .combatant-name-line {
     display: flex;
     align-items: center;
     justify-content: flex-start;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 6px;
+    height: 24px;
+    min-height: 24px;
+    max-height: 24px;
     min-width: 0;
     max-width: 100%;
+    overflow: hidden;
   }
 
   .play-mobile-combatant-main .combatant-name {
     min-width: 0;
     max-width: 100%;
-    overflow-wrap: anywhere;
-    word-break: break-word;
+    flex: 0 1 auto;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .play-mobile-combatant-main .badge {
+    flex-shrink: 0;
+    white-space: nowrap;
     max-width: 100%;
-    overflow-wrap: anywhere;
   }
 
   .play-mobile-thinking-pill {
-    padding: 3px 9px;
+    margin-left: auto;
+    padding: 2px 8px;
     font-size: 0.72rem;
+    line-height: 1.2;
+    flex-shrink: 0;
+    white-space: nowrap;
     max-width: 100%;
   }
 
   .play-mobile-captured-line {
     display: flex;
     align-items: center;
-    flex-wrap: wrap;
-    gap: 4px 6px;
-    margin-top: 2px;
+    flex-wrap: nowrap;
+    gap: 6px;
+    height: 20px;
+    min-height: 20px;
+    max-height: 20px;
+    margin-top: 0;
     min-width: 0;
     max-width: 100%;
+    overflow: hidden;
   }
 
   .play-mobile-captured-line .combatant-sub {
     min-width: 0;
     max-width: 100%;
-    overflow-wrap: anywhere;
-    word-break: break-word;
-    line-height: 1.35;
+    flex: 0 1 auto;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.25;
   }
 
   .play-mobile-captured-inline {
     display: inline-flex;
     align-items: center;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 2px;
     min-width: 0;
     max-width: 100%;
+    overflow: hidden;
   }
 
   .play-mobile-captured-inline .captured-empty-text {
     font-size: 0.74rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .play-mobile-captured-inline .captured-piece-icon,
   .play-mobile-captured-inline .captured-piece-icon svg {
     width: 18px;
     height: 18px;
+    flex-shrink: 0;
   }
 
   .play-mobile-moves-strip {
     display: flex;
     align-items: center;
     gap: 8px;
+    height: 40px;
+    min-height: 40px;
+    max-height: 40px;
     overflow-x: auto;
     overflow-y: hidden;
     white-space: nowrap;
-    padding: 8px 12px;
+    padding: 0 12px;
     background-color: var(--bg-subtle);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
@@ -3835,6 +3891,34 @@
 @media (max-width: 480px) {
   .card {
     padding: 16px;
+  }
+
+  .play-mobile-opponent-bar,
+  .play-mobile-player-bar {
+    height: 60px;
+    min-height: 60px;
+    max-height: 60px;
+    padding: 6px 10px;
+    gap: 8px;
+  }
+
+  .play-mobile-combatant-main {
+    gap: 8px;
+  }
+
+  .play-mobile-combatant-main .combatant-avatar {
+    width: 34px;
+    height: 34px;
+  }
+
+  .play-mobile-combatant-main .combatant-name {
+    font-size: 0.84rem;
+  }
+
+  .play-mobile-thinking-pill {
+    padding: 2px 7px;
+    font-size: 0.68rem;
+    gap: 4px;
   }
 
   .greeting-title,

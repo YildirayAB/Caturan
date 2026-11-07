@@ -750,8 +750,12 @@ export function renderPlayGameView(
     if (thinkingIndicator) {
       if (snapshot.isEngineThinking) {
         thinkingIndicator.classList.remove('is-hidden');
+        thinkingIndicator.setAttribute('aria-hidden', 'false');
+        thinkingIndicator.setAttribute('data-thinking', 'true');
       } else {
         thinkingIndicator.classList.add('is-hidden');
+        thinkingIndicator.setAttribute('aria-hidden', 'true');
+        thinkingIndicator.setAttribute('data-thinking', 'false');
       }
     }
 
@@ -824,18 +828,26 @@ export function renderPlayGameView(
 
     // Bidak yang tertangkap
     if (capturedByWhiteEl && snapshot.capturedInfo) {
-      capturedByWhiteEl.innerHTML = renderCapturedPiecesGroup(
+      const capW = renderCapturedPiecesGroup(
         snapshot.capturedInfo.capturedByWhite,
         'b',
         snapshot.capturedInfo.whiteAdvantage
       );
+      if (capturedByWhiteEl._lastHtml !== capW) {
+        capturedByWhiteEl.innerHTML = capW;
+        capturedByWhiteEl._lastHtml = capW;
+      }
     }
     if (capturedByBlackEl && snapshot.capturedInfo) {
-      capturedByBlackEl.innerHTML = renderCapturedPiecesGroup(
+      const capB = renderCapturedPiecesGroup(
         snapshot.capturedInfo.capturedByBlack,
         'w',
         snapshot.capturedInfo.blackAdvantage
       );
+      if (capturedByBlackEl._lastHtml !== capB) {
+        capturedByBlackEl.innerHTML = capB;
+        capturedByBlackEl._lastHtml = capB;
+      }
     }
 
     // Riwayat Langkah SAN (Nomor Langkah, Kolom Putih, Kolom Hitam, Auto-Scroll)
@@ -845,8 +857,9 @@ export function renderPlayGameView(
     }
 
     if (moveHistoryScroll) {
+      let nextHistoryHtml = '';
       if (pairs.length === 0) {
-        moveHistoryScroll.innerHTML = `
+        nextHistoryHtml = `
           <div class="play-history-empty" data-testid="play-move-history-empty">
             Belum ada langkah yang dimainkan pada pertandingan ini.
           </div>
@@ -874,7 +887,7 @@ export function renderPlayGameView(
           })
           .join('');
 
-        moveHistoryScroll.innerHTML = `
+        nextHistoryHtml = `
           <table class="play-move-history-table" aria-label="Tabel Riwayat Langkah Catur" data-testid="play-move-history-table">
             <thead>
               <tr>
@@ -888,9 +901,15 @@ export function renderPlayGameView(
             </tbody>
           </table>
         `;
+      }
 
-        // Auto-scroll ke langkah terbaru
-        moveHistoryScroll.scrollTop = moveHistoryScroll.scrollHeight;
+      if (moveHistoryScroll._lastHtml !== nextHistoryHtml) {
+        moveHistoryScroll.innerHTML = nextHistoryHtml;
+        moveHistoryScroll._lastHtml = nextHistoryHtml;
+        if (pairs.length > 0) {
+          // Auto-scroll internal kontainer tabel ke langkah terbaru
+          moveHistoryScroll.scrollTop = moveHistoryScroll.scrollHeight;
+        }
       }
     }
 
@@ -901,8 +920,12 @@ export function renderPlayGameView(
     if (mobileThinkingPill) {
       if (snapshot.isEngineThinking) {
         mobileThinkingPill.classList.remove('is-hidden');
+        mobileThinkingPill.setAttribute('aria-hidden', 'false');
+        mobileThinkingPill.setAttribute('data-thinking', 'true');
       } else {
         mobileThinkingPill.classList.add('is-hidden');
+        mobileThinkingPill.setAttribute('aria-hidden', 'true');
+        mobileThinkingPill.setAttribute('data-thinking', 'false');
       }
     }
     if (mobileCpuColorEl) {
@@ -937,26 +960,35 @@ export function renderPlayGameView(
           : snapshot.capturedInfo.blackAdvantage;
 
       if (mobileCpuCapturedEl) {
-        mobileCpuCapturedEl.innerHTML = renderCapturedPiecesGroup(
+        const cpuCapHtml = renderCapturedPiecesGroup(
           cpuCapturedPieces,
           cpuCapturesColorChar,
           cpuAdvantage
         );
+        if (mobileCpuCapturedEl._lastHtml !== cpuCapHtml) {
+          mobileCpuCapturedEl.innerHTML = cpuCapHtml;
+          mobileCpuCapturedEl._lastHtml = cpuCapHtml;
+        }
       }
       if (mobilePlayerCapturedEl) {
-        mobilePlayerCapturedEl.innerHTML = renderCapturedPiecesGroup(
+        const playerCapHtml = renderCapturedPiecesGroup(
           playerCapturedPieces,
           playerCapturesColorChar,
           playerAdvantage
         );
+        if (mobilePlayerCapturedEl._lastHtml !== playerCapHtml) {
+          mobilePlayerCapturedEl.innerHTML = playerCapHtml;
+          mobilePlayerCapturedEl._lastHtml = playerCapHtml;
+        }
       }
     }
 
     if (mobileMovesStripEl) {
+      let nextStripHtml = '';
       if (pairs.length === 0) {
-        mobileMovesStripEl.innerHTML = `<span class="play-mobile-moves-empty">Belum ada langkah dimainkan</span>`;
+        nextStripHtml = `<span class="play-mobile-moves-empty">Belum ada langkah dimainkan</span>`;
       } else {
-        mobileMovesStripEl.innerHTML = pairs
+        nextStripHtml = pairs
           .map((pair, idx) => {
             const isLatestPair = idx === pairs.length - 1;
             const whiteSan = pair.white ? pair.white.san : '';
@@ -972,7 +1004,13 @@ export function renderPlayGameView(
             `;
           })
           .join('');
-        mobileMovesStripEl.scrollLeft = mobileMovesStripEl.scrollWidth || 9999;
+      }
+      if (mobileMovesStripEl._lastHtml !== nextStripHtml) {
+        mobileMovesStripEl.innerHTML = nextStripHtml;
+        mobileMovesStripEl._lastHtml = nextStripHtml;
+        if (pairs.length > 0) {
+          mobileMovesStripEl.scrollLeft = mobileMovesStripEl.scrollWidth || 9999;
+        }
       }
     }
 

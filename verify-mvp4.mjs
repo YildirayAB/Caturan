@@ -143,6 +143,16 @@ class MockElement {
 
   focus() {}
 
+  getBoundingClientRect() {
+    if (typeof this._rectProvider === 'function') {
+      return this._rectProvider(this);
+    }
+    if (this._boundingRect) {
+      return { ...this._boundingRect };
+    }
+    return { top: 0, left: 0, right: 0, bottom: 0, width: 0, height: 0, x: 0, y: 0 };
+  }
+
   setSelectionRange(start) {
     this.selectionStart = Number(start) || 0;
   }
@@ -2438,6 +2448,321 @@ await runTest('14.8 Validasi Perbaikan Bug Mobile Stockfish (Tanpa Horizontal Ov
     );
     assert.ok(opponentBarEl.textContent.includes('Stockfish 19 Lite'));
     assert.ok(playerBarEl.textContent.includes('Giliran Anda'));
+
+    board.destroy();
+  }
+});
+
+await runTest('14.9 Validasi Stabilitas Layout Mobile Play Against Stockfish (0px Layout Shift Selama 10 Siklus Berpikir pada 320px-1366px)', async () => {
+  const { renderPlayGameView } = await import(toUrl('js/components/playGameView.js'));
+
+  const boardCss = fs.readFileSync(path.join(ROOT, 'css/chessboard.css'), 'utf8');
+  const compCss = fs.readFileSync(path.join(ROOT, 'css/components.css'), 'utf8');
+
+  // 1) Verifikasi aturan CSS anti-layout-shift pada area status & indikator berpikir
+  assert.ok(
+    /\.play-thinking-pill\.is-hidden\s*\{[\s\S]*?display:\s*inline-flex\s*!important[\s\S]*?visibility:\s*hidden[\s\S]*?opacity:\s*0/m.test(
+      compCss
+    ),
+    '.play-thinking-pill.is-hidden wajib tetap di dalam normal document flow (visibility: hidden; opacity: 0) agar tidak mengubah tinggi parent'
+  );
+  assert.ok(
+    /\.play-chessboard-widget\s+\.chessboard-topbar\s*\{[\s\S]*?flex-wrap:\s*nowrap[\s\S]*?height:\s*44px[\s\S]*?min-height:\s*44px[\s\S]*?max-height:\s*44px/m.test(
+      boardCss
+    ),
+    '.play-chessboard-widget .chessboard-topbar wajib memiliki tinggi tetap 44px dan flex-wrap: nowrap'
+  );
+  assert.ok(
+    /\.play-mobile-opponent-bar,\s*\.play-mobile-player-bar\s*\{[\s\S]*?height:\s*64px[\s\S]*?min-height:\s*64px[\s\S]*?max-height:\s*64px/m.test(
+      compCss
+    ),
+    '.play-mobile-opponent-bar dan .play-mobile-player-bar wajib memiliki tinggi konsisten 64px (60px pada <= 480px)'
+  );
+  assert.ok(
+    /\.play-mobile-moves-strip\s*\{[\s\S]*?height:\s*40px[\s\S]*?min-height:\s*40px[\s\S]*?max-height:\s*40px/m.test(
+      compCss
+    ),
+    '.play-mobile-moves-strip wajib memiliki tinggi konsisten 40px agar transisi langkah pertama tidak menggeser papan'
+  );
+
+  // 2) Simulasikan 10 siklus penuh (Pemain melangkah -> Stockfish berpikir -> Stockfish selesai berpikir -> Giliran pemain)
+  //    pada 6 viewport: 320px, 360px, 390px, 430px, 768px, 1366px
+  const cycleViewports = [
+    { width: 320, height: 568 },
+    { width: 360, height: 800 },
+    { width: 390, height: 844 },
+    { width: 430, height: 932 },
+    { width: 768, height: 1024 },
+    { width: 1366, height: 768 }
+  ];
+
+  // Fungsi kalkulator getBoundingClientRect() berbasis aturan CSS aktual & state DOM saat ini
+  const attachLayoutRectCalculator = (playMount, vp) => {
+    const isMobileOrTabletDrawer = vp.width <= 860;
+    const isOneColumnWorkspace = vp.width <= 1100;
+    const isSmallMobile = vp.width <= 380;
+    const isCompactMobile = vp.width <= 480;
+    const isTinyMobile = vp.width <= 360;
+
+    const sidebarOffset = isMobileOrTabletDrawer ? 0 : 268;
+    const mainPadX = isSmallMobile ? 12 : isMobileOrTabletDrawer ? 16 : 28;
+    const mainPadY = isSmallMobile ? 14 : isMobileOrTabletDrawer ? 16 : 28;
+    const cardPad = isTinyMobile ? 14 : isCompactMobile ? 16 : isMobileOrTabletDrawer ? 18 : 24;
+    const appTopbarH = isSmallMobile ? 60 : isMobileOrTabletDrawer ? 64 : 68;
+    const gameTopbarH = isCompactMobile ? 84 : 52;
+    const pageGap = isMobileOrTabletDrawer ? 16 : 20;
+    const cardGap = 12;
+
+    const contentAreaWidth = vp.width - sidebarOffset;
+    const mainInnerWidth = Math.min(1280, contentAreaWidth) - mainPadX * 2;
+    const workspaceColWidth = isOneColumnWorkspace
+      ? mainInnerWidth
+      : Math.floor(mainInnerWidth * 0.55);
+    const cardLeft = sidebarOffset + mainPadX;
+    const cardInnerLeft = cardLeft + cardPad + 1;
+    const cardInnerWidth = workspaceColWidth - cardPad * 2 - 2;
+    const boardSize = Math.min(cardInnerWidth, 480);
+    const boardLeft = cardInnerLeft + Math.floor((cardInnerWidth - boardSize) / 2);
+
+    const cardTop = appTopbarH + mainPadY + gameTopbarH + pageGap;
+    const opponentBarH = isOneColumnWorkspace ? (isCompactMobile ? 60 : 64) : 0;
+    const movesStripH = isOneColumnWorkspace ? 40 : 0;
+    const statusTopbarH = isCompactMobile ? 40 : 44;
+    const coordStatusH = 28;
+    const feedbackH = 64;
+    const playerBarH = isOneColumnWorkspace ? (isCompactMobile ? 60 : 64) : 0;
+
+    const opponentTop = cardTop + cardPad + 1;
+    const movesStripTop = isOneColumnWorkspace ? opponentTop + opponentBarH + cardGap : opponentTop;
+    const mountTop = isOneColumnWorkspace ? movesStripTop + movesStripH + cardGap : opponentTop;
+    const statusTopbarTop = mountTop;
+    const boardFrameTop = statusTopbarTop + statusTopbarH + cardGap;
+    const coordTop = boardFrameTop + boardSize + cardGap;
+    const feedbackTop = coordTop + coordStatusH + cardGap;
+    const mountHeight = statusTopbarH + cardGap + boardSize + cardGap + coordStatusH + cardGap + feedbackH;
+    const playerBarTop = mountTop + mountHeight + cardGap;
+
+    const makeRect = (left, top, width, height) => ({
+      left,
+      top,
+      right: left + width,
+      bottom: top + height,
+      width,
+      height,
+      x: left,
+      y: top
+    });
+
+    const opponentBarEl = playMount.querySelector('[data-testid="play-mobile-opponent-bar"]');
+    const movesStripEl = playMount.querySelector('[data-testid="play-mobile-moves-strip"]');
+    const boardMountEl = playMount.querySelector('#play-chessboard-mount');
+    const statusBarEl = playMount.querySelector('.chessboard-topbar');
+    const boardFrameEl = playMount.querySelector('.chessboard-frame');
+    const playerBarEl = playMount.querySelector('[data-testid="play-mobile-player-bar"]');
+
+    if (opponentBarEl) opponentBarEl._rectProvider = () => makeRect(cardInnerLeft, opponentTop, cardInnerWidth, opponentBarH);
+    if (movesStripEl) movesStripEl._rectProvider = () => makeRect(cardInnerLeft, movesStripTop, cardInnerWidth, movesStripH);
+    if (boardMountEl) boardMountEl._rectProvider = () => makeRect(cardInnerLeft, mountTop, cardInnerWidth, mountHeight);
+    if (statusBarEl) statusBarEl._rectProvider = () => makeRect(cardInnerLeft, statusTopbarTop, cardInnerWidth, statusTopbarH);
+    if (boardFrameEl) boardFrameEl._rectProvider = () => makeRect(boardLeft, boardFrameTop, boardSize, boardSize);
+    if (playerBarEl) playerBarEl._rectProvider = () => makeRect(cardInnerLeft, playerBarTop, cardInnerWidth, playerBarH);
+  };
+
+  for (const vp of cycleViewports) {
+    globalThis.window.innerWidth = vp.width;
+    globalThis.window.innerHeight = vp.height;
+
+    let autoScrollCount = 0;
+    globalThis.window.scrollTo = () => {
+      autoScrollCount += 1;
+    };
+    globalThis.window.scrollBy = () => {
+      autoScrollCount += 1;
+    };
+
+    let pendingResolveBestMove = null;
+    const controlledEngine = {
+      async init() {
+        return { isUciOk: true, isReady: true };
+      },
+      async startNewGame() {
+        return { cancelled: false };
+      },
+      requestBestMove({ fen }) {
+        return new Promise(resolve => {
+          pendingResolveBestMove = () => {
+            const c = new Chess(fen);
+            const legal = c.moves({ verbose: true });
+            const pick = legal[0];
+            resolve({
+              cancelled: false,
+              uciMove: `${pick.from}${pick.to}${pick.promotion || ''}`,
+              parsed: { from: pick.from, to: pick.to, promotion: pick.promotion }
+            });
+          };
+        });
+      },
+      async stopSearch() {},
+      setGameInProgress() {},
+      terminate() {}
+    };
+
+    const playMount = new MockElement('div');
+    const board = await renderPlayGameView(playMount, {
+      engine: controlledEngine,
+      colorPreference: 'white',
+      difficulty: 'beginner',
+      userEmail: 'qa.stability@caturan.id'
+    });
+
+    attachLayoutRectCalculator(playMount, vp);
+
+    const initialBoardFrameRef = playMount.querySelector('.chessboard-frame');
+    const initialStatusTopbarRef = playMount.querySelector('.chessboard-topbar');
+    assert.ok(initialBoardFrameRef && initialStatusTopbarRef);
+
+    // Jalankan 10 siklus langkah penuh (20 ply)
+    for (let cycle = 1; cycle <= 10; cycle++) {
+      if (board.isGameOver) break;
+
+      const opponentBarEl = playMount.querySelector('[data-testid="play-mobile-opponent-bar"]');
+      const statusBarEl = playMount.querySelector('.chessboard-topbar');
+      const turnIndEl = playMount.querySelector('[data-testid="play-turn-indicator"]');
+      const boardMountEl = playMount.querySelector('#play-chessboard-mount');
+      const boardFrameEl = playMount.querySelector('.chessboard-frame');
+      const playerBarEl = playMount.querySelector('[data-testid="play-mobile-player-bar"]');
+      const mobileThinkingPill = playMount.querySelector('#play-mobile-thinking-pill');
+
+      // Kondisi 1: Giliran Pemain (sebelum melangkah)
+      assert.equal(board.isEngineThinking, false);
+      assert.ok(turnIndEl.textContent.includes('Giliran Anda'));
+      assert.equal(mobileThinkingPill.classList.contains('is-hidden'), true);
+
+      const rectBefore = {
+        mount: boardMountEl.getBoundingClientRect(),
+        frame: boardFrameEl.getBoundingClientRect(),
+        opponent: opponentBarEl.getBoundingClientRect(),
+        status: statusBarEl.getBoundingClientRect(),
+        player: playerBarEl.getBoundingClientRect()
+      };
+
+      // Pemain memilih langkah legal pertama
+      const legalMoves = board.chess.moves({ verbose: true });
+      const chosen = legalMoves[0];
+      const movePromise = board.playPlayerMove({
+        from: chosen.from,
+        to: chosen.to,
+        promotion: chosen.promotion
+      });
+
+      // Kondisi 2: Stockfish Sedang Berpikir (sebelum requestBestMove selesai)
+      assert.equal(board.isEngineThinking, true, `Siklus ${cycle}: isEngineThinking harus true saat Stockfish berpikir`);
+      assert.equal(
+        turnIndEl.getAttribute('data-thinking'),
+        'true',
+        `Siklus ${cycle}: [data-testid="play-turn-indicator"] harus memiliki data-thinking="true"`
+      );
+      assert.ok(
+        turnIndEl.textContent.includes('Komputer sedang berpikir'),
+        `Siklus ${cycle}: teks status giliran harus berubah menjadi "Komputer sedang berpikir..." di area yang sama`
+      );
+      assert.equal(
+        playMount.querySelector('[data-testid="play-thinking-badge"]'),
+        null,
+        `Siklus ${cycle}: tidak boleh ada duplikasi badge Stockfish Berpikir di kanan topbar papan`
+      );
+      assert.equal(
+        mobileThinkingPill.classList.contains('is-hidden'),
+        false,
+        `Siklus ${cycle}: badge Berpikir pada panel Stockfish harus aktif`
+      );
+
+      // Pastikan elemen DOM papan (.chessboard-frame & .chessboard-topbar) TIDAK dihancurkan/dibuat ulang
+      assert.equal(
+        playMount.querySelector('.chessboard-frame'),
+        initialBoardFrameRef,
+        `Siklus ${cycle} (${vp.width}px): Referensi DOM .chessboard-frame wajib tetap sama (in-place update tanpa berkedip)`
+      );
+      assert.equal(
+        playMount.querySelector('.chessboard-topbar'),
+        initialStatusTopbarRef,
+        `Siklus ${cycle} (${vp.width}px): Referensi DOM .chessboard-topbar wajib tetap sama`
+      );
+
+      const rectThinking = {
+        mount: boardMountEl.getBoundingClientRect(),
+        frame: boardFrameEl.getBoundingClientRect(),
+        opponent: opponentBarEl.getBoundingClientRect(),
+        status: statusBarEl.getBoundingClientRect(),
+        player: playerBarEl.getBoundingClientRect()
+      };
+
+      // Verifikasi perubahan posisi vertikal & ukuran papan = 0px saat Stockfish berpikir
+      assert.equal(
+        Math.abs(rectThinking.frame.top - rectBefore.frame.top),
+        0,
+        `Siklus ${cycle} (${vp.width}px): Posisi vertikal papan (.chessboard-frame.top) tidak boleh bergeser saat Stockfish berpikir`
+      );
+      assert.equal(
+        rectThinking.frame.width,
+        rectBefore.frame.width,
+        `Siklus ${cycle} (${vp.width}px): Lebar papan harus tetap sama saat Stockfish berpikir`
+      );
+      assert.equal(
+        rectThinking.frame.height,
+        rectBefore.frame.height,
+        `Siklus ${cycle} (${vp.width}px): Tinggi papan harus tetap sama saat Stockfish berpikir`
+      );
+      assert.equal(
+        Math.abs(rectThinking.status.height - rectBefore.status.height),
+        0,
+        `Siklus ${cycle} (${vp.width}px): Tinggi area status giliran harus stabil`
+      );
+      assert.equal(
+        Math.abs(rectThinking.opponent.height - rectBefore.opponent.height),
+        0,
+        `Siklus ${cycle} (${vp.width}px): Tinggi panel Stockfish harus stabil`
+      );
+
+      // Selesaikan pencarian Stockfish
+      assert.equal(typeof pendingResolveBestMove, 'function');
+      pendingResolveBestMove();
+      await movePromise;
+
+      // Kondisi 3: Stockfish Selesai Berpikir & Giliran Kembali ke Pemain
+      assert.equal(board.isEngineThinking, false, `Siklus ${cycle}: isEngineThinking harus kembali false`);
+      assert.equal(mobileThinkingPill.classList.contains('is-hidden'), true);
+
+      const rectAfter = {
+        mount: boardMountEl.getBoundingClientRect(),
+        frame: boardFrameEl.getBoundingClientRect(),
+        opponent: opponentBarEl.getBoundingClientRect(),
+        status: statusBarEl.getBoundingClientRect(),
+        player: playerBarEl.getBoundingClientRect()
+      };
+
+      assert.equal(
+        Math.abs(rectAfter.frame.top - rectBefore.frame.top),
+        0,
+        `Siklus ${cycle} (${vp.width}px): Posisi vertikal papan (.chessboard-frame.top) setelah Stockfish selesai melangkah harus identik (0px shift)`
+      );
+      assert.equal(
+        rectAfter.frame.width,
+        rectBefore.frame.width,
+        `Siklus ${cycle} (${vp.width}px): Ukuran papan setelah langkah komputer harus tetap sama`
+      );
+      assert.equal(
+        Math.abs(rectAfter.player.top - rectBefore.player.top),
+        0,
+        `Siklus ${cycle} (${vp.width}px): Posisi vertikal panel pemain (.play-mobile-player-bar) harus tetap stabil`
+      );
+    }
+
+    assert.equal(
+      autoScrollCount,
+      0,
+      `Pada viewport ${vp.width}px tidak boleh terjadi scroll otomatis (scrollTo/scrollBy) selama permainan`
+    );
 
     board.destroy();
   }

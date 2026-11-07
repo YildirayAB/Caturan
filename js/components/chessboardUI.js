@@ -1810,6 +1810,19 @@ export class ComputerChessboard {
         ? `Anda melangkah ${moveResult.san}. Komputer sedang memikirkan balasan...${claimHintAfterPlayer}`
         : `Anda melangkah ${moveResult.san}.${claimHintAfterPlayer}`
     };
+
+    const willTriggerComputer = Boolean(
+      this.engine &&
+        !this._destroyed &&
+        !this.isGameOver &&
+        this.chess.turn() === this.computerTurnChar
+    );
+
+    if (willTriggerComputer) {
+      this.isEngineThinking = true;
+      this.engineError = null;
+    }
+
     this.render();
     this._emitStateChange();
 
@@ -1838,10 +1851,12 @@ export class ComputerChessboard {
       return null;
     }
 
-    this.isEngineThinking = true;
-    this.engineError = null;
-    this.render();
-    this._emitStateChange();
+    if (!this.isEngineThinking || this.engineError !== null) {
+      this.isEngineThinking = true;
+      this.engineError = null;
+      this.render();
+      this._emitStateChange();
+    }
 
     const currentFen = this.chess.fen();
 
@@ -2566,7 +2581,7 @@ export class ComputerChessboard {
     const turnText = this.isGameOver
       ? 'Permainan Selesai'
       : this.isEngineThinking
-      ? 'Komputer Sedang Berpikir...'
+      ? 'Komputer sedang berpikir...'
       : isPlayerTurn
       ? `Giliran Anda (${turnSideText})`
       : `Giliran Komputer (${turnSideText})`;
@@ -2586,7 +2601,7 @@ export class ComputerChessboard {
       legalTargetMap.set(m.to, m);
     }
 
-    let squaresHtml = '';
+    const squareDescriptors = [];
     for (let visualRowIdx = 0; visualRowIdx < 8; visualRowIdx++) {
       const r = rowIndices[visualRowIdx];
       for (let visualColIdx = 0; visualColIdx < 8; visualColIdx++) {
@@ -2633,30 +2648,31 @@ export class ComputerChessboard {
             !this.isGameOver
         );
 
-        squaresHtml += `
-          <button
-            type="button"
-            class="${classes}"
-            data-square="${sq}"
-            draggable="${isDraggable ? 'true' : 'false'}"
-            aria-label="Petak ${sq}${
+        const ariaLabel = `Petak ${sq}${
           piece
             ? ` berisi ${PIECE_NAMES_ID[piece.type]} ${
                 piece.color === WHITE ? 'Putih' : 'Hitam'
               }`
             : ''
-        }"
-          >
-            ${showRankLabel ? `<span class="coord-label coord-rank">${RANKS[r]}</span>` : ''}
-            ${showFileLabel ? `<span class="coord-label coord-file">${FILES[c]}</span>` : ''}
-            ${
-              piece
-                ? `<span class="piece-wrapper">${getPieceSvg(piece.color, piece.type)}</span>`
-                : ''
-            }
-            ${legalIndicatorHtml}
-          </button>
-        `;
+        }`;
+
+        const innerHtml = `${
+          showRankLabel ? `<span class="coord-label coord-rank">${RANKS[r]}</span>` : ''
+        }${
+          showFileLabel ? `<span class="coord-label coord-file">${FILES[c]}</span>` : ''
+        }${
+          piece
+            ? `<span class="piece-wrapper">${getPieceSvg(piece.color, piece.type)}</span>`
+            : ''
+        }${legalIndicatorHtml}`;
+
+        squareDescriptors.push({
+          sq,
+          classes,
+          draggable: isDraggable ? 'true' : 'false',
+          ariaLabel,
+          innerHtml
+        });
       }
     }
 
@@ -2695,11 +2711,12 @@ export class ComputerChessboard {
 
     const claimCheck = this.verifyDrawClaim();
 
+    // Gunakan satu indikator langkah/status yang ringkas dan stabil di sisi kanan tanpa menggandakan teks berpikir
     let statusAlertBadge = '';
     if (isCheckmate) {
-      statusAlertBadge = `<span class="board-state-badge badge-danger" data-testid="play-board-badge">Skakmat (Checkmate)!</span>`;
+      statusAlertBadge = `<span class="board-state-badge badge-danger" data-testid="play-board-badge">Skakmat!</span>`;
     } else if (isStalemate) {
-      statusAlertBadge = `<span class="board-state-badge badge-warning" data-testid="play-board-badge">Remis Otomatis — Stalemate</span>`;
+      statusAlertBadge = `<span class="board-state-badge badge-warning" data-testid="play-board-badge">Stalemate</span>`;
     } else if (this.isGameOver && this.gameResult) {
       const badgeClass =
         this.gameResult.result === 'win'
@@ -2713,9 +2730,9 @@ export class ComputerChessboard {
       } else if (this.gameResult.result === 'loss') {
         label = 'Komputer Menang';
       } else if (this.gameResult.termination === 'fivefold_repetition') {
-        label = 'Remis Otomatis — Pengulangan Lima Kali';
+        label = 'Remis (5x Ulang)';
       } else if (this.gameResult.termination === 'seventy_five_move_rule') {
-        label = 'Remis Otomatis — Aturan 75 Langkah';
+        label = 'Remis (75 Langkah)';
       } else if (
         this.gameResult.termination === 'threefold_repetition' ||
         this.gameResult.termination === 'fifty_move_rule'
@@ -2726,11 +2743,9 @@ export class ComputerChessboard {
       }
       statusAlertBadge = `<span class="board-state-badge ${badgeClass}" data-testid="play-board-badge">${label}</span>`;
     } else if (claimCheck.valid) {
-      statusAlertBadge = `<span class="board-state-badge badge-warning" data-testid="play-claimable-draw-badge">Klaim Remis (${claimCheck.label})</span>`;
+      statusAlertBadge = `<span class="board-state-badge badge-warning" data-testid="play-claimable-draw-badge">Klaim Remis</span>`;
     } else if (inCheck) {
       statusAlertBadge = `<span class="board-state-badge badge-danger" data-testid="play-board-badge">Skak (Check)!</span>`;
-    } else if (this.isEngineThinking) {
-      statusAlertBadge = `<span class="board-state-badge badge-step" data-testid="play-thinking-badge">Stockfish Berpikir...</span>`;
     } else {
       const moveNum = Math.floor(this.chess.history().length / 2) + 1;
       statusAlertBadge = `<span class="board-state-badge badge-step" data-testid="play-board-badge">Langkah #${moveNum}</span>`;
@@ -2750,11 +2765,138 @@ export class ComputerChessboard {
            </div>`
         : '';
 
+    const dotClass = [
+      'turn-dot',
+      turn === WHITE ? 'dot-white' : 'dot-black',
+      this.isEngineThinking ? 'dot-thinking' : ''
+    ]
+      .filter(Boolean)
+      .join(' ');
+
+    const orientationLabel = `Orientasi: ${
+      this.orientation === 'white' ? 'Putih di Bawah' : 'Hitam di Bawah'
+    }`;
+
+    const feedbackTitle =
+      this.feedback.type === 'success'
+        ? 'Hasil:'
+        : this.feedback.type === 'warning'
+        ? 'Perhatian:'
+        : 'Status Permainan:';
+
+    const existingWidget = this.container.querySelector('.play-chessboard-widget');
+    const existingSquares = existingWidget
+      ? existingWidget.querySelectorAll('.chess-square')
+      : [];
+
+    // Jika widget papan sudah terpasang di DOM, perbarui elemen secara in-place
+    // agar posisi vertikal papan (.chessboard-frame), fokus browser, dan scroll tidak bergeser/berkedip
+    if (existingWidget && existingSquares.length === 64) {
+      const turnIndEl = existingWidget.querySelector('[data-testid="play-turn-indicator"]');
+      if (turnIndEl) {
+        turnIndEl.setAttribute('data-turn', turn);
+        turnIndEl.setAttribute('data-thinking', this.isEngineThinking ? 'true' : 'false');
+        const dotEl = turnIndEl.querySelector('.turn-dot');
+        if (dotEl && dotEl.className !== dotClass) {
+          dotEl.className = dotClass;
+        }
+        const labelEl = turnIndEl.querySelector('.turn-label');
+        if (labelEl && labelEl.textContent !== turnText) {
+          labelEl.textContent = turnText;
+        }
+      }
+
+      const badgesEl = existingWidget.querySelector('.board-status-badges');
+      if (badgesEl && badgesEl._lastBadgeHtml !== statusAlertBadge) {
+        badgesEl.innerHTML = statusAlertBadge;
+        badgesEl._lastBadgeHtml = statusAlertBadge;
+      }
+
+      for (let i = 0; i < 64; i++) {
+        const sqBtn = existingSquares[i];
+        const desc = squareDescriptors[i];
+        if (sqBtn.getAttribute('data-square') !== desc.sq) {
+          sqBtn.setAttribute('data-square', desc.sq);
+        }
+        if (sqBtn.className !== desc.classes) {
+          sqBtn.className = desc.classes;
+        }
+        if (sqBtn.getAttribute('draggable') !== desc.draggable) {
+          sqBtn.setAttribute('draggable', desc.draggable);
+        }
+        if (sqBtn.getAttribute('aria-label') !== desc.ariaLabel) {
+          sqBtn.setAttribute('aria-label', desc.ariaLabel);
+        }
+        if (sqBtn._lastSquareHtml !== desc.innerHtml) {
+          sqBtn.innerHTML = desc.innerHtml;
+          sqBtn._lastSquareHtml = desc.innerHtml;
+        }
+      }
+
+      const promoSlotEl = existingWidget.querySelector('[data-testid="play-promotion-slot"]');
+      if (promoSlotEl && promoSlotEl._lastPromoHtml !== promotionModalHtml) {
+        promoSlotEl.innerHTML = promotionModalHtml;
+        promoSlotEl._lastPromoHtml = promotionModalHtml;
+        this._bindPromotionEvents();
+      }
+
+      const coordTextEl = existingWidget.querySelector('.coord-inspector-text');
+      if (coordTextEl && coordTextEl.textContent !== this.inspectedSquareInfo) {
+        coordTextEl.textContent = this.inspectedSquareInfo;
+      }
+
+      const orientPillEl = existingWidget.querySelector('.move-history-pill');
+      if (orientPillEl && orientPillEl.textContent.trim() !== orientationLabel) {
+        orientPillEl.textContent = orientationLabel;
+      }
+
+      const feedbackEl = existingWidget.querySelector('[data-testid="play-board-feedback"]');
+      if (feedbackEl) {
+        const nextFeedbackClass = `chessboard-feedback feedback-${this.feedback.type}`;
+        if (feedbackEl.className !== nextFeedbackClass) {
+          feedbackEl.className = nextFeedbackClass;
+        }
+        const fbTitleEl = feedbackEl.querySelector('.feedback-title');
+        if (fbTitleEl && fbTitleEl.textContent !== feedbackTitle) {
+          fbTitleEl.textContent = feedbackTitle;
+        }
+        const fbMsgEl = feedbackEl.querySelector('.feedback-message');
+        if (fbMsgEl && fbMsgEl.textContent !== this.feedback.message) {
+          fbMsgEl.textContent = this.feedback.message;
+        }
+      }
+
+      const claimSlotEl = existingWidget.querySelector('[data-testid="board-claim-draw-slot"]');
+      if (claimSlotEl && claimSlotEl._lastClaimHtml !== boardClaimDrawButtonHtml) {
+        claimSlotEl.innerHTML = boardClaimDrawButtonHtml;
+        claimSlotEl._lastClaimHtml = boardClaimDrawButtonHtml;
+        this._bindClaimDrawEvents();
+      }
+
+      return;
+    }
+
+    const squaresHtml = squareDescriptors
+      .map(
+        d => `
+          <button
+            type="button"
+            class="${d.classes}"
+            data-square="${d.sq}"
+            draggable="${d.draggable}"
+            aria-label="${d.ariaLabel}"
+          >${d.innerHtml}</button>
+        `
+      )
+      .join('');
+
     this.container.innerHTML = `
       <div class="chessboard-widget play-chessboard-widget">
-        <div class="chessboard-topbar">
-          <div class="turn-indicator" data-turn="${turn}" data-testid="play-turn-indicator">
-            <span class="turn-dot ${turn === WHITE ? 'dot-white' : 'dot-black'}"></span>
+        <div class="chessboard-topbar" data-testid="play-status-bar">
+          <div class="turn-indicator" data-turn="${turn}" data-thinking="${
+      this.isEngineThinking ? 'true' : 'false'
+    }" data-testid="play-turn-indicator">
+            <span class="${dotClass}"></span>
             <span class="turn-label">${turnText}</span>
           </div>
           <div class="board-status-badges">
@@ -2766,33 +2908,60 @@ export class ComputerChessboard {
           <div class="chessboard-grid" role="grid" aria-label="Papan Catur Melawan Komputer">
             ${squaresHtml}
           </div>
-          ${promotionModalHtml}
+          <div class="promotion-slot" data-testid="play-promotion-slot">${promotionModalHtml}</div>
         </div>
 
         <div class="chessboard-coord-statusbar">
           <span class="coord-inspector-text">${this.inspectedSquareInfo}</span>
-          <span class="move-history-pill">
-            Orientasi: ${this.orientation === 'white' ? 'Putih di Bawah' : 'Hitam di Bawah'}
-          </span>
+          <span class="move-history-pill">${orientationLabel}</span>
         </div>
 
         <div class="chessboard-feedback feedback-${this.feedback.type}" role="status" data-testid="play-board-feedback">
           <div class="feedback-content">
-            <strong>${
-              this.feedback.type === 'success'
-                ? 'Hasil:'
-                : this.feedback.type === 'warning'
-                ? 'Perhatian:'
-                : 'Status Permainan:'
-            }</strong>
-            <span>${this.feedback.message}</span>
+            <strong class="feedback-title">${feedbackTitle}</strong>
+            <span class="feedback-message">${this.feedback.message}</span>
           </div>
-          ${boardClaimDrawButtonHtml}
+          <div class="board-claim-draw-slot" data-testid="board-claim-draw-slot">${boardClaimDrawButtonHtml}</div>
         </div>
       </div>
     `;
 
+    const mountedSquares = this.container.querySelectorAll('.chess-square');
+    for (let i = 0; i < mountedSquares.length && i < squareDescriptors.length; i++) {
+      mountedSquares[i]._lastSquareHtml = squareDescriptors[i].innerHtml;
+    }
+    const mountedBadges = this.container.querySelector('.board-status-badges');
+    if (mountedBadges) mountedBadges._lastBadgeHtml = statusAlertBadge;
+    const mountedPromo = this.container.querySelector('[data-testid="play-promotion-slot"]');
+    if (mountedPromo) mountedPromo._lastPromoHtml = promotionModalHtml;
+    const mountedClaim = this.container.querySelector('[data-testid="board-claim-draw-slot"]');
+    if (mountedClaim) mountedClaim._lastClaimHtml = boardClaimDrawButtonHtml;
+
     this._bindEvents();
+  }
+
+  _bindPromotionEvents() {
+    const promoBtns = this.container.querySelectorAll('.promo-btn');
+    promoBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const promo = btn.getAttribute('data-promo');
+        this._handlePromotionSelect(promo);
+      });
+    });
+
+    const cancelPromoBtn = this.container.querySelector('[data-action="cancel-promotion"]');
+    if (cancelPromoBtn) {
+      cancelPromoBtn.addEventListener('click', () => this._cancelPromotion());
+    }
+  }
+
+  _bindClaimDrawEvents() {
+    const boardClaimDrawBtn = this.container.querySelector('[data-action="board-claim-draw"]');
+    if (boardClaimDrawBtn) {
+      boardClaimDrawBtn.addEventListener('click', () => {
+        this.claimDraw();
+      });
+    }
   }
 
   _bindEvents() {
@@ -2848,25 +3017,8 @@ export class ComputerChessboard {
       });
     });
 
-    const promoBtns = this.container.querySelectorAll('.promo-btn');
-    promoBtns.forEach(btn => {
-      btn.addEventListener('click', () => {
-        const promo = btn.getAttribute('data-promo');
-        this._handlePromotionSelect(promo);
-      });
-    });
-
-    const cancelPromoBtn = this.container.querySelector('[data-action="cancel-promotion"]');
-    if (cancelPromoBtn) {
-      cancelPromoBtn.addEventListener('click', () => this._cancelPromotion());
-    }
-
-    const boardClaimDrawBtn = this.container.querySelector('[data-action="board-claim-draw"]');
-    if (boardClaimDrawBtn) {
-      boardClaimDrawBtn.addEventListener('click', () => {
-        this.claimDraw();
-      });
-    }
+    this._bindPromotionEvents();
+    this._bindClaimDrawEvents();
   }
 }
 

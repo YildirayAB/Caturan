@@ -81,6 +81,57 @@
   border: 2px solid #CBD5E1;
 }
 
+.turn-dot.dot-thinking {
+  background-color: var(--accent-main);
+  border: 2px solid var(--accent-border);
+  animation: caturanPulseOpacity 1s ease-in-out infinite;
+}
+
+@keyframes caturanPulseOpacity {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/* Stabilisasi Ruang Status Permainan pada Halaman Play Against Stockfish:
+   Tinggi dan posisi selalu konsisten (1 baris, tidak membungkus/mendorong papan saat Stockfish berpikir) */
+.play-chessboard-widget .chessboard-topbar {
+  flex-wrap: nowrap;
+  height: 44px;
+  min-height: 44px;
+  max-height: 44px;
+  padding: 0 12px;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.play-chessboard-widget .turn-indicator {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.play-chessboard-widget .turn-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.play-chessboard-widget .board-status-badges {
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+
+.play-chessboard-widget .board-state-badge {
+  white-space: nowrap;
+}
+
 .board-state-badge {
   display: inline-flex;
   align-items: center;
@@ -439,6 +490,37 @@
   color: var(--text-main);
 }
 
+/* Stabilisasi Statusbar Koordinat & Feedback di Bawah Papan pada Play Against Stockfish */
+.play-chessboard-widget .chessboard-coord-statusbar {
+  flex-wrap: nowrap;
+  height: 28px;
+  min-height: 28px;
+  max-height: 28px;
+  padding: 0 2px;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.play-chessboard-widget .coord-inspector-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.play-chessboard-widget .move-history-pill {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.play-chessboard-widget .chessboard-feedback {
+  min-height: 64px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
 /* Tombol Kontrol Papan (Restart, Petunjuk, Balik Papan) */
 .chessboard-controls {
   display: flex;
@@ -491,8 +573,22 @@
     flex-wrap: wrap;
   }
 
+  .play-chessboard-widget .chessboard-topbar {
+    height: 40px;
+    min-height: 40px;
+    max-height: 40px;
+    padding: 0 10px;
+    gap: 6px;
+    flex-wrap: nowrap;
+  }
+
   .turn-indicator {
     font-size: 0.82rem;
+  }
+
+  .play-chessboard-widget .board-state-badge {
+    padding: 3px 8px;
+    font-size: 0.72rem;
   }
 
   .coord-label {
