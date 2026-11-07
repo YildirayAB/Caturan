@@ -90,15 +90,19 @@ Caturan/
 │   ├── main.js                # Entry point aplikasi (CaturanApp controller, routing, & auth gate)
 │   ├── env.js                 # Stub konfigurasi environment runtime di sisi klien
 │   ├── components/
-│   │   ├── chessboardUI.js    # Komponen papan catur interaktif & evaluator latihan bertahap
+│   │   ├── chessboardUI.js    # Komponen papan catur interaktif & evaluator latihan/puzzle
 │   │   ├── dashboardView.js   # Tampilan halaman Dashboard utama
 │   │   ├── learnView.js       # Tampilan halaman Kurikulum Belajar (6 Level, 30 Materi)
 │   │   ├── lessonDetailView.js# Tampilan ruang belajar teori + praktik papan catur
+│   │   ├── puzzleView.js      # Tampilan halaman Dashboard Puzzle Catur (MVP 2)
+│   │   ├── puzzlePlayView.js  # Tampilan ruang latihan Papan Puzzle Interaktif (MVP 2)
 │   │   ├── loginView.js       # Tampilan halaman Login privat
 │   │   ├── sidebar.js         # Komponen navigasi sidebar, status sinkronisasi, & akun
 │   │   └── icons.js           # Kumpulan ikon UI & vektor bidak catur SVG standar turnamen
 │   ├── data/
-│   │   └── curriculum.js      # Database lengkap 6 level & 30 materi beserta skenario FEN & langkah
+│   │   ├── curriculum.js      # Database lengkap 6 level & 30 materi beserta skenario FEN & langkah
+│   │   ├── puzzles.json       # Dataset statis 60 puzzle taktik terkurasi dari Lichess Open Database
+│   │   └── puzzles.js         # Modul ES dataset puzzle, kategori tema, kesulitan, & pemilihan harian
 │   ├── services/
 │   │   ├── auth.js            # Layanan autentikasi Supabase Auth & manajemen sesi
 │   │   ├── progress.js        # Kalkulasi XP, Level, Streak harian, & rekomendasi materi
@@ -188,11 +192,19 @@ Proyek ini telah dikonfigurasi agar siap di-deploy ke **Vercel**:
   - Kurikulum Belajar 6 Level (30 Materi Lengkap) dengan Teori & Papan Catur Interaktif.
   - Sistem Tema Light Mode & Dark Mode serta Navigasi Sidebar Responsif.
   - Autentikasi Privat Supabase Auth & Sinkronisasi Progres Cloud (`public.user_progress` dengan RLS).
+- [x] **Tahap 2 (MVP 2 — Selesai)**:
+  - 🧩 **Puzzle Taktik Catur Interaktif**: Dashboard Puzzle, Statistik Akurasi, Puzzle Harian Deterministik, 6 Kategori Tema Taktik, 3 Tingkat Kesulitan, Sistem Petunjuk 2 Tahap, serta Sinkronisasi Cloud `puzzleProgress`.
 - [ ] **Tahap Berikutnya (Coming Soon)**:
-  - 🧩 **Puzzle Taktik Harian**: Latihan ribuan teka-teki taktik dengan sistem rating.
   - 🤖 **Bermain Melawan Bot**: Sparring melawan AI dengan berbagai tingkat kesulitan.
   - 🧭 **Opening Trainer**: Pelatih hafalan repertoar pembukaan interaktif.
   - 📈 **Papan Analisis**: Evaluasi posisi dan peninjauan notasi pertandingan (PGN).
+
+---
+
+## 📚 Atribusi Sumber Data Puzzle
+
+Dataset teka-teki taktik catur pada fitur **Puzzle Catur (MVP 2)** bersumber dari:
+- **Lichess Open Database — CC0 Public Domain.** (`https://database.lichess.org/#puzzles`)
 
 ---
 

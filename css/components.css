@@ -1315,3 +1315,379 @@
     padding: 24px 18px;
   }
 }
+
+/* ==========================================================================
+   MVP 2 — Halaman Puzzle Catur & Ruang Latihan Puzzle (100% Solid Colors)
+   ========================================================================== */
+
+.greeting-subtitle-user {
+  font-size: 0.96rem;
+  color: var(--text-main);
+  margin-bottom: 6px;
+}
+
+.section-heading-block {
+  margin-bottom: 14px;
+}
+
+/* Kartu Puzzle Harian */
+.daily-puzzle-layout {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 24px;
+  align-items: center;
+  padding: 18px;
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+}
+
+.daily-puzzle-board-col {
+  display: flex;
+  justify-content: center;
+}
+
+.daily-puzzle-info-col {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.daily-puzzle-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.daily-puzzle-title {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--text-main);
+}
+
+.daily-puzzle-turn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  color: var(--text-main);
+}
+
+.daily-puzzle-turn code {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 700;
+}
+
+.daily-puzzle-desc {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+
+.daily-puzzle-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+/* Kartu Pilihan Tema & Tingkat Kesulitan Puzzle */
+.puzzle-choice-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+  transition: border-color 0.15s ease;
+}
+
+.puzzle-choice-card:hover {
+  border-color: var(--border-strong);
+}
+
+.puzzle-choice-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.puzzle-choice-title {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--text-main);
+}
+
+.puzzle-choice-desc {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  line-height: 1.55;
+  flex: 1;
+}
+
+.puzzle-choice-difficulties {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.choice-sub-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.puzzle-choice-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-color);
+}
+
+.puzzle-choice-footer {
+  padding-top: 6px;
+}
+
+.puzzle-start-btn {
+  width: 100%;
+}
+
+/* Riwayat & Daftar Puzzle Selesai */
+.puzzle-history-list,
+.puzzle-solved-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.puzzle-history-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+}
+
+.puzzle-history-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.puzzle-history-top {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 0.9rem;
+  color: var(--text-main);
+}
+
+.puzzle-history-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.puzzle-history-meta code {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-weight: 700;
+}
+
+/* Halaman Latihan Papan Puzzle Interaktif (puzzlePlayView) */
+.puzzle-board-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.puzzle-side-column {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.puzzle-info-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.puzzle-play-title {
+  font-size: 1.45rem;
+  font-weight: 800;
+  color: var(--text-main);
+}
+
+.puzzle-play-subtitle {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+
+.puzzle-play-subtitle code {
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-color);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.puzzle-meta-table {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+}
+
+.puzzle-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.84rem;
+}
+
+.meta-row-label {
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.meta-row-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-main);
+  font-weight: 700;
+}
+
+/* Panel Penyelesaian Puzzle (Ketika Solusi Selesai) */
+.puzzle-completion-card {
+  background-color: var(--status-success-bg);
+  border: 2px solid var(--status-success-border);
+  border-radius: var(--radius-md);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-shadow: var(--shadow-card);
+}
+
+.puzzle-completion-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.completion-check-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background-color: var(--accent-main);
+  color: #FFFFFF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.completion-eyebrow {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: var(--status-success-text);
+}
+
+.completion-title {
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: var(--status-success-text);
+}
+
+.puzzle-completion-details {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+}
+
+.completion-detail-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 0.84rem;
+}
+
+.detail-label {
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.detail-value {
+  color: var(--text-main);
+}
+
+.detail-solution-code {
+  color: var(--accent-main);
+  font-family: monospace;
+  font-size: 0.9rem;
+}
+
+.puzzle-completion-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.puzzle-completion-actions .btn {
+  width: 100%;
+}
+
+.puzzle-quick-nav-card {
+  padding: 14px 18px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.puzzle-quick-nav-card .btn {
+  width: 100%;
+}
+
+@media (max-width: 720px) {
+  .daily-puzzle-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .puzzle-history-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .puzzle-history-item .btn {
+    width: 100%;
+  }
+}

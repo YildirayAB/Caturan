@@ -17,6 +17,9 @@ supabase/.temp
 # Vercel
 .vercel/
 
+# Temporary Puzzle Dataset Import Directory
+.tmp/
+
 # OS & Editor Files
 .DS_Store
 Thumbs.db

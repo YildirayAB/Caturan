@@ -613,6 +613,25 @@ body.drawer-open {
   align-items: start;
 }
 
+.puzzle-workspace-grid {
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: 24px;
+  align-items: start;
+}
+
+.puzzle-choices-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+}
+
+.puzzle-difficulty-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+}
+
 /* Responsive Breakpoints */
 @media (max-width: 1100px) {
   .stats-grid {
@@ -620,7 +639,16 @@ body.drawer-open {
   }
 
   .dashboard-two-col,
-  .lesson-workspace-grid {
+  .lesson-workspace-grid,
+  .puzzle-workspace-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .puzzle-choices-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .puzzle-difficulty-grid {
     grid-template-columns: 1fr;
   }
 }
@@ -662,7 +690,8 @@ body.drawer-open {
     padding: 18px 16px;
   }
 
-  .recommendation-list {
+  .recommendation-list,
+  .puzzle-choices-grid {
     grid-template-columns: 1fr;
   }
 }

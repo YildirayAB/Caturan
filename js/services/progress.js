@@ -2,8 +2,22 @@
  * Layanan Progres Belajar, Perhitungan XP, Level Pengguna, dan Streak Harian
  */
 
-import { storageService, calculateXpFromCompletedLessons } from './storage.js';
+import {
+  storageService,
+  calculateXpFromCompletedLessons,
+  createInitialPuzzleProgressState,
+  sanitizePuzzleProgress
+} from './storage.js';
 import { CURRICULUM_CATEGORIES, getAllLessons, getLessonById } from '../data/curriculum.js';
+import {
+  PUZZLE_DIFFICULTIES,
+  getAllPuzzles,
+  getPuzzleById,
+  getPuzzleCategoryById,
+  getPuzzleDifficultyById,
+  getAvailablePuzzleCategories,
+  getDailyPuzzle
+} from '../data/puzzles.js';
 
 const LEVEL_THRESHOLDS = [
   { level: 0, minXp: 0, title: 'Belum Berlevel (Pemula Baru)' },
@@ -241,6 +255,368 @@ class ProgressService {
     );
   }
 
+  // =========================================================================
+  // MVP 2 — PROGRES PUZZLE CATUR (Bagian 7)
+  // =========================================================================
+
+  _getPuzzleProgress() {
+    return sanitizePuzzleProgress(
+      this._state && this._state.puzzleProgress
+        ? this._state.puzzleProgress
+        : createInitialPuzzleProgressState()
+    );
+  }
+
+  isPuzzleSolved(puzzleId) {
+    if (!puzzleId) return false;
+    const p = this._getPuzzleProgress();
+    return p.solvedPuzzleIds.includes(puzzleId);
+  }
+
+  isDailyPuzzleCompleted(dateStr = getLocalDateString()) {
+    const p = this._getPuzzleProgress();
+    return p.dailyPuzzleDates.includes(dateStr);
+  }
+
+  /**
+   * Mencatat puzzle terakhir yang sedang dibuka/dimainkan
+   */
+  markPuzzleOpened(puzzleId) {
+    const found = getPuzzleById(puzzleId);
+    if (!found) return;
+
+    const currentPuzzleProg = this._getPuzzleProgress();
+    const nowIso = new Date().toISOString();
+
+    this._state = storageService.saveProgress({
+      ...this._state,
+      puzzleProgress: {
+        ...currentPuzzleProg,
+        lastPlayedPuzzleId: puzzleId,
+        updatedAt: nowIso
+      }
+    });
+
+    this._notify();
+  }
+
+  /**
+   * Mencatat penggunaan petunjuk (Hint) pada progres puzzle (Bagian 5)
+   */
+  recordPuzzleHintUsed(
+    puzzleId,
+    hintLevel = 1,
+    { id = null, mode = 'mixed', referenceDate = new Date() } = {}
+  ) {
+    const found = getPuzzleById(puzzleId);
+    if (!found) return null;
+
+    const currentPuzzleProg = this._getPuzzleProgress();
+    const nowIso = new Date().toISOString();
+    const today = getLocalDateString(referenceDate);
+    const eventId =
+      typeof id === 'string' && id.trim().length > 0
+        ? id.trim()
+        : `hint_${puzzleId}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+
+    const existingEvents = [...currentPuzzleProg.attemptEvents];
+    const existingIdx = existingEvents.findIndex(e => e.id === eventId);
+
+    if (existingIdx >= 0) {
+      const prev = existingEvents[existingIdx];
+      existingEvents[existingIdx] = {
+        ...prev,
+        hintsUsed: Math.max(prev.hintsUsed || 0, hintLevel)
+      };
+    } else {
+      existingEvents.push({
+        id: eventId,
+        puzzleId,
+        solved: false,
+        hintsUsed: Math.max(1, hintLevel),
+        wrongMoves: 0,
+        mode: mode || 'mixed',
+        timestamp: nowIso,
+        date: today
+      });
+    }
+
+    this._state = storageService.saveProgress({
+      ...this._state,
+      puzzleProgress: {
+        ...currentPuzzleProg,
+        attemptEvents: existingEvents,
+        lastPlayedPuzzleId: puzzleId,
+        updatedAt: nowIso
+      }
+    });
+
+    this._notify();
+    return eventId;
+  }
+
+  /**
+   * Mencatat event percobaan puzzle (baik langkah salah maupun puzzle selesai) secara idempoten.
+   * Tidak menambah XP global MVP 1 sesuai aturan Bagian 7.
+   */
+  recordPuzzleAttempt({
+    id = null,
+    puzzleId,
+    solved = false,
+    hintsUsed = 0,
+    wrongMoves = 0,
+    mode = 'mixed',
+    isDaily = false,
+    referenceDate = new Date()
+  } = {}) {
+    const found = getPuzzleById(puzzleId);
+    if (!found) {
+      return { success: false, error: 'Puzzle tidak ditemukan' };
+    }
+
+    const currentPuzzleProg = this._getPuzzleProgress();
+    const nowIso = new Date().toISOString();
+    const today = getLocalDateString(referenceDate);
+    const eventId =
+      typeof id === 'string' && id.trim().length > 0
+        ? id.trim()
+        : `att_${puzzleId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+    const wasAlreadySolved = currentPuzzleProg.solvedPuzzleIds.includes(puzzleId);
+
+    const updatedEvents = [...currentPuzzleProg.attemptEvents];
+    const existingIdx = updatedEvents.findIndex(e => e.id === eventId);
+
+    const eventPayload = {
+      id: eventId,
+      puzzleId,
+      solved: Boolean(solved),
+      hintsUsed: Math.max(0, Math.floor(Number(hintsUsed) || 0)),
+      wrongMoves: Math.max(0, Math.floor(Number(wrongMoves) || 0)),
+      mode: mode || (isDaily ? 'daily' : 'mixed'),
+      timestamp: nowIso,
+      date: today
+    };
+
+    if (existingIdx >= 0) {
+      const prev = updatedEvents[existingIdx];
+      updatedEvents[existingIdx] = {
+        ...prev,
+        solved: prev.solved || eventPayload.solved,
+        hintsUsed: Math.max(prev.hintsUsed || 0, eventPayload.hintsUsed),
+        wrongMoves: Math.max(prev.wrongMoves || 0, eventPayload.wrongMoves),
+        mode: eventPayload.mode || prev.mode,
+        timestamp: nowIso,
+        date: today
+      };
+    } else {
+      updatedEvents.push(eventPayload);
+    }
+
+    const solvedSet = new Set(currentPuzzleProg.solvedPuzzleIds);
+    if (solved) {
+      solvedSet.add(puzzleId);
+    }
+
+    const dailyDatesSet = new Set(currentPuzzleProg.dailyPuzzleDates);
+    const dailyForToday = getDailyPuzzle(today);
+    if (solved && (isDaily || mode === 'daily' || (dailyForToday && dailyForToday.id === puzzleId))) {
+      dailyDatesSet.add(today);
+    }
+
+    // Jika menyelesaikan puzzle, catat juga tanggal hari ini di activityDates untuk streak belajar harian
+    const activityDatesSet = new Set(this._state.activityDates);
+    if (solved) {
+      activityDatesSet.add(today);
+    }
+
+    this._state = storageService.saveProgress({
+      ...this._state,
+      activityDates: Array.from(activityDatesSet),
+      puzzleProgress: {
+        solvedPuzzleIds: Array.from(solvedSet),
+        attemptEvents: updatedEvents,
+        dailyPuzzleDates: Array.from(dailyDatesSet),
+        lastPlayedPuzzleId: puzzleId,
+        updatedAt: nowIso
+      }
+    });
+
+    this._notify();
+
+    return {
+      success: true,
+      eventId,
+      solved: Boolean(solved),
+      wasAlreadySolved,
+      puzzleSummary: this.getPuzzleSummary(referenceDate)
+    };
+  }
+
+  /**
+   * Menghitung seluruh statistik Puzzle Catur secara jujur dari data aktual puzzleProgress
+   */
+  getPuzzleSummary(referenceDate = new Date()) {
+    const allPuzzles = getAllPuzzles();
+    const totalPuzzlesCount = allPuzzles.length;
+    const puzzleProg = this._getPuzzleProgress();
+    const solvedSet = new Set(puzzleProg.solvedPuzzleIds);
+
+    const validSolvedPuzzles = allPuzzles.filter(p => solvedSet.has(p.id));
+    const solvedCount = validSolvedPuzzles.length;
+    const overallPercentage =
+      totalPuzzlesCount > 0 ? Math.round((solvedCount / totalPuzzlesCount) * 100) : 0;
+
+    // Statistik percobaan & akurasi dari attemptEvents
+    const attemptEvents = puzzleProg.attemptEvents;
+    const totalAttempts = attemptEvents.length;
+    const successfulAttempts = attemptEvents.filter(e => e.solved).length;
+    const accuracy =
+      totalAttempts > 0 ? Math.round((successfulAttempts / totalAttempts) * 100) : 0;
+
+    const today = getLocalDateString(referenceDate);
+    const solvedTodayIds = new Set(
+      attemptEvents
+        .filter(e => e.solved && e.date === today)
+        .map(e => e.puzzleId)
+    );
+    const solvedTodayCount = solvedTodayIds.size;
+
+    const totalHintsUsed = attemptEvents.reduce((acc, ev) => acc + (ev.hintsUsed || 0), 0);
+
+    // Puzzle Harian Deterministik berdasarkan tanggal lokal
+    const dailyPuzzleObj = getDailyPuzzle(today);
+    const isDailyCompleted =
+      puzzleProg.dailyPuzzleDates.includes(today) ||
+      Boolean(dailyPuzzleObj && solvedSet.has(dailyPuzzleObj.id) && solvedTodayIds.has(dailyPuzzleObj.id));
+
+    const dailyPuzzle = dailyPuzzleObj
+      ? {
+          ...dailyPuzzleObj,
+          date: today,
+          isCompleted: isDailyCompleted,
+          isEverSolved: solvedSet.has(dailyPuzzleObj.id),
+          categoryInfo: getPuzzleCategoryById(dailyPuzzleObj.primaryTheme),
+          difficultyInfo: getPuzzleDifficultyById(dailyPuzzleObj.difficulty)
+        }
+      : null;
+
+    // Puzzle terakhir yang dimainkan
+    let lastPlayedPuzzle = null;
+    if (puzzleProg.lastPlayedPuzzleId) {
+      const foundLast = getPuzzleById(puzzleProg.lastPlayedPuzzleId);
+      if (foundLast) {
+        lastPlayedPuzzle = {
+          ...foundLast,
+          isSolved: solvedSet.has(foundLast.id),
+          categoryInfo: getPuzzleCategoryById(foundLast.primaryTheme),
+          difficultyInfo: getPuzzleDifficultyById(foundLast.difficulty)
+        };
+      }
+    }
+
+    // Ringkasan per kategori tema berbahasa Indonesia (hanya kategori yang memiliki data puzzle)
+    const availableCategories = getAvailablePuzzleCategories();
+    const categoriesSummary = availableCategories.map(cat => {
+      const catPuzzles = allPuzzles.filter(
+        p => p.primaryTheme === cat.id || (Array.isArray(p.themes) && p.themes.includes(cat.id))
+      );
+      const total = catPuzzles.length;
+      const solved = catPuzzles.filter(p => solvedSet.has(p.id)).length;
+      const percentage = total > 0 ? Math.round((solved / total) * 100) : 0;
+
+      const availableDifficulties = PUZZLE_DIFFICULTIES.map(diff => {
+        const count = catPuzzles.filter(p => p.difficulty === diff.id).length;
+        return count > 0
+          ? {
+              id: diff.id,
+              title: diff.title,
+              ratingRange: diff.ratingRange,
+              count
+            }
+          : null;
+      }).filter(Boolean);
+
+      return {
+        ...cat,
+        totalPuzzles: total,
+        solvedPuzzles: solved,
+        percentage,
+        availableDifficulties
+      };
+    });
+
+    // Ringkasan per tingkat kesulitan (Pemula, Menengah, Lanjutan)
+    const difficultiesSummary = PUZZLE_DIFFICULTIES.map(diff => {
+      const diffPuzzles = allPuzzles.filter(p => p.difficulty === diff.id);
+      const total = diffPuzzles.length;
+      const solved = diffPuzzles.filter(p => solvedSet.has(p.id)).length;
+      const percentage = total > 0 ? Math.round((solved / total) * 100) : 0;
+
+      return {
+        ...diff,
+        totalPuzzles: total,
+        solvedPuzzles: solved,
+        percentage
+      };
+    });
+
+    // Daftar puzzle yang sudah diselesaikan
+    const solvedTimestampMap = new Map();
+    for (const ev of attemptEvents) {
+      if (ev.solved) {
+        solvedTimestampMap.set(ev.puzzleId, ev.timestamp);
+      }
+    }
+
+    const solvedPuzzlesList = validSolvedPuzzles.map(p => {
+      const catInfo = getPuzzleCategoryById(p.primaryTheme);
+      const diffInfo = getPuzzleDifficultyById(p.difficulty);
+      return {
+        ...p,
+        categoryTitle: catInfo ? catInfo.title : p.primaryTheme,
+        difficultyTitle: diffInfo ? diffInfo.title : p.difficulty,
+        solvedAt: solvedTimestampMap.get(p.id) || puzzleProg.updatedAt || null
+      };
+    });
+
+    // Riwayat latihan terbaru (terurut dari yang paling baru)
+    const recentHistory = [...attemptEvents]
+      .reverse()
+      .slice(0, 12)
+      .map(ev => {
+        const p = getPuzzleById(ev.puzzleId);
+        const catInfo = p ? getPuzzleCategoryById(p.primaryTheme) : null;
+        const diffInfo = p ? getPuzzleDifficultyById(p.difficulty) : null;
+        return {
+          ...ev,
+          puzzle: p || null,
+          categoryTitle: catInfo ? catInfo.title : 'Campuran',
+          difficultyTitle: diffInfo ? diffInfo.title : '-',
+          rating: p ? p.rating : null
+        };
+      });
+
+    return {
+      totalPuzzlesCount,
+      solvedCount,
+      overallPercentage,
+      totalAttempts,
+      successfulAttempts,
+      accuracy,
+      solvedTodayCount,
+      totalHintsUsed,
+      dailyPuzzle,
+      lastPlayedPuzzle,
+      categoriesSummary,
+      difficultiesSummary,
+      solvedPuzzlesList,
+      recentHistory,
+      solvedPuzzleIds: puzzleProg.solvedPuzzleIds,
+      dailyPuzzleDates: puzzleProg.dailyPuzzleDates
+    };
+  }
+
   /**
    * Mendapatkan ringkasan lengkap untuk Dashboard dan Halaman Belajar
    */
@@ -348,7 +724,8 @@ class ProgressService {
       recommendedNextLesson,
       recommendedLessons,
       categoriesSummary,
-      firstLesson: allLessons[0]
+      firstLesson: allLessons[0],
+      puzzleSummary: this.getPuzzleSummary()
     };
   }
 

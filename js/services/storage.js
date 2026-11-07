@@ -35,17 +35,31 @@ export const SYNC_STATUS_LABELS = {
 };
 
 /**
+ * State awal progres puzzle yang jujur (semua statistik bernilai 0)
+ */
+export function createInitialPuzzleProgressState() {
+  return {
+    solvedPuzzleIds: [],
+    attemptEvents: [],
+    dailyPuzzleDates: [],
+    lastPlayedPuzzleId: null,
+    updatedAt: null
+  };
+}
+
+/**
  * State awal yang jujur (semua statistik bernilai 0)
  */
 export function createInitialProgressState() {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     totalXp: 0,
     completedLessonIds: [],
     startedLessonIds: [],
     lastOpenedLessonId: null,
     activityDates: [], // Format 'YYYY-MM-DD' untuk perhitungan streak harian
     lessonCompletedAt: {}, // Map lessonId -> ISO timestamp
+    puzzleProgress: createInitialPuzzleProgressState(),
     updatedAt: null
   };
 }
@@ -82,7 +96,241 @@ function isValidIsoTimestamp(val) {
 }
 
 /**
+ * Sanitasi namespace puzzleProgress agar tahan terhadap data korup atau data lama (schemaVersion 1)
+ */
+export function sanitizePuzzleProgress(rawPuzzle) {
+  const initial = createInitialPuzzleProgressState();
+  if (!rawPuzzle || typeof rawPuzzle !== 'object' || Array.isArray(rawPuzzle)) {
+    return initial;
+  }
+
+  const cleanStringArray = arr =>
+    Array.isArray(arr)
+      ? [
+          ...new Set(
+            arr
+              .filter(item => typeof item === 'string' && item.trim().length > 0)
+              .map(item => item.trim())
+          )
+        ]
+      : [];
+
+  const cleanDatesArray = arr =>
+    Array.isArray(arr)
+      ? [
+          ...new Set(
+            arr
+              .filter(
+                item => typeof item === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(item.trim())
+              )
+              .map(item => item.trim())
+          )
+        ].sort()
+      : [];
+
+  // Sanitasi attemptEvents berdasarkan event ID unik (idempotent)
+  const eventsById = new Map();
+  if (Array.isArray(rawPuzzle.attemptEvents)) {
+    for (const rawEv of rawPuzzle.attemptEvents) {
+      if (!rawEv || typeof rawEv !== 'object' || Array.isArray(rawEv)) continue;
+      const id =
+        typeof rawEv.id === 'string' && rawEv.id.trim().length > 0 ? rawEv.id.trim() : null;
+      const puzzleId =
+        typeof rawEv.puzzleId === 'string' && rawEv.puzzleId.trim().length > 0
+          ? rawEv.puzzleId.trim()
+          : null;
+      if (!id || !puzzleId) continue;
+
+      const ts = isValidIsoTimestamp(rawEv.timestamp)
+        ? rawEv.timestamp
+        : new Date(0).toISOString();
+
+      let dateStr =
+        typeof rawEv.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(rawEv.date.trim())
+          ? rawEv.date.trim()
+          : null;
+      if (!dateStr) {
+        const d = new Date(Date.parse(ts));
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        dateStr = `${y}-${m}-${day}`;
+      }
+
+      const hintsUsed =
+        typeof rawEv.hintsUsed === 'number' &&
+        Number.isFinite(rawEv.hintsUsed) &&
+        rawEv.hintsUsed >= 0
+          ? Math.floor(rawEv.hintsUsed)
+          : 0;
+
+      const wrongMoves =
+        typeof rawEv.wrongMoves === 'number' &&
+        Number.isFinite(rawEv.wrongMoves) &&
+        rawEv.wrongMoves >= 0
+          ? Math.floor(rawEv.wrongMoves)
+          : 0;
+
+      const mode =
+        typeof rawEv.mode === 'string' && rawEv.mode.trim().length > 0
+          ? rawEv.mode.trim()
+          : 'mixed';
+
+      const cleanEv = {
+        id,
+        puzzleId,
+        solved: Boolean(rawEv.solved),
+        hintsUsed,
+        wrongMoves,
+        mode,
+        timestamp: ts,
+        date: dateStr
+      };
+
+      const existing = eventsById.get(id);
+      if (!existing) {
+        eventsById.set(id, cleanEv);
+      } else {
+        eventsById.set(id, {
+          ...existing,
+          solved: existing.solved || cleanEv.solved,
+          hintsUsed: Math.max(existing.hintsUsed, cleanEv.hintsUsed),
+          wrongMoves: Math.max(existing.wrongMoves, cleanEv.wrongMoves)
+        });
+      }
+    }
+  }
+
+  const attemptEvents = Array.from(eventsById.values()).sort((a, b) => {
+    const tA = Date.parse(a.timestamp);
+    const tB = Date.parse(b.timestamp);
+    if (tA !== tB) return tA - tB;
+    return a.id.localeCompare(b.id);
+  });
+
+  // Pastikan setiap puzzle yang memiliki attemptEvent solved=true juga tercatat di solvedPuzzleIds
+  const rawSolvedIds = cleanStringArray(rawPuzzle.solvedPuzzleIds);
+  const solvedFromEvents = attemptEvents.filter(e => e.solved).map(e => e.puzzleId);
+  const solvedPuzzleIds = [...new Set([...rawSolvedIds, ...solvedFromEvents])];
+
+  return {
+    solvedPuzzleIds,
+    attemptEvents,
+    dailyPuzzleDates: cleanDatesArray(rawPuzzle.dailyPuzzleDates),
+    lastPlayedPuzzleId:
+      typeof rawPuzzle.lastPlayedPuzzleId === 'string' &&
+      rawPuzzle.lastPlayedPuzzleId.trim().length > 0
+        ? rawPuzzle.lastPlayedPuzzleId.trim()
+        : null,
+    updatedAt: isValidIsoTimestamp(rawPuzzle.updatedAt) ? rawPuzzle.updatedAt : null
+  };
+}
+
+/**
+ * Memeriksa apakah puzzleProgress memiliki aktivitas nyata
+ */
+export function hasMeaningfulPuzzleProgress(puzzleProg) {
+  if (!puzzleProg || typeof puzzleProg !== 'object' || Array.isArray(puzzleProg)) {
+    return false;
+  }
+  const clean = sanitizePuzzleProgress(puzzleProg);
+  return (
+    clean.solvedPuzzleIds.length > 0 ||
+    clean.attemptEvents.length > 0 ||
+    clean.dailyPuzzleDates.length > 0 ||
+    Boolean(clean.lastPlayedPuzzleId)
+  );
+}
+
+/**
+ * Menggabungkan (Merge) puzzleProgress Local dan Cloud secara deterministik & idempoten (Bagian 7)
+ */
+export function mergePuzzleProgress(localPuzzleRaw, cloudPuzzleRaw, localRootUpdatedAt = null, cloudRootUpdatedAt = null) {
+  const localP = sanitizePuzzleProgress(localPuzzleRaw);
+  const cloudP = sanitizePuzzleProgress(cloudPuzzleRaw);
+
+  // 1. Gabungkan attemptEvents berdasarkan event ID unik (idempotent)
+  const mergedEventsMap = new Map();
+  for (const ev of [...cloudP.attemptEvents, ...localP.attemptEvents]) {
+    const existing = mergedEventsMap.get(ev.id);
+    if (!existing) {
+      mergedEventsMap.set(ev.id, { ...ev });
+    } else {
+      mergedEventsMap.set(ev.id, {
+        ...existing,
+        solved: existing.solved || ev.solved,
+        hintsUsed: Math.max(existing.hintsUsed, ev.hintsUsed),
+        wrongMoves: Math.max(existing.wrongMoves, ev.wrongMoves)
+      });
+    }
+  }
+
+  const attemptEvents = Array.from(mergedEventsMap.values()).sort((a, b) => {
+    const tA = Date.parse(a.timestamp);
+    const tB = Date.parse(b.timestamp);
+    if (tA !== tB) return tA - tB;
+    return a.id.localeCompare(b.id);
+  });
+
+  // 2. Gabungkan solvedPuzzleIds sebagai himpunan unik (termasuk dari attemptEvents yang solved)
+  const solvedPuzzleIds = [
+    ...new Set([
+      ...cloudP.solvedPuzzleIds,
+      ...localP.solvedPuzzleIds,
+      ...attemptEvents.filter(e => e.solved).map(e => e.puzzleId)
+    ])
+  ];
+
+  // 3. Gabungkan dailyPuzzleDates sebagai himpunan unik terurut
+  const dailyPuzzleDates = [
+    ...new Set([...cloudP.dailyPuzzleDates, ...localP.dailyPuzzleDates])
+  ].sort();
+
+  // 4. Pilih lastPlayedPuzzleId & updatedAt terbaru
+  const localPTime = isValidIsoTimestamp(localP.updatedAt)
+    ? Date.parse(localP.updatedAt)
+    : isValidIsoTimestamp(localRootUpdatedAt)
+    ? Date.parse(localRootUpdatedAt)
+    : -1;
+  const cloudPTime = isValidIsoTimestamp(cloudP.updatedAt)
+    ? Date.parse(cloudP.updatedAt)
+    : isValidIsoTimestamp(cloudRootUpdatedAt)
+    ? Date.parse(cloudRootUpdatedAt)
+    : -1;
+
+  let lastPlayedPuzzleId = null;
+  if (localPTime > cloudPTime) {
+    lastPlayedPuzzleId = localP.lastPlayedPuzzleId || cloudP.lastPlayedPuzzleId || null;
+  } else if (cloudPTime > localPTime) {
+    lastPlayedPuzzleId = cloudP.lastPlayedPuzzleId || localP.lastPlayedPuzzleId || null;
+  } else {
+    lastPlayedPuzzleId = localP.lastPlayedPuzzleId || cloudP.lastPlayedPuzzleId || null;
+  }
+
+  let puzzleUpdatedAt = null;
+  if (isValidIsoTimestamp(localP.updatedAt) && isValidIsoTimestamp(cloudP.updatedAt)) {
+    puzzleUpdatedAt =
+      Date.parse(localP.updatedAt) >= Date.parse(cloudP.updatedAt)
+        ? localP.updatedAt
+        : cloudP.updatedAt;
+  } else if (isValidIsoTimestamp(localP.updatedAt)) {
+    puzzleUpdatedAt = localP.updatedAt;
+  } else if (isValidIsoTimestamp(cloudP.updatedAt)) {
+    puzzleUpdatedAt = cloudP.updatedAt;
+  }
+
+  return {
+    solvedPuzzleIds,
+    attemptEvents,
+    dailyPuzzleDates,
+    lastPlayedPuzzleId,
+    updatedAt: puzzleUpdatedAt
+  };
+}
+
+/**
  * Sanitasi objek progres agar tahan terhadap data LocalStorage atau JSONB yang rusak/korup
+ * Mendukung backward compatibility penuh dari schemaVersion 1 ke schemaVersion 2.
  */
 export function sanitizeProgressState(parsed, { recalculateXp = false } = {}) {
   const initial = createInitialProgressState();
@@ -137,8 +385,10 @@ export function sanitizeProgressState(parsed, { recalculateXp = false } = {}) {
   const validTotalXp =
     recalculateXp || completedLessonIds.length > 0 ? deterministicXp : rawTotalXp;
 
+  const puzzleProgress = sanitizePuzzleProgress(parsed.puzzleProgress);
+
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     totalXp: validTotalXp,
     completedLessonIds,
     startedLessonIds,
@@ -148,12 +398,13 @@ export function sanitizeProgressState(parsed, { recalculateXp = false } = {}) {
         : null,
     activityDates: cleanDatesArray(parsed.activityDates),
     lessonCompletedAt: cleanCompletedAt,
+    puzzleProgress,
     updatedAt: isValidIsoTimestamp(parsed.updatedAt) ? parsed.updatedAt : null
   };
 }
 
 /**
- * Memeriksa apakah state progres memiliki aktivitas/data belajar nyata (bukan state kosong awal)
+ * Memeriksa apakah state progres memiliki aktivitas/data belajar atau puzzle nyata (bukan state kosong awal)
  */
 export function hasMeaningfulProgress(state) {
   if (!state || typeof state !== 'object' || Array.isArray(state)) {
@@ -166,17 +417,19 @@ export function hasMeaningfulProgress(state) {
     sanitized.activityDates.length > 0 ||
     Boolean(sanitized.lastOpenedLessonId) ||
     Object.keys(sanitized.lessonCompletedAt).length > 0 ||
-    sanitized.totalXp > 0
+    sanitized.totalXp > 0 ||
+    hasMeaningfulPuzzleProgress(sanitized.puzzleProgress)
   );
 }
 
 /**
- * Menggabungkan (Merge) progres Local dan Cloud secara deterministik (Bagian 6):
+ * Menggabungkan (Merge) progres Local dan Cloud secara deterministik (MVP 1 + MVP 2):
  * - completedLessonIds: Set union unik (diurutkan mengikuti urutan kurikulum bila ada).
  * - startedLessonIds: Set union unik (mencakup seluruh completedLessonIds).
  * - activityDates: tanggal unik 'YYYY-MM-DD' terurut naik.
  * - lessonCompletedAt: gabungan seluruh riwayat penyelesaian materi yang valid (simpan timestamp paling awal jika ada di keduanya).
  * - lastOpenedLessonId: diambil dari state yang memiliki updatedAt paling baru.
+ * - puzzleProgress: gabungan solvedPuzzleIds unik, attemptEvents unik berdasarkan ID, dailyPuzzleDates unik, dan lastPlayedPuzzleId terbaru.
  * - updatedAt: timestamp terbaru.
  * - totalXp: dihitung ulang secara deterministik dari completedLessonIds hasil merge dan kurikulum.
  */
@@ -250,28 +503,41 @@ export function mergeProgressStates(localRaw, cloudRaw) {
   }
   const finalStartedLessonIds = sortLessonIds(mergedStartedSet);
 
+  // 6. Merge namespace puzzleProgress secara deterministik & idempoten
+  const puzzleProgress = mergePuzzleProgress(
+    local.puzzleProgress,
+    cloud.puzzleProgress,
+    local.updatedAt,
+    cloud.updatedAt
+  );
+
+  const localPuzzleTime = isValidIsoTimestamp(local.puzzleProgress?.updatedAt)
+    ? Date.parse(local.puzzleProgress.updatedAt)
+    : -1;
+  const cloudPuzzleTime = isValidIsoTimestamp(cloud.puzzleProgress?.updatedAt)
+    ? Date.parse(cloud.puzzleProgress.updatedAt)
+    : -1;
+  const maxTime = Math.max(localTime, cloudTime, localPuzzleTime, cloudPuzzleTime);
+
   let latestUpdatedAt = null;
-  if (localTime >= 0 && cloudTime >= 0) {
-    latestUpdatedAt = localTime >= cloudTime ? local.updatedAt : cloud.updatedAt;
-  } else if (localTime >= 0) {
-    latestUpdatedAt = local.updatedAt;
-  } else if (cloudTime >= 0) {
-    latestUpdatedAt = cloud.updatedAt;
+  if (maxTime >= 0) {
+    latestUpdatedAt = new Date(maxTime).toISOString();
   } else {
     latestUpdatedAt = new Date().toISOString();
   }
 
-  // 6. Hitung ulang totalXp secara deterministik dari completedLessonIds
+  // 7. Hitung ulang totalXp secara deterministik dari completedLessonIds
   const totalXp = calculateXpFromCompletedLessons(completedLessonIds);
 
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     totalXp,
     completedLessonIds,
     startedLessonIds: finalStartedLessonIds,
     lastOpenedLessonId,
     activityDates,
     lessonCompletedAt,
+    puzzleProgress,
     updatedAt: latestUpdatedAt
   };
 }
@@ -292,6 +558,13 @@ export function areProgressStatesEqual(stateA, stateB) {
     JSON.stringify(a.startedLessonIds) === JSON.stringify(b.startedLessonIds) &&
     JSON.stringify(a.activityDates) === JSON.stringify(b.activityDates) &&
     JSON.stringify(a.lessonCompletedAt) === JSON.stringify(b.lessonCompletedAt) &&
+    a.puzzleProgress.lastPlayedPuzzleId === b.puzzleProgress.lastPlayedPuzzleId &&
+    JSON.stringify(a.puzzleProgress.solvedPuzzleIds) ===
+      JSON.stringify(b.puzzleProgress.solvedPuzzleIds) &&
+    JSON.stringify(a.puzzleProgress.attemptEvents) ===
+      JSON.stringify(b.puzzleProgress.attemptEvents) &&
+    JSON.stringify(a.puzzleProgress.dailyPuzzleDates) ===
+      JSON.stringify(b.puzzleProgress.dailyPuzzleDates) &&
     a.updatedAt === b.updatedAt
   );
 }

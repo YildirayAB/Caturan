@@ -13,10 +13,16 @@ import { storageService, SYNC_STATUS } from './services/storage.js';
 import { progressService } from './services/progress.js';
 import { authService } from './services/auth.js';
 import { getLessonById } from './data/curriculum.js';
+import { getPuzzleById, getDailyPuzzle, selectNextPuzzle } from './data/puzzles.js';
 import { renderSidebar } from './components/sidebar.js';
 import { renderDashboardView } from './components/dashboardView.js';
 import { renderLearnView } from './components/learnView.js';
 import { renderLoginView } from './components/loginView.js';
+import { renderPuzzleView } from './components/puzzleView.js';
+import {
+  renderPuzzlePlayView,
+  destroyActivePuzzleBoard
+} from './components/puzzlePlayView.js';
 import {
   renderLessonDetailView,
   updateLessonCompletionUI,
@@ -33,10 +39,19 @@ export class CaturanApp {
     this.currentUser = null;
     this._lastSyncedUserId = null;
 
-    this.currentRoute = 'dashboard'; // 'dashboard' | 'learn' | 'lesson-detail'
+    this.currentRoute = 'dashboard'; // 'dashboard' | 'learn' | 'lesson-detail' | 'puzzle' | 'puzzle-play'
     this.activeLessonId = null;
     this.activeCategoryFilter = 'all';
     this.completionFeedback = null;
+
+    // State Latihan Puzzle (MVP 2)
+    this.activePuzzleId = null;
+    this.puzzlePracticeContext = {
+      mode: 'mixed', // 'daily' | 'mixed' | 'theme' | 'difficulty'
+      theme: 'all',
+      difficulty: 'all'
+    };
+    this.puzzleSessionPlayedIds = [];
 
     // State Sidebar:
     // - Desktop: membaca preferensi dari LocalStorage (default terbuka = false)
@@ -134,7 +149,7 @@ export class CaturanApp {
     // 10. Dengarkan perubahan progres hasil merge dari cloud
     this._unsubProgress = progressService.subscribe(() => {
       if (!this.requireAuth || this.isAuthenticated) {
-        if (this.currentRoute === 'lesson-detail') {
+        if (this.currentRoute === 'lesson-detail' || this.currentRoute === 'puzzle-play') {
           this._refreshChromeUI();
         } else {
           this.renderAll();
@@ -172,6 +187,7 @@ export class CaturanApp {
       this._lastSyncedUserId = null;
       progressService.handleUserSignedOut();
       destroyActiveLessonBoard();
+      destroyActivePuzzleBoard();
       this.closeMobileSidebar();
       this.renderAuthGate();
       return;
@@ -198,6 +214,7 @@ export class CaturanApp {
    */
   renderAuthGate(errorMsg = null, infoMsg = null) {
     destroyActiveLessonBoard();
+    destroyActivePuzzleBoard();
 
     if (this.appShell && this.appShell.classList) {
       this.appShell.classList.add('is-unauthenticated');
@@ -335,6 +352,16 @@ export class CaturanApp {
         this.openLesson(lessonId, false);
         return;
       }
+    } else if (hash.startsWith('puzzle/')) {
+      const puzzleId = hash.slice('puzzle/'.length);
+      const exists = getPuzzleById(puzzleId);
+      if (exists) {
+        this.openPuzzle(puzzleId, null, false);
+        return;
+      }
+    } else if (hash === 'puzzle') {
+      this.navigate('puzzle', false);
+      return;
     } else if (hash === 'learn') {
       this.navigate('learn', false);
       return;
@@ -426,6 +453,7 @@ export class CaturanApp {
 
   navigate(route, updateHash = true) {
     destroyActiveLessonBoard();
+    destroyActivePuzzleBoard();
     this.closeMobileSidebar();
     this.currentRoute = route;
     this.completionFeedback = null;
@@ -445,6 +473,7 @@ export class CaturanApp {
     if (!found) return;
 
     destroyActiveLessonBoard();
+    destroyActivePuzzleBoard();
     this.closeMobileSidebar();
 
     // Catat materi ini sebagai materi terakhir yang dibuka pengguna
@@ -462,6 +491,168 @@ export class CaturanApp {
     if (typeof window.scrollTo === 'function') {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
+  }
+
+  // =========================================================================
+  // MVP 2 — KONTROLER NAVIGASI & LATIHAN PUZZLE CATUR
+  // =========================================================================
+
+  startDailyPuzzle() {
+    const daily = getDailyPuzzle();
+    if (!daily) return;
+    this.puzzleSessionPlayedIds = [daily.id];
+    this.openPuzzle(daily.id, {
+      mode: 'daily',
+      theme: 'all',
+      difficulty: 'all'
+    });
+  }
+
+  startMixedPuzzlePractice() {
+    const puzzleSummary = progressService.getPuzzleSummary();
+    const { puzzle, updatedSessionPlayedIds } = selectNextPuzzle({
+      theme: 'all',
+      difficulty: 'all',
+      solvedPuzzleIds: puzzleSummary.solvedPuzzleIds,
+      sessionPlayedIds: []
+    });
+    if (!puzzle) return;
+    this.puzzleSessionPlayedIds = updatedSessionPlayedIds;
+    this.openPuzzle(puzzle.id, {
+      mode: 'mixed',
+      theme: 'all',
+      difficulty: 'all'
+    });
+  }
+
+  startThemePuzzlePractice(themeId) {
+    const puzzleSummary = progressService.getPuzzleSummary();
+    const { puzzle, updatedSessionPlayedIds } = selectNextPuzzle({
+      theme: themeId,
+      difficulty: 'all',
+      solvedPuzzleIds: puzzleSummary.solvedPuzzleIds,
+      sessionPlayedIds: []
+    });
+    if (!puzzle) return;
+    this.puzzleSessionPlayedIds = updatedSessionPlayedIds;
+    this.openPuzzle(puzzle.id, {
+      mode: 'theme',
+      theme: themeId,
+      difficulty: 'all'
+    });
+  }
+
+  startDifficultyPuzzlePractice(difficultyId) {
+    const puzzleSummary = progressService.getPuzzleSummary();
+    const { puzzle, updatedSessionPlayedIds } = selectNextPuzzle({
+      theme: 'all',
+      difficulty: difficultyId,
+      solvedPuzzleIds: puzzleSummary.solvedPuzzleIds,
+      sessionPlayedIds: []
+    });
+    if (!puzzle) return;
+    this.puzzleSessionPlayedIds = updatedSessionPlayedIds;
+    this.openPuzzle(puzzle.id, {
+      mode: 'difficulty',
+      theme: 'all',
+      difficulty: difficultyId
+    });
+  }
+
+  openPuzzle(puzzleId, practiceContext = null, updateHash = true) {
+    const found = getPuzzleById(puzzleId);
+    if (!found) return;
+
+    destroyActiveLessonBoard();
+    destroyActivePuzzleBoard();
+    this.closeMobileSidebar();
+
+    if (practiceContext) {
+      this.puzzlePracticeContext = {
+        mode: practiceContext.mode || 'mixed',
+        theme: practiceContext.theme || 'all',
+        difficulty: practiceContext.difficulty || 'all'
+      };
+    }
+
+    if (!this.puzzleSessionPlayedIds.includes(puzzleId)) {
+      this.puzzleSessionPlayedIds.push(puzzleId);
+    }
+
+    progressService.markPuzzleOpened(puzzleId);
+
+    this.currentRoute = 'puzzle-play';
+    this.activePuzzleId = puzzleId;
+
+    if (updateHash && window.history && typeof window.history.replaceState === 'function') {
+      window.history.replaceState(null, '', `#puzzle/${puzzleId}`);
+    }
+
+    this.renderAll();
+    if (typeof window.scrollTo === 'function') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }
+
+  openNextPuzzle() {
+    const ctx = this.puzzlePracticeContext || {
+      mode: 'mixed',
+      theme: 'all',
+      difficulty: 'all'
+    };
+    const puzzleSummary = progressService.getPuzzleSummary();
+
+    const { puzzle, updatedSessionPlayedIds } = selectNextPuzzle({
+      theme: ctx.mode === 'theme' ? ctx.theme : 'all',
+      difficulty: ctx.mode === 'difficulty' ? ctx.difficulty : 'all',
+      solvedPuzzleIds: puzzleSummary.solvedPuzzleIds,
+      sessionPlayedIds: this.puzzleSessionPlayedIds,
+      currentPuzzleId: this.activePuzzleId
+    });
+
+    if (!puzzle) return;
+    this.puzzleSessionPlayedIds = updatedSessionPlayedIds;
+
+    // Jika sebelumnya berada di mode Puzzle Harian dan menekan Puzzle Berikutnya, lanjut ke Latihan Campuran
+    const nextMode = ctx.mode === 'daily' ? 'mixed' : ctx.mode;
+    this.openPuzzle(puzzle.id, {
+      ...ctx,
+      mode: nextMode
+    });
+  }
+
+  handlePuzzleHintUsed({ attemptId, puzzleId, hintLevel }) {
+    progressService.recordPuzzleHintUsed(puzzleId, hintLevel, {
+      id: attemptId,
+      mode: this.puzzlePracticeContext?.mode || 'mixed'
+    });
+    this._refreshChromeUI();
+  }
+
+  handlePuzzleWrongMove({ attemptId, puzzleId, hintsUsed, wrongMoves }) {
+    progressService.recordPuzzleAttempt({
+      id: attemptId,
+      puzzleId,
+      solved: false,
+      hintsUsed,
+      wrongMoves,
+      mode: this.puzzlePracticeContext?.mode || 'mixed',
+      isDaily: this.puzzlePracticeContext?.mode === 'daily'
+    });
+    this._refreshChromeUI();
+  }
+
+  handlePuzzleSolved({ attemptId, puzzleId, hintsUsed, wrongMoves }) {
+    progressService.recordPuzzleAttempt({
+      id: attemptId,
+      puzzleId,
+      solved: true,
+      hintsUsed,
+      wrongMoves,
+      mode: this.puzzlePracticeContext?.mode || 'mixed',
+      isDaily: this.puzzlePracticeContext?.mode === 'daily'
+    });
+    this._refreshChromeUI();
   }
 
   handleCompleteLesson(lessonId, autoFromBoard = false) {
@@ -549,6 +740,32 @@ export class CaturanApp {
         onBackToLearn: () => this.navigate('learn'),
         onSelectLesson: id => this.openLesson(id),
         onMarkComplete: (id, auto) => this.handleCompleteLesson(id, auto)
+      });
+    } else if (this.currentRoute === 'puzzle') {
+      renderPuzzleView(this.mainContainer, {
+        puzzleSummary: summary.puzzleSummary || progressService.getPuzzleSummary(),
+        userEmail: this.currentUser?.email || null,
+        onStartDailyPuzzle: () => this.startDailyPuzzle(),
+        onStartMixedPractice: () => this.startMixedPuzzlePractice(),
+        onStartThemePractice: themeId => this.startThemePuzzlePractice(themeId),
+        onStartDifficultyPractice: diffId => this.startDifficultyPuzzlePractice(diffId),
+        onOpenPuzzle: id =>
+          this.openPuzzle(id, {
+            mode: 'mixed',
+            theme: 'all',
+            difficulty: 'all'
+          })
+      });
+    } else if (this.currentRoute === 'puzzle-play' && this.activePuzzleId) {
+      renderPuzzlePlayView(this.mainContainer, {
+        puzzleId: this.activePuzzleId,
+        isSolved: progressService.isPuzzleSolved(this.activePuzzleId),
+        practiceContext: this.puzzlePracticeContext,
+        onBackToDashboard: () => this.navigate('puzzle'),
+        onNextPuzzle: () => this.openNextPuzzle(),
+        onHintUsed: payload => this.handlePuzzleHintUsed(payload),
+        onWrongMove: payload => this.handlePuzzleWrongMove(payload),
+        onPuzzleSolved: payload => this.handlePuzzleSolved(payload)
       });
     }
   }

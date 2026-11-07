@@ -95,9 +95,31 @@
   transition: max-width 0.25s ease;
 }
 
+.puzzle-chessboard-widget .chessboard-frame {
+  max-width: 540px;
+}
+
+.chessboard-preview-frame {
+  max-width: 240px;
+  border-width: 2px;
+  box-shadow: var(--shadow-card);
+}
+
+.static-preview-square {
+  cursor: default;
+}
+
 @media (min-width: 861px) {
   .app-shell.sidebar-collapsed .chessboard-frame {
     max-width: 540px;
+  }
+
+  .app-shell.sidebar-collapsed .puzzle-chessboard-widget .chessboard-frame {
+    max-width: 600px;
+  }
+
+  .app-shell.sidebar-collapsed .chessboard-preview-frame {
+    max-width: 240px;
   }
 }
 
