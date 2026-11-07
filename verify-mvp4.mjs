@@ -2167,11 +2167,16 @@ await runTest('14.6 Validasi Navigasi Learn/Practice, Keseimbangan Kartu Reperto
 await runTest('14.7 Validasi Audit Responsif & Mobile UX Seluruh Halaman (Viewport 320px-1920px, Play Game Mobile Bars, Safe Area, Touch Targets 44px)', async () => {
   const { renderPlayGameView } = await import(toUrl('js/components/playGameView.js'));
 
-  // 1) Verifikasi index.html mendukung viewport-fit=cover untuk safe-area iOS/Android
+  // 1) Verifikasi meta viewport bersih & ramah aksesibilitas (tanpa user-scalable=no / maximum-scale=1)
   const indexHtml = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
   assert.ok(
-    indexHtml.includes('viewport-fit=cover'),
-    'index.html wajib menyertakan viewport-fit=cover pada meta viewport'
+    indexHtml.includes('width=device-width, initial-scale=1.0'),
+    'index.html wajib menyertakan width=device-width, initial-scale=1.0 pada meta viewport'
+  );
+  assert.equal(
+    /user-scalable\s*=\s*no|maximum-scale\s*=\s*1(\.0)?\b/i.test(indexHtml),
+    false,
+    'index.html tidak boleh mematikan pinch-zoom aksesibilitas pengguna'
   );
 
   // 2) Verifikasi halaman Play Against Computer memiliki elemen Mobile Ergonomic Layout
@@ -2255,38 +2260,38 @@ await runTest('14.8 Validasi Perbaikan Bug Mobile Stockfish (Tanpa Horizontal Ov
   const boardCss = fs.readFileSync(path.join(ROOT, 'css/chessboard.css'), 'utf8');
   const compCss = fs.readFileSync(path.join(ROOT, 'css/components.css'), 'utf8');
 
-  // 1) Pastikan grid utama dan papan catur memiliki definisi kolom proporsional yang valid
+  // 1) Pastikan grid utama menggunakan minmax(0, ...) agar anak flex/grid tidak mendorong lebar halaman melampaui viewport
   assert.ok(
-    /\.puzzle-workspace-grid\s*\{[\s\S]*?grid-template-columns:\s*(?:minmax\(0,\s*)?1\.15fr\)?\s+(?:minmax\(0,\s*)?0\.85fr\)?/m.test(
+    /\.puzzle-workspace-grid\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0,\s*1\.15fr\)\s+minmax\(0,\s*0\.85fr\)/m.test(
       layoutCss
     ),
-    '.puzzle-workspace-grid wajib memiliki proporsi 1.15fr 0.85fr pada desktop'
+    '.puzzle-workspace-grid wajib menggunakan minmax(0, ...) pada desktop'
   );
   assert.ok(
-    /@media\s*\(max-width:\s*1100px\)[\s\S]*?\.puzzle-workspace-grid\s*\{\s*grid-template-columns:\s*(?:minmax\(0,\s*)?1fr\)?/m.test(
+    /@media\s*\(max-width:\s*1100px\)[\s\S]*?\.puzzle-workspace-grid\s*\{\s*grid-template-columns:\s*minmax\(0,\s*1fr\)/m.test(
       layoutCss
     ),
-    '.puzzle-workspace-grid wajib menggunakan 1 kolom pada layar <= 1100px'
+    '.puzzle-workspace-grid wajib menggunakan minmax(0, 1fr) pada layar <= 1100px agar tidak memicu horizontal overflow'
   );
   assert.ok(
-    /\.chessboard-grid\s*\{[\s\S]*?grid-template-columns:\s*repeat\(8,\s*(?:minmax\(0,\s*)?1fr\)?\)[\s\S]*?grid-template-rows:\s*repeat\(8,\s*(?:minmax\(0,\s*)?1fr\)?\)/m.test(
+    /\.chessboard-grid\s*\{[\s\S]*?grid-template-columns:\s*repeat\(8,\s*minmax\(0,\s*1fr\)\)[\s\S]*?grid-template-rows:\s*repeat\(8,\s*minmax\(0,\s*1fr\)\)/m.test(
       boardCss
     ),
-    '.chessboard-grid wajib menggunakan repeat(8, ...) untuk 8 kolom & 8 baris sama besar'
+    '.chessboard-grid wajib menggunakan repeat(8, minmax(0, 1fr)) untuk 8 kolom & 8 baris sama besar'
   );
 
-  // 2) Pastikan .app-topbar memiliki tinggi minimum konsisten dan perataan tengah vertikal
+  // 2) Pastikan .app-topbar memiliki padding vertikal simetris (tidak mendorong item ke bawah pada tab browser Android)
   assert.ok(
-    /\.app-topbar\s*\{[\s\S]*?min-height:\s*var\(--topbar-height\)[\s\S]*?align-items:\s*center/m.test(
+    /\.app-topbar\s*\{[\s\S]*?min-height:\s*var\(--topbar-height\)[\s\S]*?padding:\s*8px\s+28px[\s\S]*?align-items:\s*center/m.test(
       layoutCss
     ),
-    '.app-topbar wajib memiliki min-height: var(--topbar-height) dan align-items: center'
+    '.app-topbar wajib memiliki padding vertikal simetris (8px) dan align-items: center'
   );
   assert.ok(
-    /\.app-topbar\s*\{[\s\S]*?justify-content:\s*space-between/m.test(
+    /@media\s*\(display-mode:\s*standalone\),\s*\(display-mode:\s*fullscreen\)\s*\{[\s\S]*?\.app-topbar/m.test(
       layoutCss
     ),
-    '.app-topbar wajib memiliki justify-content: space-between'
+    'env(safe-area-inset-top) pada .app-topbar hanya boleh ditambahkan pada mode standalone/fullscreen agar tidak terjadi double offset'
   );
   assert.ok(
     /\.puzzle-meta-row\s*\{[\s\S]*?flex-wrap:\s*wrap/m.test(compCss),
