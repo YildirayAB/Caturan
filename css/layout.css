@@ -6,6 +6,8 @@
 
 html,
 body {
+  width: 100%;
+  max-width: 100%;
   overflow-x: hidden;
 }
 
@@ -16,6 +18,8 @@ body.drawer-open {
 .app-shell {
   display: flex;
   min-height: 100vh;
+  width: 100%;
+  max-width: 100%;
   background-color: var(--bg-main);
   position: relative;
 }
@@ -59,7 +63,7 @@ body.drawer-open {
   display: flex;
   flex-direction: column;
   height: 100%;
-  padding: calc(20px + env(safe-area-inset-top, 0px)) 16px calc(20px + env(safe-area-inset-bottom, 0px)) 16px;
+  padding: 20px 16px calc(20px + env(safe-area-inset-bottom, 0px)) 16px;
 }
 
 .sidebar-top-row {
@@ -414,6 +418,7 @@ body.drawer-open {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  max-width: 100%;
   transition: margin-left 0.25s ease;
 }
 
@@ -423,13 +428,30 @@ body.drawer-open {
   height: auto;
   background-color: var(--bg-surface);
   border-bottom: 1px solid var(--border-color);
-  padding: env(safe-area-inset-top, 0px) 28px 0 28px;
+  padding: 8px 28px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
   position: sticky;
   top: 0;
   z-index: 80;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Dukungan Safe-Area Atas khusus untuk mode Standalone / Fullscreen PWA
+   agar tidak terjadi double top offset pada tab browser mobile reguler */
+@media (display-mode: standalone), (display-mode: fullscreen) {
+  .app-topbar {
+    min-height: calc(var(--topbar-height) + env(safe-area-inset-top, 0px));
+    padding-top: calc(8px + env(safe-area-inset-top, 0px));
+  }
+
+  .sidebar-inner {
+    padding-top: calc(20px + env(safe-area-inset-top, 0px));
+  }
 }
 
 .topbar-left {
@@ -449,7 +471,8 @@ body.drawer-open {
   background-color: var(--bg-subtle);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
-  padding: 8px;
+  padding: 0;
+  margin: 0;
   cursor: pointer;
   color: var(--text-main);
   flex-shrink: 0;
@@ -471,6 +494,8 @@ body.drawer-open {
   font-weight: 800;
   color: var(--text-main);
   letter-spacing: -0.01em;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
 .topbar-divider {
@@ -490,32 +515,41 @@ body.drawer-open {
 .topbar-right {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 14px;
-  flex-shrink: 0;
+  min-width: 0;
+  flex-shrink: 1;
 }
 
 .topbar-quick-stats {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
 }
 
 .quick-stat-pill {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   padding: 6px 12px;
+  min-height: 36px;
   border-radius: 999px;
   background-color: var(--bg-subtle);
   border: 1px solid var(--border-color);
   font-size: 0.8125rem;
   font-weight: 700;
+  line-height: 1;
   color: var(--text-main);
   white-space: nowrap;
+  box-sizing: border-box;
 }
 
 .qs-icon {
   display: inline-flex;
+  align-items: center;
+  justify-content: center;
   color: var(--accent-main);
 }
 
@@ -527,6 +561,7 @@ body.drawer-open {
 .theme-toggle-btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   padding: 7px 14px;
   border-radius: var(--radius-sm);
@@ -535,7 +570,9 @@ body.drawer-open {
   color: var(--text-main);
   font-size: 0.825rem;
   font-weight: 600;
+  line-height: 1;
   cursor: pointer;
+  flex-shrink: 0;
   transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
@@ -551,6 +588,8 @@ body.drawer-open {
 
 .theme-icon {
   display: inline-flex;
+  align-items: center;
+  justify-content: center;
   color: var(--accent-main);
 }
 
@@ -562,6 +601,7 @@ body.drawer-open {
   width: 100%;
   min-width: 0;
   margin: 0 auto;
+  box-sizing: border-box;
   transition: max-width 0.25s ease;
 }
 
@@ -581,61 +621,90 @@ body.drawer-open {
   opacity: 1;
 }
 
-/* Layout Grids di Dashboard, Learn, dan Detail Materi */
+/* Layout Grids di Dashboard, Learn, Detail Materi, Puzzle, dan Play */
 .dashboard-page,
 .learn-page,
-.lesson-detail-page {
+.lesson-detail-page,
+.puzzle-dashboard-page,
+.puzzle-play-page,
+.play-dashboard-page,
+.play-game-page {
   display: flex;
   flex-direction: column;
   gap: 24px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .stats-grid.play-stats-grid {
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
 .dashboard-two-col {
   display: grid;
-  grid-template-columns: 1.05fr 0.95fr;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
   gap: 20px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .recommendation-list {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .lesson-workspace-grid {
   display: grid;
-  grid-template-columns: 1.05fr 0.95fr;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
   gap: 24px;
   align-items: start;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .puzzle-workspace-grid {
   display: grid;
-  grid-template-columns: 1.15fr 0.85fr;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
   gap: 24px;
   align-items: start;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .puzzle-choices-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 18px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .puzzle-difficulty-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 18px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
 /* Responsive Breakpoints */
@@ -648,7 +717,7 @@ body.drawer-open {
   .dashboard-two-col,
   .lesson-workspace-grid,
   .puzzle-workspace-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .lesson-workspace-grid .lesson-practice-card {
@@ -685,6 +754,8 @@ body.drawer-open {
     display: inline-flex;
     width: 44px;
     height: 44px;
+    min-width: 44px;
+    min-height: 44px;
   }
 
   .sidebar-nav-link {
@@ -694,6 +765,8 @@ body.drawer-open {
   .mobile-menu-trigger {
     width: 44px;
     height: 44px;
+    min-width: 44px;
+    min-height: 44px;
   }
 
   .theme-toggle-btn {
@@ -705,13 +778,20 @@ body.drawer-open {
   }
 
   .topbar-divider,
-  .topbar-tagline {
+  .topbar-tagline,
+  .topbar-sync-pill {
     display: none;
   }
 
   .app-topbar {
-    padding: env(safe-area-inset-top, 0px) 16px 0 16px;
+    min-height: 64px;
+    padding: 8px 16px;
     gap: 8px;
+    align-items: center;
+  }
+
+  .topbar-left {
+    gap: 10px;
   }
 
   .topbar-right {
@@ -729,14 +809,18 @@ body.drawer-open {
 
   .dashboard-page,
   .learn-page,
-  .lesson-detail-page {
+  .lesson-detail-page,
+  .puzzle-dashboard-page,
+  .puzzle-play-page,
+  .play-dashboard-page,
+  .play-game-page {
     gap: 18px;
   }
 
   .recommendation-list,
   .puzzle-choices-grid,
   .puzzle-difficulty-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -759,9 +843,18 @@ body.drawer-open {
     display: none;
   }
 
+  .quick-stat-pill {
+    padding: 6px 10px;
+    min-height: 36px;
+    font-size: 0.78rem;
+  }
+
   .theme-toggle-btn {
-    padding: 8px 11px;
+    width: 44px;
+    height: 44px;
     min-width: 44px;
+    min-height: 44px;
+    padding: 0;
     justify-content: center;
   }
 }
@@ -769,11 +862,25 @@ body.drawer-open {
 @media (max-width: 380px) {
   .stats-grid,
   .stats-grid.play-stats-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .app-topbar {
-    padding: env(safe-area-inset-top, 0px) 12px 0 12px;
+    min-height: 60px;
+    padding: 6px 12px;
+    gap: 6px;
+  }
+
+  .topbar-left {
+    gap: 8px;
+  }
+
+  .topbar-right {
+    gap: 6px;
+  }
+
+  .topbar-quick-stats {
+    gap: 4px;
   }
 
   .app-main {
@@ -786,7 +893,35 @@ body.drawer-open {
 
   .quick-stat-pill {
     padding: 5px 8px;
-    font-size: 0.74rem;
+    min-height: 32px;
+    font-size: 0.73rem;
     gap: 4px;
+  }
+
+  .qs-icon svg {
+    width: 14px;
+    height: 14px;
+  }
+}
+
+@media (max-width: 350px) {
+  .topbar-left {
+    gap: 6px;
+  }
+
+  .topbar-app-name {
+    font-size: 0.88rem;
+  }
+
+  .quick-stat-pill {
+    padding: 4px 6px;
+    min-height: 30px;
+    font-size: 0.69rem;
+    gap: 3px;
+  }
+
+  .qs-icon svg {
+    width: 13px;
+    height: 13px;
   }
 }

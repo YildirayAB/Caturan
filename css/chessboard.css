@@ -3,22 +3,37 @@
  * Responsif untuk desktop, tablet, dan smartphone. Tanpa gradient.
  */
 
+.chessboard-mount-container {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
 .chessboard-widget {
   display: flex;
   flex-direction: column;
   gap: 12px;
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .chessboard-topbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: 8px 10px;
   padding: 10px 14px;
   background-color: var(--bg-subtle);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .turn-indicator {
@@ -28,6 +43,24 @@
   font-size: 0.875rem;
   font-weight: 800;
   color: var(--text-main);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.turn-label {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.board-status-badges {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .turn-dot {
@@ -56,11 +89,15 @@
   border-radius: 999px;
   font-size: 0.75rem;
   font-weight: 700;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  box-sizing: border-box;
 }
 
 .board-state-badge svg {
   width: 14px;
   height: 14px;
+  flex-shrink: 0;
 }
 
 .badge-step {
@@ -85,22 +122,23 @@
 .chessboard-frame {
   position: relative;
   width: 100%;
-  max-width: 480px;
+  max-width: min(100%, 480px);
   margin: 0 auto;
   aspect-ratio: 1 / 1;
   border: 3px solid var(--board-border);
   border-radius: var(--radius-sm);
   overflow: hidden;
   box-shadow: var(--shadow-elevated);
+  box-sizing: border-box;
   transition: max-width 0.25s ease;
 }
 
 .puzzle-chessboard-widget .chessboard-frame {
-  max-width: 540px;
+  max-width: min(100%, 540px);
 }
 
 .chessboard-preview-frame {
-  max-width: 240px;
+  max-width: min(100%, 240px);
   border-width: 2px;
   box-shadow: var(--shadow-card);
 }
@@ -111,22 +149,22 @@
 
 @media (min-width: 861px) {
   .app-shell.sidebar-collapsed .chessboard-frame {
-    max-width: 540px;
+    max-width: min(100%, 540px);
   }
 
   .app-shell.sidebar-collapsed .puzzle-chessboard-widget .chessboard-frame {
-    max-width: 600px;
+    max-width: min(100%, 600px);
   }
 
   .app-shell.sidebar-collapsed .chessboard-preview-frame {
-    max-width: 240px;
+    max-width: min(100%, 240px);
   }
 }
 
 .chessboard-grid {
   display: grid;
-  grid-template-columns: repeat(8, 1fr);
-  grid-template-rows: repeat(8, 1fr);
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  grid-template-rows: repeat(8, minmax(0, 1fr));
   width: 100%;
   height: 100%;
 }
@@ -135,6 +173,8 @@
   position: relative;
   width: 100%;
   height: 100%;
+  min-width: 0;
+  min-height: 0;
   border: none;
   padding: 0;
   margin: 0;
@@ -330,11 +370,18 @@
   font-size: 0.775rem;
   color: var(--text-muted);
   padding: 4px 2px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .coord-inspector-text {
   font-weight: 700;
   color: var(--text-secondary);
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .move-history-pill {
@@ -345,6 +392,10 @@
   font-family: monospace;
   font-size: 0.75rem;
   color: var(--text-main);
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  box-sizing: border-box;
 }
 
 /* Kotak Feedback Langkah Latihan */
@@ -355,12 +406,19 @@
   background-color: var(--bg-subtle);
   font-size: 0.85rem;
   line-height: 1.5;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow-wrap: anywhere;
 }
 
 .feedback-content {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .chessboard-feedback.feedback-success {
@@ -386,18 +444,25 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .chessboard-controls .btn {
   flex: 1;
   min-width: 110px;
+  max-width: 100%;
 }
 
 /* Responsivitas Papan Catur pada Tablet, Smartphone Portrait & Landscape */
 @media (max-width: 860px) {
   .chessboard-frame,
-  .puzzle-chessboard-widget .chessboard-frame {
-    max-width: min(100%, 500px);
+  .puzzle-chessboard-widget .chessboard-frame,
+  .play-chessboard-widget .chessboard-frame {
+    width: 100%;
+    max-width: min(100%, 480px);
+    aspect-ratio: 1 / 1;
   }
 
   .chessboard-controls {
@@ -422,7 +487,7 @@
 @media (max-width: 480px) {
   .chessboard-topbar {
     padding: 8px 10px;
-    gap: 8px;
+    gap: 6px 8px;
     flex-wrap: wrap;
   }
 
@@ -485,13 +550,15 @@
 
   .chessboard-controls .btn {
     flex: 1 1 100%;
+    min-width: 0;
   }
 }
 
 /* Mode Landscape Mobile: jaga agar papan catur 1:1 muat nyaman di tinggi layar */
 @media (max-height: 540px) and (orientation: landscape) {
   .chessboard-frame,
-  .puzzle-chessboard-widget .chessboard-frame {
+  .puzzle-chessboard-widget .chessboard-frame,
+  .play-chessboard-widget .chessboard-frame {
     max-width: min(100%, 70vh);
   }
 }
