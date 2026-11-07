@@ -76,7 +76,7 @@ export function renderOpeningLearnView(
   container.innerHTML = `
     <div class="lesson-detail-view opening-learn-view" data-testid="opening-learn-view">
       <!-- Topbar Navigasi -->
-      <div class="detail-topbar">
+      <div class="detail-topbar" data-testid="opening-learn-topbar">
         <div class="detail-topbar-left">
           <button
             type="button"
@@ -85,7 +85,7 @@ export function renderOpeningLearnView(
             data-testid="opening-learn-back-library-btn"
           >
             ${UI_ICONS.chevronLeft}
-            <span>Koleksi Opening</span>
+            <span>Kembali ke Koleksi Opening</span>
           </button>
           <button
             type="button"

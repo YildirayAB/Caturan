@@ -1875,6 +1875,369 @@ await runTest('14.4 Integrasi CaturanApp, Sidebar (Opening Trainer Aktif, Analis
   assert.ok(notices.includes('https://github.com/lichess-org/chess-openings'));
 });
 
+await runTest('14.5 Validasi UI Opening Trainer Dashboard (Tanpa undefined/null/[object Object], 4 Kartu Statistik Konsisten, Kondisi Akun Baru & Berprogres)', async () => {
+  const { UI_ICONS } = await import(toUrl('js/components/icons.js'));
+  const requiredIcons = [
+    'opening',
+    'learn',
+    'trophy',
+    'target',
+    'checkCircle',
+    'check',
+    'arrowRight',
+    'chevronLeft',
+    'chevronRight',
+    'restart',
+    'hint',
+    'flip'
+  ];
+  for (const iconKey of requiredIcons) {
+    assert.equal(typeof UI_ICONS[iconKey], 'string', `Ikon UI_ICONS.${iconKey} wajib tersedia`);
+    assert.ok(UI_ICONS[iconKey].includes('<svg'), `Ikon UI_ICONS.${iconKey} harus berupa elemen SVG valid`);
+  }
+
+  // 1) Uji kondisi akun baru (progres kosong / 0)
+  globalThis.localStorage.clear();
+  progressService.resetAllProgress();
+
+  const dashMount = new MockElement('div');
+  renderOpeningDashboardView(dashMount, {
+    openingSummary: progressService.getOpeningSummary(),
+    userEmail: 'pecatur.baru@caturan.id'
+  });
+
+  const checkNoUndefinedOrInvalidText = (mount, viewName) => {
+    const html = mount.innerHTML;
+    const text = mount.textContent;
+    assert.equal(
+      /\bundefined\b/i.test(html),
+      false,
+      `${viewName} tidak boleh mengandung teks "undefined" di HTML`
+    );
+    assert.equal(
+      /\bundefined\b/i.test(text),
+      false,
+      `${viewName} tidak boleh mengandung teks "undefined" di textContent`
+    );
+    assert.equal(
+      /\bnull\b/i.test(text),
+      false,
+      `${viewName} tidak boleh menampilkan teks "null" kepada pengguna`
+    );
+    assert.equal(
+      html.includes('[object Object]'),
+      false,
+      `${viewName} tidak boleh menampilkan "[object Object]"`
+    );
+  };
+
+  checkNoUndefinedOrInvalidText(dashMount, 'Opening Dashboard (Akun Baru)');
+
+  // Periksa 4 kartu statistik pada akun baru
+  const statCards = dashMount.querySelectorAll('.opening-stats-grid .stat-card');
+  assert.equal(statCards.length, 4, 'Harus terdapat tepat 4 kartu statistik pada Opening Dashboard');
+  for (const card of statCards) {
+    assert.equal(card.classList.contains('card'), true, 'Setiap kartu statistik wajib menggunakan class .card');
+    assert.ok(card.querySelector('.stat-icon-box svg'), 'Setiap kartu statistik wajib memiliki ikon SVG di dalam .stat-icon-box');
+    assert.ok(card.querySelector('.stat-label'), 'Setiap kartu statistik wajib memiliki .stat-label');
+    assert.ok(card.querySelector('.stat-value'), 'Setiap kartu statistik wajib memiliki .stat-value');
+    assert.ok(card.querySelector('.stat-caption'), 'Setiap kartu statistik wajib memiliki .stat-caption');
+  }
+
+  assert.equal(
+    dashMount.querySelector('[data-testid="stat-studied-value"]').textContent.trim(),
+    '0 / 24'
+  );
+  assert.equal(
+    dashMount.querySelector('[data-testid="stat-mastered-value"]').textContent.trim(),
+    '0 / 24'
+  );
+  assert.equal(
+    dashMount.querySelector('[data-testid="stat-sessions-value"]').textContent.trim(),
+    '0'
+  );
+  assert.equal(
+    dashMount.querySelector('[data-testid="stat-success-rate-value"]').textContent.trim(),
+    '0%'
+  );
+
+  // Periksa tombol CTA Header dan kondisi Empty State awal
+  const exploreBtn = dashMount.querySelector('[data-testid="opening-explore-library-btn"]');
+  const quickPracticeBtn = dashMount.querySelector('[data-testid="opening-quick-practice-btn"]');
+  assert.ok(exploreBtn.textContent.includes('Buka Koleksi Opening (24 Variasi)'));
+  assert.equal(quickPracticeBtn.textContent.trim(), 'Mulai Mode Latihan');
+  assert.ok(quickPracticeBtn.querySelector('svg'), 'Tombol Mulai Mode Latihan harus memiliki ikon SVG');
+  assert.ok(dashMount.querySelector('[data-testid="opening-last-studied-empty"]'));
+
+  // 2) Uji kondisi akun yang memiliki progres belajar & latihan
+  progressService.markOpeningStudied('italian-game-main');
+  progressService.recordOpeningPracticeAttempt({
+    id: 'ui_verify_att_1',
+    openingId: 'italian-game-main',
+    repertoireSide: 'white',
+    correctMoves: 3,
+    wrongMoves: 0,
+    hintsUsed: 0
+  });
+  progressService.recordOpeningPracticeAttempt({
+    id: 'ui_verify_att_2',
+    openingId: 'sicilian-najdorf',
+    repertoireSide: 'black',
+    correctMoves: 4,
+    wrongMoves: 1,
+    hintsUsed: 1
+  });
+
+  renderOpeningDashboardView(dashMount, {
+    openingSummary: progressService.getOpeningSummary(),
+    userEmail: 'pecatur.aktif@caturan.id'
+  });
+
+  checkNoUndefinedOrInvalidText(dashMount, 'Opening Dashboard (Akun Berprogres)');
+  assert.equal(
+    dashMount.querySelector('[data-testid="stat-studied-value"]').textContent.trim(),
+    '2 / 24'
+  );
+  assert.equal(
+    dashMount.querySelector('[data-testid="stat-mastered-value"]').textContent.trim(),
+    '1 / 24'
+  );
+  assert.equal(
+    dashMount.querySelector('[data-testid="stat-sessions-value"]').textContent.trim(),
+    '2'
+  );
+  assert.equal(
+    dashMount.querySelector('[data-testid="stat-success-rate-value"]').textContent.trim(),
+    '88%'
+  );
+  assert.ok(dashMount.querySelector('[data-testid="opening-last-studied-card"]'));
+  assert.equal(
+    dashMount.querySelector('[data-testid="last-studied-name"]').textContent.trim(),
+    'Sicilian Defense: Najdorf Variation'
+  );
+
+  // 3) Periksa juga Library, Learn Mode, dan Practice Mode bebas dari teks undefined/null/[object Object]
+  const libMount = new MockElement('div');
+  renderOpeningLibraryView(libMount, {
+    getOpeningStatus: id => progressService.getOpeningStatus(id)
+  });
+  checkNoUndefinedOrInvalidText(libMount, 'Opening Library View');
+
+  const learnMount = new MockElement('div');
+  renderOpeningLearnView(learnMount, {
+    openingId: 'italian-game-main',
+    statusInfo: progressService.getOpeningStatusInfo('italian-game-main')
+  });
+  checkNoUndefinedOrInvalidText(learnMount, 'Opening Learn View');
+
+  const practiceMount = new MockElement('div');
+  renderOpeningPracticeView(practiceMount, {
+    openingId: 'italian-game-main',
+    replyDelayMs: 0
+  });
+  checkNoUndefinedOrInvalidText(practiceMount, 'Opening Practice View');
+});
+
+await runTest('14.6 Validasi Navigasi Learn/Practice, Keseimbangan Kartu Repertoire Putih & Hitam, dan Aturan Responsivitas CSS', () => {
+  // 1) Periksa navigasi tombol pada Learn Mode
+  const learnMount = new MockElement('div');
+  let learnBackLib = false;
+  let learnBackDash = false;
+  let learnStartPractice = null;
+
+  renderOpeningLearnView(learnMount, {
+    openingId: 'italian-game-main',
+    statusInfo: { id: 'studying', label: 'Sedang Dipelajari' },
+    onBackToLibrary: () => {
+      learnBackLib = true;
+    },
+    onBackToDashboard: () => {
+      learnBackDash = true;
+    },
+    onStartPractice: id => {
+      learnStartPractice = id;
+    }
+  });
+
+  const learnTopbar = learnMount.querySelector('[data-testid="opening-learn-topbar"]');
+  assert.ok(learnTopbar && learnTopbar.classList.contains('detail-topbar'));
+  assert.ok(learnTopbar.querySelector('.detail-topbar-left'));
+  assert.ok(learnTopbar.querySelector('.detail-topbar-right'));
+
+  const learnBackLibBtn = learnMount.querySelector('[data-testid="opening-learn-back-library-btn"]');
+  const learnBackDashBtn = learnMount.querySelector('[data-testid="opening-learn-back-dashboard-btn"]');
+  const learnPracticeBtn = learnMount.querySelector('[data-testid="opening-detail-practice-btn"]');
+  assert.equal(learnBackLibBtn.textContent.trim(), 'Kembali ke Koleksi Opening');
+  assert.equal(learnBackDashBtn.textContent.trim(), 'Dashboard Opening');
+  assert.equal(learnPracticeBtn.textContent.trim(), 'Latihan Opening Ini');
+  assert.ok(learnBackLibBtn.querySelector('svg'));
+  assert.ok(learnPracticeBtn.querySelector('svg'));
+
+  learnBackLibBtn.click();
+  learnBackDashBtn.click();
+  learnPracticeBtn.click();
+  assert.equal(learnBackLib, true);
+  assert.equal(learnBackDash, true);
+  assert.equal(learnStartPractice, 'italian-game-main');
+
+  // 2) Periksa navigasi tombol pada Practice Mode
+  const practiceMount = new MockElement('div');
+  let pracBackLib = false;
+  let pracBackDash = false;
+  let pracOpenLearn = null;
+
+  renderOpeningPracticeView(practiceMount, {
+    openingId: 'italian-game-main',
+    replyDelayMs: 0,
+    onBackToLibrary: () => {
+      pracBackLib = true;
+    },
+    onBackToDashboard: () => {
+      pracBackDash = true;
+    },
+    onOpenLearn: id => {
+      pracOpenLearn = id;
+    }
+  });
+
+  const pracTopbar = practiceMount.querySelector('[data-testid="opening-practice-topbar"]');
+  assert.ok(pracTopbar && pracTopbar.classList.contains('detail-topbar'));
+  assert.ok(pracTopbar.querySelector('.detail-topbar-left'));
+  assert.ok(pracTopbar.querySelector('.detail-topbar-right'));
+
+  const pracBackLibBtn = practiceMount.querySelector('[data-testid="opening-practice-back-library-btn"]');
+  const pracBackDashBtn = practiceMount.querySelector('[data-testid="opening-practice-back-dashboard-btn"]');
+  const pracLearnBtn = practiceMount.querySelector('[data-testid="opening-practice-learn-btn"]');
+  assert.equal(pracBackLibBtn.textContent.trim(), 'Kembali ke Koleksi Opening');
+  assert.equal(pracBackDashBtn.textContent.trim(), 'Dashboard Opening');
+  assert.equal(pracLearnBtn.textContent.trim(), 'Lihat Penjelasan & Notasi (Learn Mode)');
+  assert.ok(pracBackLibBtn.querySelector('svg'));
+  assert.ok(pracLearnBtn.querySelector('svg'));
+
+  pracBackLibBtn.click();
+  pracBackDashBtn.click();
+  pracLearnBtn.click();
+  assert.equal(pracBackLib, true);
+  assert.equal(pracBackDash, true);
+  assert.equal(pracOpenLearn, 'italian-game-main');
+
+  // 3) Periksa struktur keseimbangan kedua kartu Repertoire (Putih & Hitam) di Dashboard
+  const dashMount = new MockElement('div');
+  renderOpeningDashboardView(dashMount, {
+    openingSummary: progressService.getOpeningSummary(),
+    userEmail: 'pecatur@caturan.id'
+  });
+
+  const whiteCard = dashMount.querySelector('[data-testid="repertoire-card-white"]');
+  const blackCard = dashMount.querySelector('[data-testid="repertoire-card-black"]');
+  assert.ok(whiteCard && blackCard, 'Kedua kartu Repertoire Putih dan Hitam harus dirender');
+
+  for (const repCard of [whiteCard, blackCard]) {
+    assert.ok(repCard.querySelector('.repertoire-card-top .repertoire-side-badge'));
+    assert.ok(repCard.querySelector('.repertoire-card-top .badge'));
+    assert.ok(repCard.querySelector('.repertoire-card-title'));
+    assert.ok(repCard.querySelector('.repertoire-card-desc'));
+    assert.equal(repCard.querySelectorAll('.repertoire-stats-row .repertoire-stat-box').length, 4);
+    assert.ok(repCard.querySelector('.progress-bar-track .progress-bar-fill'));
+    assert.ok(repCard.querySelector('.repertoire-card-actions .btn'));
+  }
+
+  // 4) Periksa aturan CSS untuk .detail-topbar, .opening-repertoire-card, dan responsivitas
+  const compCss = fs.readFileSync(path.join(ROOT, 'css/components.css'), 'utf8');
+  assert.ok(compCss.includes('.detail-topbar {'), 'Definisi .detail-topbar wajib ada di css/components.css');
+  assert.ok(compCss.includes('row-gap:'), 'Definisi row-gap untuk pembungkusan tombol wajib ada');
+  assert.ok(compCss.includes('column-gap:'), 'Definisi column-gap untuk jarak tombol wajib ada');
+  assert.ok(compCss.includes('.repertoire-card-desc {'), 'Definisi .repertoire-card-desc wajib ada');
+  assert.ok(
+    /\.repertoire-card-desc\s*\{[\s\S]*?min-height:\s*3\.1em[\s\S]*?flex:\s*1\s+1\s+auto/m.test(compCss),
+    '.repertoire-card-desc wajib memiliki min-height seragam dan flex: 1 1 auto agar statistik & progress bar sejajar'
+  );
+});
+
+await runTest('14.7 Validasi Audit Responsif & Mobile UX Seluruh Halaman (Viewport 320px-1920px, Play Game Mobile Bars, Safe Area, Touch Targets 44px)', async () => {
+  const { renderPlayGameView } = await import(toUrl('js/components/playGameView.js'));
+
+  // 1) Verifikasi index.html mendukung viewport-fit=cover untuk safe-area iOS/Android
+  const indexHtml = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  assert.ok(
+    indexHtml.includes('viewport-fit=cover'),
+    'index.html wajib menyertakan viewport-fit=cover pada meta viewport'
+  );
+
+  // 2) Verifikasi halaman Play Against Computer memiliki elemen Mobile Ergonomic Layout
+  const playMount = new MockElement('div');
+  const compBoard = await renderPlayGameView(playMount, {
+    engine: null,
+    colorPreference: 'white',
+    difficulty: 'beginner',
+    userEmail: 'mobile.tester@caturan.id'
+  });
+
+  const mobileOpponentBar = playMount.querySelector('[data-testid="play-mobile-opponent-bar"]');
+  const mobileMovesStrip = playMount.querySelector('[data-testid="play-mobile-moves-strip"]');
+  const mobilePlayerBar = playMount.querySelector('[data-testid="play-mobile-player-bar"]');
+  const mobileTurnStatus = playMount.querySelector('[data-testid="play-mobile-turn-status"]');
+
+  assert.ok(mobileOpponentBar, 'Bar lawan Stockfish khusus mobile wajib dirender');
+  assert.ok(mobileMovesStrip, 'Strip riwayat langkah horizontal khusus mobile wajib dirender');
+  assert.ok(mobilePlayerBar, 'Bar pemain khusus mobile wajib dirender di bawah papan');
+  assert.ok(mobileTurnStatus, 'Indikator giliran pada bar pemain mobile wajib dirender');
+  assert.equal(mobileTurnStatus.textContent.trim(), 'Giliran Anda (Putih)');
+
+  // Mainkan langkah 1. e4 pada papan dan pastikan strip langkah & bar pemain mobile ikut terbarui
+  const sqE2 = playMount.querySelector('.chess-square[data-square="e2"]');
+  const sqE4 = playMount.querySelector('.chess-square[data-square="e4"]');
+  sqE2.click();
+  sqE4.click();
+
+  assert.ok(
+    mobileMovesStrip.textContent.includes('e4'),
+    'Strip riwayat langkah horizontal mobile harus menampilkan langkah SAN yang baru dimainkan'
+  );
+  compBoard.destroy();
+
+  // 3) Verifikasi aturan CSS responsif pada layout.css, chessboard.css, dan components.css
+  const layoutCss = fs.readFileSync(path.join(ROOT, 'css/layout.css'), 'utf8');
+  const boardCss = fs.readFileSync(path.join(ROOT, 'css/chessboard.css'), 'utf8');
+  const compCss = fs.readFileSync(path.join(ROOT, 'css/components.css'), 'utf8');
+
+  assert.ok(
+    layoutCss.includes('safe-area-inset-top') && layoutCss.includes('safe-area-inset-bottom'),
+    'layout.css wajib mendukung safe-area-inset-top dan safe-area-inset-bottom'
+  );
+  assert.ok(
+    layoutCss.includes('order: -1;'),
+    'layout.css wajib menempatkan papan interaktif terlebih dahulu (order: -1) pada layar mobile/tablet 1 kolom'
+  );
+  assert.ok(
+    boardCss.includes('orientation: landscape') && boardCss.includes('max-width: min(100%, 70vh)'),
+    'chessboard.css wajib membatasi ukuran papan pada orientasi mobile landscape'
+  );
+  assert.ok(
+    compCss.includes('.play-mobile-opponent-bar') &&
+      compCss.includes('.play-mobile-moves-strip') &&
+      compCss.includes('.play-mobile-player-bar'),
+    'components.css wajib memiliki styling untuk bar lawan, strip langkah, dan bar pemain mobile'
+  );
+  assert.ok(
+    compCss.includes('min-height: 44px'),
+    'components.css wajib menetapkan min-height: 44px untuk touch target mobile'
+  );
+
+  // 4) Uji navigasi seluruh rute aplikasi, drawer mobile, dan Dark/Light Mode pada matriks viewport 320px s.d. 1920px
+  const viewports = [320, 360, 390, 430, 600, 768, 820, 1024, 1280, 1366, 1600, 1920];
+  const app = new CaturanApp({ requireAuth: false });
+  await app.init();
+
+  for (const width of viewports) {
+    globalThis.window.innerWidth = width;
+    for (const route of ['dashboard', 'learn', 'puzzle', 'play', 'opening-trainer', 'opening-library']) {
+      app.navigate(route);
+      assert.equal(app.currentRoute, route, `Navigasi ke ${route} pada viewport ${width}px harus berhasil`);
+    }
+  }
+});
+
 // ---------------------------------------------------------------------------
 // Ringkasan Akhir
 // ---------------------------------------------------------------------------

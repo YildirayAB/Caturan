@@ -59,7 +59,7 @@ export function renderOpeningPracticeView(
   container.innerHTML = `
     <div class="lesson-detail-view opening-practice-view" data-testid="opening-practice-view">
       <!-- Topbar -->
-      <div class="detail-topbar">
+      <div class="detail-topbar" data-testid="opening-practice-topbar">
         <div class="detail-topbar-left">
           <button
             type="button"
@@ -68,7 +68,7 @@ export function renderOpeningPracticeView(
             data-testid="opening-practice-back-library-btn"
           >
             ${UI_ICONS.chevronLeft}
-            <span>Koleksi Opening</span>
+            <span>Kembali ke Koleksi Opening</span>
           </button>
           <button
             type="button"

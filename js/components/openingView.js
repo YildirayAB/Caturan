@@ -70,25 +70,85 @@ export function renderOpeningDashboardView(
 ) {
   if (!container || !openingSummary) return;
 
-  const {
-    totalOpeningsCount,
-    studiedCount,
-    masteredCount,
-    totalPracticeSessions,
-    successRate,
-    lastStudiedOpening,
-    repertoireSummary,
-    categoriesSummary
-  } = openingSummary;
+  const allOpeningsList = getAllOpenings();
+  const totalOpeningsCount = Number.isFinite(Number(openingSummary.totalOpeningsCount))
+    ? Number(openingSummary.totalOpeningsCount)
+    : allOpeningsList.length;
+  const studiedCount = Math.max(0, Math.floor(Number(openingSummary.studiedCount) || 0));
+  const masteredCount = Math.max(0, Math.floor(Number(openingSummary.masteredCount) || 0));
+  const totalPracticeSessions = Math.max(
+    0,
+    Math.floor(Number(openingSummary.totalPracticeSessions) || 0)
+  );
+  const successRate = Math.max(
+    0,
+    Math.min(100, Math.round(Number(openingSummary.successRate) || 0))
+  );
+  const lastStudiedOpening =
+    openingSummary.lastStudiedOpening &&
+    typeof openingSummary.lastStudiedOpening === 'object' &&
+    typeof openingSummary.lastStudiedOpening.id === 'string'
+      ? openingSummary.lastStudiedOpening
+      : null;
 
-  const userName = userEmail ? userEmail.split('@')[0] : 'Pecatur Caturan';
-  const greetingText =
-    studiedCount === 0 && totalPracticeSessions === 0
-      ? 'Belum ada riwayat belajar opening. Seluruh statistik dimulai secara jujur dari 0 — pilih Repertoire Putih atau Hitam untuk mulai mempelajari pembukaan catur!'
-      : `Anda telah mempelajari ${studiedCount} dari ${totalOpeningsCount} variasi opening, menguasai ${masteredCount} variasi, dan menyelesaikan ${totalPracticeSessions} sesi latihan dengan tingkat keberhasilan ${successRate}%.`;
+  const rawRep = openingSummary.repertoireSummary || {};
+  const normalizeRepertoire = (repObj, fallbackSide) => {
+    const isBlack = fallbackSide === 'black';
+    const sideCount = allOpeningsList.filter(
+      o => o.repertoireSide === (isBlack ? 'black' : 'white')
+    ).length;
+    return {
+      id: isBlack ? 'black' : 'white',
+      title:
+        typeof repObj?.title === 'string' && repObj.title.trim()
+          ? repObj.title.trim()
+          : isBlack
+          ? 'Repertoire Hitam'
+          : 'Repertoire Putih',
+      description:
+        typeof repObj?.description === 'string' && repObj.description.trim()
+          ? repObj.description.trim()
+          : isBlack
+          ? 'Pertahanan dan serangan balik ketika bermain sebagai Hitam menghadapi langkah pertama Putih.'
+          : 'Pembukaan ketika Anda memegang bidak Putih dan memulai inisiatif langkah pertama.',
+      totalAvailable: Number.isFinite(Number(repObj?.totalAvailable))
+        ? Number(repObj.totalAvailable)
+        : sideCount,
+      studiedCount: Math.max(0, Math.floor(Number(repObj?.studiedCount) || 0)),
+      masteredCount: Math.max(0, Math.floor(Number(repObj?.masteredCount) || 0)),
+      percentage: Math.max(0, Math.min(100, Math.round(Number(repObj?.percentage) || 0)))
+    };
+  };
 
-  const whiteRep = repertoireSummary.white;
-  const blackRep = repertoireSummary.black;
+  const whiteRep = normalizeRepertoire(rawRep.white, 'white');
+  const blackRep = normalizeRepertoire(rawRep.black, 'black');
+
+  const categoriesSummary = Array.isArray(openingSummary.categoriesSummary)
+    ? openingSummary.categoriesSummary.map(cat => ({
+        id: String(cat?.id || ''),
+        title: String(cat?.title || 'Kategori Pembukaan'),
+        subtitle: String(cat?.subtitle || ''),
+        description: String(cat?.description || ''),
+        totalOpenings: Math.max(0, Math.floor(Number(cat?.totalOpenings) || 0)),
+        studiedOpenings: Math.max(0, Math.floor(Number(cat?.studiedOpenings) || 0)),
+        masteredOpenings: Math.max(0, Math.floor(Number(cat?.masteredOpenings) || 0)),
+        percentage: Math.max(0, Math.min(100, Math.round(Number(cat?.percentage) || 0)))
+      }))
+    : [];
+
+  const cleanEmail = typeof userEmail === 'string' ? userEmail.trim() : '';
+  const userName = cleanEmail ? cleanEmail.split('@')[0] : 'Pecatur Caturan';
+  const hasLearningHistory =
+    studiedCount > 0 || totalPracticeSessions > 0 || Boolean(lastStudiedOpening);
+
+  const greetingText = !hasLearningHistory
+    ? 'Belum ada riwayat belajar opening. Statistik dimulai dari 0 — pilih variasi pembukaan untuk mulai mempelajari langkah atau berlatih.'
+    : `Anda telah mempelajari ${studiedCount} dari ${totalOpeningsCount} variasi opening, menguasai ${masteredCount} variasi, dan menyelesaikan ${totalPracticeSessions} sesi latihan dengan tingkat keberhasilan ${successRate}%.`;
+
+  const practiceTargetId =
+    lastStudiedOpening && lastStudiedOpening.id
+      ? lastStudiedOpening.id
+      : allOpeningsList[0]?.id || 'italian-game-main';
 
   // Kartu Opening Terakhir Dipelajari
   let lastStudiedHtml = '';
@@ -96,23 +156,28 @@ export function renderOpeningDashboardView(
     const repLabel =
       lastStudiedOpening.repertoireSide === 'black' ? 'Repertoire Hitam' : 'Repertoire Putih';
     const statusClass = getStatusBadgeClass(lastStudiedOpening.status);
+    const statusLabelText =
+      typeof lastStudiedOpening.statusLabel === 'string' && lastStudiedOpening.statusLabel.trim()
+        ? lastStudiedOpening.statusLabel.trim()
+        : OPENING_STATUS_META[lastStudiedOpening.status]?.label || 'Sedang Dipelajari';
+
     lastStudiedHtml = `
       <div class="opening-last-studied-card" data-testid="opening-last-studied-card">
         <div class="opening-last-studied-info">
           <div class="opening-card-badges">
-            <span class="badge badge-accent">ECO ${escapeHtml(lastStudiedOpening.eco)}</span>
+            <span class="badge badge-accent">ECO ${escapeHtml(lastStudiedOpening.eco || '-')}</span>
             <span class="badge badge-neutral">${escapeHtml(repLabel)}</span>
-            <span class="badge badge-neutral">${escapeHtml(lastStudiedOpening.category)}</span>
+            <span class="badge badge-neutral">${escapeHtml(lastStudiedOpening.category || 'Opening')}</span>
             <span class="badge ${statusClass}" data-testid="last-studied-status">
-              ${escapeHtml(lastStudiedOpening.statusLabel)}
+              ${escapeHtml(statusLabelText)}
             </span>
           </div>
           <h3 class="opening-last-studied-title" data-testid="last-studied-name">
-            ${escapeHtml(lastStudiedOpening.name)}
+            ${escapeHtml(lastStudiedOpening.name || 'Opening')}
           </h3>
-          <p class="opening-last-studied-desc">${escapeHtml(lastStudiedOpening.description)}</p>
+          <p class="opening-last-studied-desc">${escapeHtml(lastStudiedOpening.description || '')}</p>
           <p class="opening-last-studied-pgn">
-            <strong>Urutan Langkah:</strong> <code>${escapeHtml(lastStudiedOpening.pgn)}</code>
+            <strong>Urutan Langkah:</strong> <code>${escapeHtml(lastStudiedOpening.pgn || '-')}</code>
           </p>
         </div>
         <div class="opening-last-studied-actions">
@@ -142,10 +207,12 @@ export function renderOpeningDashboardView(
   } else {
     lastStudiedHtml = `
       <div class="opening-last-studied-empty" data-testid="opening-last-studied-empty">
-        <p class="opening-empty-title" data-testid="last-studied-name">Belum ada opening yang dipelajari</p>
-        <p class="opening-empty-subtitle">
-          Pilih salah satu variasi di Repertoire Putih, Repertoire Hitam, atau Koleksi Opening untuk mulai mempelajari langkah pembukaan.
-        </p>
+        <div class="opening-empty-info">
+          <p class="opening-empty-title" data-testid="last-studied-name">Belum ada opening yang dipelajari</p>
+          <p class="opening-empty-subtitle">
+            Pilih salah satu variasi di Repertoire Putih, Repertoire Hitam, atau Koleksi Opening untuk mulai mempelajari langkah pembukaan.
+          </p>
+        </div>
         <div class="opening-empty-actions">
           <button
             type="button"
@@ -164,24 +231,24 @@ export function renderOpeningDashboardView(
   const families = getOpeningFamilies('all');
 
   container.innerHTML = `
-    <div class="opening-dashboard-view" data-testid="opening-dashboard-view">
+    <div class="dashboard-page opening-dashboard-view" data-testid="opening-dashboard-view">
       <!-- 1. Header Opening Trainer -->
-      <section class="hero-banner opening-hero-banner" aria-labelledby="opening-dashboard-heading">
-        <div class="hero-content">
-          <div class="greeting-pill">
-            <span>Halo, <strong>${escapeHtml(userName)}</strong>! • Pembelajaran & Latihan Repertoire</span>
+      <section class="card greeting-banner opening-greeting-banner" aria-labelledby="opening-dashboard-heading">
+        <div class="greeting-content">
+          <div class="greeting-eyebrow">
+            <span class="app-pill">CATURAN • MVP 4 OPENING TRAINER</span>
           </div>
-          <h1 id="opening-dashboard-heading" class="hero-title">Opening Trainer</h1>
-          <p class="hero-subtitle">
-            Pelajari prinsip strategis, pahami urutan langkah pada papan interaktif, dan latih daya ingat pembukaan catur untuk Repertoire Putih maupun Hitam.
+          <h1 id="opening-dashboard-heading" class="greeting-title">Opening Trainer</h1>
+          <p class="greeting-subtitle-user">
+            Halo, <strong>${escapeHtml(userName)}</strong>! Pelajari prinsip strategis, pahami urutan langkah pada papan interaktif, dan latih daya ingat pembukaan catur untuk Repertoire Putih maupun Hitam.
           </p>
-          <p class="opening-greeting-progress" data-testid="opening-greeting-summary">
+          <p class="greeting-description opening-greeting-progress" data-testid="opening-greeting-summary">
             ${escapeHtml(greetingText)}
           </p>
-          <div class="hero-actions">
+          <div class="greeting-actions">
             <button
               type="button"
-              class="btn btn-primary btn-lg"
+              class="btn btn-primary"
               data-action="open-library"
               data-testid="opening-explore-library-btn"
             >
@@ -190,9 +257,9 @@ export function renderOpeningDashboardView(
             </button>
             <button
               type="button"
-              class="btn btn-secondary btn-lg"
+              class="btn btn-secondary"
               data-action="practice-opening"
-              data-opening-id="${escapeHtml(lastStudiedOpening ? lastStudiedOpening.id : 'italian-game-main')}"
+              data-opening-id="${escapeHtml(practiceTargetId)}"
               data-testid="opening-quick-practice-btn"
             >
               ${UI_ICONS.target}
@@ -200,64 +267,73 @@ export function renderOpeningDashboardView(
             </button>
           </div>
         </div>
+        <div class="greeting-side-box">
+          <div class="level-summary-chip">
+            <span class="chip-label">Status Repertoire</span>
+            <strong class="chip-value">${studiedCount} / ${totalOpeningsCount} Opening Dipelajari</strong>
+            <span class="chip-sub">${masteredCount} Variasi Dikuasai • ${totalPracticeSessions} Sesi Latihan</span>
+          </div>
+        </div>
       </section>
 
       <!-- 2. Statistik Aktual Opening Trainer -->
-      <section class="stats-grid opening-stats-grid" aria-label="Statistik Opening Trainer">
-        <article class="stat-card" data-testid="stat-opening-studied">
-          <div class="stat-card-header">
-            <span class="stat-label">Total Opening Dipelajari</span>
-            <span class="stat-icon icon-teal">${UI_ICONS.learn}</span>
-          </div>
-          <div class="stat-value" data-testid="stat-studied-value">${studiedCount} / ${totalOpeningsCount}</div>
-          <div class="stat-meta">Variasi yang telah dibuka atau dilatih</div>
-        </article>
+      <section class="dashboard-section" aria-label="Statistik Opening Trainer">
+        <div class="stats-grid opening-stats-grid">
+          <article class="card stat-card" data-testid="stat-opening-studied">
+            <div class="stat-icon-box">${UI_ICONS.learn}</div>
+            <div class="stat-body">
+              <span class="stat-label">Total Opening Dipelajari</span>
+              <strong class="stat-value" data-testid="stat-studied-value">${studiedCount} / ${totalOpeningsCount}</strong>
+              <span class="stat-caption">Variasi pembukaan yang telah dipelajari</span>
+            </div>
+          </article>
 
-        <article class="stat-card" data-testid="stat-opening-mastered">
-          <div class="stat-card-header">
-            <span class="stat-label">Total Variasi Dikuasai</span>
-            <span class="stat-icon icon-amber">${UI_ICONS.trophy}</span>
-          </div>
-          <div class="stat-value" data-testid="stat-mastered-value">${masteredCount} / ${totalOpeningsCount}</div>
-          <div class="stat-meta">Lulus latihan tanpa salah & tanpa hint</div>
-        </article>
+          <article class="card stat-card" data-testid="stat-opening-mastered">
+            <div class="stat-icon-box">${UI_ICONS.trophy}</div>
+            <div class="stat-body">
+              <span class="stat-label">Total Variasi Dikuasai</span>
+              <strong class="stat-value" data-testid="stat-mastered-value">${masteredCount} / ${totalOpeningsCount}</strong>
+              <span class="stat-caption">Lulus latihan tanpa salah &amp; tanpa petunjuk</span>
+            </div>
+          </article>
 
-        <article class="stat-card" data-testid="stat-opening-sessions">
-          <div class="stat-card-header">
-            <span class="stat-label">Total Sesi Latihan</span>
-            <span class="stat-icon icon-orange">${UI_ICONS.target}</span>
-          </div>
-          <div class="stat-value" data-testid="stat-sessions-value">${totalPracticeSessions}</div>
-          <div class="stat-meta">Sesi latihan pembukaan yang terekam</div>
-        </article>
+          <article class="card stat-card" data-testid="stat-opening-sessions">
+            <div class="stat-icon-box">${UI_ICONS.target}</div>
+            <div class="stat-body">
+              <span class="stat-label">Total Sesi Latihan</span>
+              <strong class="stat-value" data-testid="stat-sessions-value">${totalPracticeSessions}</strong>
+              <span class="stat-caption">Sesi latihan pembukaan yang terekam</span>
+            </div>
+          </article>
 
-        <article class="stat-card" data-testid="stat-opening-success-rate">
-          <div class="stat-card-header">
-            <span class="stat-label">Tingkat Keberhasilan</span>
-            <span class="stat-icon icon-green">${UI_ICONS.check}</span>
-          </div>
-          <div class="stat-value" data-testid="stat-success-rate-value">${successRate}%</div>
-          <div class="stat-meta">Akurasi ketepatan langkah latihan</div>
-        </article>
+          <article class="card stat-card" data-testid="stat-opening-success-rate">
+            <div class="stat-icon-box">${UI_ICONS.checkCircle}</div>
+            <div class="stat-body">
+              <span class="stat-label">Tingkat Keberhasilan</span>
+              <strong class="stat-value" data-testid="stat-success-rate-value">${successRate}%</strong>
+              <span class="stat-caption">Akurasi ketepatan langkah latihan</span>
+            </div>
+          </article>
+        </div>
       </section>
 
       <!-- Opening Terakhir Dipelajari -->
-      <section class="dashboard-section" aria-labelledby="last-studied-heading">
-        <div class="section-header">
+      <section class="card dashboard-panel" aria-labelledby="last-studied-heading">
+        <div class="panel-header">
           <div>
-            <h2 id="last-studied-heading" class="section-title">Opening Terakhir Dipelajari</h2>
-            <p class="section-subtitle">Lanjutkan sesi belajar atau uji ingatan Anda pada variasi terakhir</p>
+            <h2 id="last-studied-heading" class="panel-title">Opening Terakhir Dipelajari</h2>
+            <p class="panel-subtitle">Lanjutkan sesi belajar atau uji ingatan Anda pada variasi terakhir</p>
           </div>
         </div>
         ${lastStudiedHtml}
       </section>
 
       <!-- 3. Repertoire Putih & Repertoire Hitam -->
-      <section class="dashboard-section" aria-labelledby="repertoire-section-heading">
-        <div class="section-header">
+      <section class="card dashboard-panel" aria-labelledby="repertoire-section-heading">
+        <div class="panel-header">
           <div>
-            <h2 id="repertoire-section-heading" class="section-title">Repertoire Pembukaan</h2>
-            <p class="section-subtitle">Pilih sudut pandang permainan untuk membangun repertoar langkah awal yang terstruktur</p>
+            <h2 id="repertoire-section-heading" class="panel-title">Repertoire Pembukaan</h2>
+            <p class="panel-subtitle">Pilih sudut pandang permainan untuk membangun repertoar langkah awal yang terstruktur</p>
           </div>
         </div>
 
@@ -363,11 +439,11 @@ export function renderOpeningDashboardView(
       </section>
 
       <!-- 4. Opening Categories -->
-      <section class="dashboard-section" aria-labelledby="opening-categories-heading">
-        <div class="section-header">
+      <section class="card dashboard-panel" aria-labelledby="opening-categories-heading">
+        <div class="panel-header">
           <div>
-            <h2 id="opening-categories-heading" class="section-title">Kategori Pembukaan (Opening Categories)</h2>
-            <p class="section-subtitle">Klasifikasi pembukaan catur berdasarkan struktur langkah awal di pusat maupun sayap</p>
+            <h2 id="opening-categories-heading" class="panel-title">Kategori Pembukaan (Opening Categories)</h2>
+            <p class="panel-subtitle">Klasifikasi pembukaan catur berdasarkan struktur langkah awal di pusat maupun sayap</p>
           </div>
         </div>
 
@@ -408,11 +484,11 @@ export function renderOpeningDashboardView(
       </section>
 
       <!-- 5. Keluarga Opening & Variasi Populer -->
-      <section class="dashboard-section" aria-labelledby="opening-families-heading">
-        <div class="section-header">
+      <section class="card dashboard-panel" aria-labelledby="opening-families-heading">
+        <div class="panel-header">
           <div>
-            <h2 id="opening-families-heading" class="section-title">Keluarga Pembukaan & Variasi</h2>
-            <p class="section-subtitle">Satu pembukaan memiliki beberapa variasi — pilih variasi spesifik untuk dipelajari atau dilatih</p>
+            <h2 id="opening-families-heading" class="panel-title">Keluarga Pembukaan &amp; Variasi</h2>
+            <p class="panel-subtitle">Satu pembukaan memiliki beberapa variasi — pilih variasi spesifik untuk dipelajari atau dilatih</p>
           </div>
           <button
             type="button"
@@ -654,19 +730,23 @@ export function renderOpeningLibraryView(
 
     container.innerHTML = `
       <div class="opening-library-view" data-testid="opening-library-view">
-        <div class="detail-topbar">
-          <button
-            type="button"
-            class="btn btn-secondary btn-sm"
-            data-action="back-dashboard"
-            data-testid="opening-library-back-btn"
-          >
-            ${UI_ICONS.chevronLeft}
-            <span>Kembali ke Dashboard Opening</span>
-          </button>
-          <span class="badge badge-neutral" data-testid="opening-library-count-badge">
-            Menampilkan ${filteredOpenings.length} dari ${totalAll} Variasi Opening
-          </span>
+        <div class="detail-topbar" data-testid="opening-library-topbar">
+          <div class="detail-topbar-left">
+            <button
+              type="button"
+              class="btn btn-secondary btn-sm"
+              data-action="back-dashboard"
+              data-testid="opening-library-back-btn"
+            >
+              ${UI_ICONS.chevronLeft}
+              <span>Kembali ke Dashboard Opening</span>
+            </button>
+          </div>
+          <div class="detail-topbar-right">
+            <span class="badge badge-neutral" data-testid="opening-library-count-badge">
+              Menampilkan ${filteredOpenings.length} dari ${totalAll} Variasi Opening
+            </span>
+          </div>
         </div>
 
         <header class="page-header">

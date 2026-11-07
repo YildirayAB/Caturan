@@ -392,3 +392,106 @@
   flex: 1;
   min-width: 110px;
 }
+
+/* Responsivitas Papan Catur pada Tablet, Smartphone Portrait & Landscape */
+@media (max-width: 860px) {
+  .chessboard-frame,
+  .puzzle-chessboard-widget .chessboard-frame {
+    max-width: min(100%, 500px);
+  }
+
+  .chessboard-controls {
+    gap: 10px;
+  }
+
+  .chessboard-controls .btn {
+    min-height: 44px;
+    padding: 9px 12px;
+  }
+
+  .promo-btn {
+    min-height: 68px;
+    padding: 10px 6px;
+  }
+
+  .promo-cancel-btn {
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 480px) {
+  .chessboard-topbar {
+    padding: 8px 10px;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .turn-indicator {
+    font-size: 0.82rem;
+  }
+
+  .coord-label {
+    font-size: 0.58rem;
+  }
+
+  .coord-rank {
+    top: 2px;
+    left: 3px;
+  }
+
+  .coord-file {
+    bottom: 2px;
+    right: 3px;
+  }
+
+  .chessboard-coord-statusbar {
+    font-size: 0.74rem;
+    gap: 6px;
+  }
+
+  .move-history-pill {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+
+  .chessboard-feedback {
+    padding: 10px 12px;
+    font-size: 0.82rem;
+  }
+
+  .promotion-overlay {
+    padding: 10px;
+  }
+
+  .promotion-dialog {
+    padding: 12px;
+  }
+
+  .promo-btn svg {
+    width: 30px;
+    height: 30px;
+  }
+
+  .chessboard-controls .btn {
+    flex: 1 1 calc(50% - 6px);
+    min-width: 120px;
+  }
+}
+
+@media (max-width: 360px) {
+  .coord-label {
+    font-size: 0.52rem;
+  }
+
+  .chessboard-controls .btn {
+    flex: 1 1 100%;
+  }
+}
+
+/* Mode Landscape Mobile: jaga agar papan catur 1:1 muat nyaman di tinggi layar */
+@media (max-height: 540px) and (orientation: landscape) {
+  .chessboard-frame,
+  .puzzle-chessboard-widget .chessboard-frame {
+    max-width: min(100%, 70vh);
+  }
+}

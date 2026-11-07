@@ -2233,6 +2233,143 @@
   justify-content: flex-end;
 }
 
+/* Elemen Bar Lawan, Riwayat Langkah Ringkas & Bar Pemain Khusus Mobile pada Play Game */
+.play-mobile-opponent-bar,
+.play-mobile-moves-strip,
+.play-mobile-player-bar {
+  display: none;
+}
+
+@media (max-width: 1100px) {
+  /* Pada layar Tablet Portrait & Mobile (<= 1100px saat 1 kolom), aktifkan urutan ergonomis bermain catur */
+  .play-board-card {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .play-mobile-opponent-bar,
+  .play-mobile-player-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 12px;
+    background-color: var(--bg-subtle);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .play-mobile-combatant-main {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .play-mobile-thinking-pill {
+    padding: 3px 9px;
+    font-size: 0.72rem;
+  }
+
+  .play-mobile-captured-line {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 2px;
+    min-width: 0;
+  }
+
+  .play-mobile-captured-inline {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .play-mobile-captured-inline .captured-empty-text {
+    font-size: 0.74rem;
+  }
+
+  .play-mobile-captured-inline .captured-piece-icon,
+  .play-mobile-captured-inline .captured-piece-icon svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .play-mobile-moves-strip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    overflow-x: auto;
+    white-space: nowrap;
+    padding: 8px 12px;
+    background-color: var(--bg-subtle);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    width: 100%;
+    box-sizing: border-box;
+    scrollbar-width: thin;
+  }
+
+  .play-mobile-moves-empty {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    font-weight: 600;
+  }
+
+  .play-mobile-move-pair {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.8rem;
+    font-family: monospace;
+  }
+
+  .play-mobile-move-num {
+    color: var(--text-muted);
+    font-weight: 700;
+  }
+
+  .play-mobile-move-san {
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 700;
+    color: var(--text-main);
+  }
+
+  .play-mobile-move-san.is-latest-move {
+    background-color: var(--accent-main);
+    color: #FFFFFF;
+  }
+
+  /* Di kolom bawah pada mobile/tablet 1-kolom: tampilkan Hasil Akhir & Toolbar Kontrol paling atas tepat setelah papan */
+  .play-side-column #play-result-slot {
+    order: 1;
+  }
+
+  .play-side-column .play-controls-card {
+    order: 2;
+  }
+
+  .play-side-column .play-info-card {
+    order: 3;
+  }
+
+  .play-side-column .play-history-card {
+    order: 4;
+  }
+
+  .play-side-column .play-captured-card {
+    order: 5;
+  }
+}
+
 @media (max-width: 960px) {
   .play-setup-layout {
     grid-template-columns: 1fr;
@@ -2259,33 +2396,106 @@
   display: flex;
   flex-direction: column;
   gap: 24px;
+  min-width: 0;
+}
+
+/* Header Opening Trainer */
+.opening-greeting-banner {
+  align-items: flex-start;
+}
+
+.opening-greeting-banner .greeting-content {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+
+.opening-greeting-banner .greeting-title {
+  margin-bottom: 2px;
+}
+
+.opening-greeting-banner .greeting-subtitle-user {
+  margin-bottom: 2px;
+  line-height: 1.55;
 }
 
 .opening-greeting-progress {
   font-size: 0.92rem;
   color: var(--text-secondary);
-  margin-top: 8px;
-  line-height: 1.5;
+  line-height: 1.55;
+  margin: 0;
 }
 
-/* Kartu Opening Terakhir Dipelajari */
+.greeting-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+/* Empat Kartu Statistik Opening Trainer */
+.opening-stats-grid {
+  align-items: stretch;
+}
+
+.opening-stats-grid .stat-card {
+  height: 100%;
+  min-width: 0;
+  align-items: flex-start;
+  padding: 20px;
+}
+
+.opening-stats-grid .stat-body {
+  min-width: 0;
+  flex: 1;
+  gap: 2px;
+}
+
+.opening-stats-grid .stat-label {
+  line-height: 1.35;
+}
+
+.opening-stats-grid .stat-value {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+  margin: 4px 0;
+}
+
+.opening-stats-grid .stat-caption {
+  line-height: 1.4;
+}
+
+/* Kartu Opening Terakhir Dipelajari & Empty State */
 .opening-last-studied-card,
 .opening-last-studied-empty {
-  background-color: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  padding: 20px 24px;
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 18px 20px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  box-shadow: var(--shadow-sm);
 }
 
 .opening-last-studied-empty {
+  border-style: dashed;
+}
+
+.opening-empty-info {
+  display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 10px;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+
+.opening-empty-actions {
+  flex-shrink: 0;
 }
 
 .opening-last-studied-info {
@@ -2293,10 +2503,11 @@
   flex-direction: column;
   gap: 8px;
   flex: 1;
+  min-width: 0;
 }
 
 .opening-last-studied-title {
-  font-size: 1.2rem;
+  font-size: 1.15rem;
   font-weight: 800;
   color: var(--text-main);
   margin: 0;
@@ -2316,10 +2527,10 @@
 }
 
 .opening-last-studied-pgn code {
-  background-color: var(--bg-surface-alt);
+  background-color: var(--bg-surface);
   padding: 3px 8px;
   border-radius: var(--radius-sm);
-  border: 1px solid var(--border-subtle);
+  border: 1px solid var(--border-color);
   color: var(--text-main);
   font-weight: 700;
 }
@@ -2331,29 +2542,35 @@
   flex-shrink: 0;
 }
 
-/* Repertoire Putih & Hitam Grid */
+/* Repertoire Putih & Hitam Grid — Komposisi Seimbang & Sejajar */
 .opening-repertoire-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 20px;
+  align-items: stretch;
 }
 
 .opening-repertoire-card {
-  background-color: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
   padding: 22px;
   display: flex;
   flex-direction: column;
   gap: 14px;
-  box-shadow: var(--shadow-sm);
+  min-width: 0;
+  max-width: 100%;
+  height: 100%;
+  box-sizing: border-box;
 }
 
 .repertoire-card-top {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-height: 32px;
 }
 
 .repertoire-side-badge {
@@ -2361,11 +2578,11 @@
   align-items: center;
   gap: 8px;
   padding: 5px 12px;
-  border-radius: var(--radius-pill);
+  border-radius: 999px;
   font-size: 0.82rem;
   font-weight: 700;
-  background-color: var(--bg-surface-alt);
-  border: 1px solid var(--border-subtle);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
   color: var(--text-main);
 }
 
@@ -2374,6 +2591,7 @@
   height: 10px;
   border-radius: 50%;
   display: inline-block;
+  flex-shrink: 0;
 }
 
 .side-dot.dot-white {
@@ -2387,8 +2605,9 @@
 }
 
 .repertoire-card-title {
-  font-size: 1.25rem;
+  font-size: 1.2rem;
   font-weight: 800;
+  line-height: 1.3;
   color: var(--text-main);
   margin: 0;
 }
@@ -2396,66 +2615,79 @@
 .repertoire-card-desc {
   font-size: 0.88rem;
   color: var(--text-secondary);
-  line-height: 1.5;
+  line-height: 1.55;
   margin: 0;
+  min-height: 3.1em;
+  flex: 1 1 auto;
 }
 
 .repertoire-stats-row {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
+  align-items: stretch;
+  width: 100%;
 }
 
 .repertoire-stat-box {
-  background-color: var(--bg-surface-alt);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  padding: 10px 8px;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 10px 6px;
+  min-height: 62px;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   text-align: center;
   gap: 2px;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .repertoire-stat-num {
   font-size: 1.05rem;
   font-weight: 800;
   color: var(--text-main);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .repertoire-stat-lbl {
   font-size: 0.74rem;
   color: var(--text-muted);
   font-weight: 600;
+  line-height: 1.25;
 }
 
 .repertoire-card-actions {
-  margin-top: auto;
-  padding-top: 4px;
+  padding-top: 2px;
+  width: 100%;
 }
 
 .repertoire-card-actions .btn {
   width: 100%;
+  min-height: 44px;
   justify-content: center;
+  box-sizing: border-box;
 }
 
 /* Opening Categories Grid */
 .opening-categories-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 16px;
 }
 
 .opening-category-card {
-  background-color: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
   padding: 18px 20px;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  box-shadow: var(--shadow-sm);
+  min-width: 0;
 }
 
 .opening-category-header {
@@ -2503,18 +2735,19 @@
 /* Keluarga Opening & Variasi */
 .opening-families-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 16px;
 }
 
 .opening-family-card {
-  background-color: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
   padding: 18px;
   display: flex;
   flex-direction: column;
   gap: 10px;
+  min-width: 0;
 }
 
 .opening-family-head {
@@ -2552,9 +2785,9 @@
   justify-content: space-between;
   gap: 8px;
   padding: 8px 10px;
-  background-color: var(--bg-surface-alt);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
 }
 
 .variation-item-main {
@@ -2589,10 +2822,10 @@
 
 .opening-filter-panel {
   background-color: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
   padding: 16px 20px;
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-card);
 }
 
 .opening-filter-row {
@@ -2621,32 +2854,33 @@
   font-size: 0.86rem;
   font-family: inherit;
   color: var(--text-main);
-  background-color: var(--bg-surface-alt);
+  background-color: var(--bg-subtle);
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   outline: none;
 }
 
 .opening-filter-input:focus,
 .opening-filter-select:focus {
-  border-color: var(--accent);
+  border-color: var(--accent-main);
 }
 
 .opening-library-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 18px;
 }
 
 .opening-library-card {
   background-color: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
   padding: 20px;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-card);
+  min-width: 0;
 }
 
 .opening-card-top {
@@ -2673,7 +2907,7 @@
 .opening-card-variation {
   font-size: 0.82rem;
   font-weight: 700;
-  color: var(--accent);
+  color: var(--accent-main);
   margin: -4px 0 0 0;
 }
 
@@ -2690,9 +2924,9 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
   padding: 10px 12px;
-  background-color: var(--bg-surface-alt);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
 }
 
 .opening-meta-item {
@@ -2714,8 +2948,8 @@
 }
 
 .opening-card-pgn-box {
-  background-color: var(--bg-surface-alt);
-  border: 1px solid var(--border-subtle);
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
   padding: 8px 10px;
   font-size: 0.8rem;
@@ -2737,8 +2971,8 @@
 .opening-library-empty {
   grid-column: 1 / -1;
   background-color: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
   padding: 32px 24px;
   text-align: center;
   display: flex;
@@ -2748,56 +2982,133 @@
 }
 
 .opening-empty-title {
-  font-size: 1.05rem;
+  font-size: 1rem;
   font-weight: 800;
   color: var(--text-main);
   margin: 0;
 }
 
 .opening-empty-subtitle {
-  font-size: 0.88rem;
+  font-size: 0.86rem;
   color: var(--text-secondary);
+  line-height: 1.5;
   margin: 0;
 }
 
-/* Opening Detail & Learn Mode */
+/* Opening Detail, Library & Practice Topbar Navigation */
+.detail-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  row-gap: 12px;
+  column-gap: 12px;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
 .detail-topbar-left,
 .detail-topbar-right {
   display: flex;
   align-items: center;
-  gap: 10px;
   flex-wrap: wrap;
+  row-gap: 10px;
+  column-gap: 10px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.detail-topbar .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 8px 14px;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.detail-topbar .btn svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.detail-topbar .btn span {
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.detail-topbar .badge {
+  min-height: 32px;
+  padding: 5px 12px;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.page-header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.page-title {
+  font-size: 1.65rem;
+  font-weight: 800;
+  color: var(--text-main);
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.page-subtitle {
+  font-size: 0.92rem;
+  color: var(--text-secondary);
+  line-height: 1.55;
+  margin: 0;
 }
 
 .opening-detail-header {
   background-color: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
   padding: 20px 24px;
   display: flex;
   flex-direction: column;
   gap: 10px;
+  box-shadow: var(--shadow-card);
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .opening-detail-badges {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  margin-bottom: 2px;
 }
 
 .opening-detail-variation-subtitle {
   font-size: 0.9rem;
   color: var(--text-secondary);
+  line-height: 1.5;
   margin: 0;
 }
 
 .opening-variation-switcher {
   margin-top: 6px;
   padding-top: 12px;
-  border-top: 1px solid var(--border-subtle);
+  border-top: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
   gap: 8px;
+  min-width: 0;
 }
 
 .variation-switcher-label {
@@ -2809,18 +3120,70 @@
 .variation-switcher-pills {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  row-gap: 8px;
+  column-gap: 8px;
+}
+
+.variation-switcher-pills .btn {
+  max-width: 100%;
+  min-width: 0;
+}
+
+/* Workspace 2 Kolom untuk Learn Mode & Practice Mode */
+.lesson-workspace,
+.opening-learn-workspace,
+.opening-practice-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  gap: 24px;
+  align-items: start;
+  min-width: 0;
+}
+
+.lesson-board-column {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+#opening-learn-board-mount,
+#opening-practice-board-mount {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 20px;
+  box-shadow: var(--shadow-card);
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.theory-card {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 20px 24px;
+  box-shadow: var(--shadow-card);
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .opening-notation-card {
   background-color: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
   padding: 18px 20px;
-  margin-top: 16px;
+  margin-top: 0;
   display: flex;
   flex-direction: column;
   gap: 14px;
+  box-shadow: var(--shadow-card);
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .opening-notation-header {
@@ -2845,13 +3208,16 @@
 }
 
 .opening-pgn-badge {
-  background-color: var(--bg-surface-alt);
-  border: 1px solid var(--border-subtle);
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-color);
   padding: 4px 10px;
   border-radius: var(--radius-sm);
   font-size: 0.8rem;
   font-weight: 700;
   color: var(--text-main);
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .opening-move-list {
@@ -2865,9 +3231,9 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  background-color: var(--bg-surface-alt);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
   padding: 4px 8px;
 }
 
@@ -2895,7 +3261,7 @@
 }
 
 .opening-ply-btn.active {
-  background-color: var(--accent);
+  background-color: var(--accent-main);
   color: #ffffff;
 }
 
@@ -2905,10 +3271,34 @@
   color: var(--text-secondary);
 }
 
-.opening-theory-column {
+.opening-theory-column,
+.opening-practice-side-column {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.opening-cta-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.opening-cta-actions .btn {
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  text-align: center;
+}
+
+.opening-cta-actions .btn svg {
+  flex-shrink: 0;
+}
+
+.opening-cta-actions .btn span {
+  overflow-wrap: anywhere;
 }
 
 .opening-description-text {
@@ -2944,9 +3334,9 @@
 }
 
 .explanation-item {
-  background-color: var(--bg-surface-alt);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
   padding: 12px 14px;
 }
 
@@ -2969,7 +3359,7 @@
   padding: 12px 14px;
   background-color: var(--accent-soft);
   border: 1px solid var(--accent-border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   font-size: 0.82rem;
   color: var(--text-main);
   line-height: 1.5;
@@ -2981,12 +3371,13 @@
 /* Opening Practice Mode */
 .opening-practice-prep-card {
   background-color: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
   padding: 20px 24px;
   display: flex;
   flex-direction: column;
   gap: 16px;
+  box-shadow: var(--shadow-card);
 }
 
 .opening-prep-selectors {
@@ -3003,9 +3394,9 @@
 }
 
 .practice-metric-box {
-  background-color: var(--bg-surface-alt);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
   padding: 10px 8px;
   display: flex;
   flex-direction: column;
@@ -3029,7 +3420,7 @@
 .practice-hidden-moves-box {
   margin-top: 16px;
   padding-top: 14px;
-  border-top: 1px solid var(--border-subtle);
+  border-top: 1px solid var(--border-color);
 }
 
 .practice-masked-moves {
@@ -3043,7 +3434,7 @@
   border-radius: var(--radius-sm);
   font-size: 0.8rem;
   font-weight: 700;
-  border: 1px solid var(--border-subtle);
+  border: 1px solid var(--border-color);
 }
 
 .masked-move-chip.revealed {
@@ -3054,17 +3445,17 @@
 
 .masked-move-chip.active-hidden {
   background-color: var(--accent-soft);
-  border-color: var(--accent);
-  color: var(--accent);
+  border-color: var(--accent-main);
+  color: var(--accent-main);
 }
 
 .masked-move-chip.hidden {
-  background-color: var(--bg-surface-alt);
+  background-color: var(--bg-subtle);
   color: var(--text-muted);
 }
 
 .opening-practice-result-card {
-  border: 2px solid var(--accent);
+  border: 2px solid var(--accent-main);
   background-color: var(--bg-surface);
   display: flex;
   flex-direction: column;
@@ -3086,9 +3477,9 @@
 }
 
 .practice-result-stat {
-  background-color: var(--bg-surface-alt);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
   padding: 12px;
   display: flex;
   flex-direction: column;
@@ -3120,8 +3511,10 @@
   margin: 0;
 }
 
-@media (max-width: 960px) {
-  .opening-repertoire-grid {
+@media (max-width: 1100px) {
+  .lesson-workspace,
+  .opening-learn-workspace,
+  .opening-practice-workspace {
     grid-template-columns: 1fr;
   }
 
@@ -3132,18 +3525,81 @@
   .opening-search-group {
     grid-column: 1 / -1;
   }
+}
+
+@media (max-width: 960px) {
+  .opening-greeting-banner {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .opening-greeting-banner .level-summary-chip {
+    min-width: 0;
+    width: 100%;
+  }
 
   .opening-prep-selectors {
     grid-template-columns: 1fr;
   }
 
-  .opening-last-studied-card {
+  .opening-last-studied-card,
+  .opening-last-studied-empty {
     flex-direction: column;
     align-items: flex-start;
   }
 }
 
-@media (max-width: 600px) {
+@media (max-width: 720px) {
+  .opening-repertoire-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .repertoire-card-desc {
+    min-height: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .detail-topbar {
+    flex-direction: column;
+    align-items: stretch;
+    row-gap: 10px;
+  }
+
+  .detail-topbar-left,
+  .detail-topbar-right {
+    width: 100%;
+    row-gap: 10px;
+    column-gap: 10px;
+  }
+
+  .detail-topbar-left .btn {
+    flex: 1 1 180px;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .detail-topbar-right .badge {
+    flex: 1 1 auto;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .detail-topbar-right .btn {
+    flex: 1 1 200px;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .greeting-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .greeting-actions .btn {
+    width: 100%;
+  }
+
   .opening-filter-row {
     grid-template-columns: 1fr;
   }
@@ -3151,5 +3607,241 @@
   .repertoire-stats-row,
   .practice-live-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .opening-categories-grid,
+  .opening-families-grid,
+  .opening-library-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .opening-detail-header,
+  .opening-practice-prep-card,
+  .theory-card,
+  #opening-learn-board-mount,
+  #opening-practice-board-mount {
+    padding: 16px;
+  }
+
+  .page-title {
+    font-size: 1.35rem;
+  }
+
+  .practice-result-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .practice-result-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 860px) {
+  /* Standar Touch Target Mobile & Tablet (Minimal 44px) */
+  .btn,
+  .btn-sm,
+  .filter-tab-btn,
+  .opening-filter-input,
+  .opening-filter-select,
+  .auth-input,
+  .play-option-btn {
+    min-height: 44px;
+  }
+
+  .opening-ply-btn {
+    min-height: 36px;
+    padding: 6px 10px;
+  }
+
+  .auth-password-toggle {
+    width: 40px;
+    height: 40px;
+  }
+
+  /* Optimasi Kartu & Padding pada Tablet/Mobile agar Tidak Terlalu Panjang ke Bawah */
+  .card {
+    padding: 18px;
+  }
+
+  .stat-card {
+    padding: 16px;
+    gap: 12px;
+  }
+
+  .stat-icon-box {
+    width: 40px;
+    height: 40px;
+  }
+
+  .stat-value {
+    font-size: 1.45rem;
+    white-space: nowrap;
+  }
+
+  /* Halaman Play Game Mobile: Sembunyikan duplikasi kartu identitas & tabel besar yang sudah tampil di bar sekitar papan */
+  .play-side-column .play-captured-card {
+    display: none;
+  }
+
+  .play-controls-card {
+    padding: 14px 16px;
+    padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .play-controls-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .play-controls-row .btn {
+    width: 100%;
+    min-width: 0;
+    justify-content: center;
+  }
+
+  .play-claim-draw-banner {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .play-claim-draw-banner .btn {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .card {
+    padding: 16px;
+  }
+
+  .greeting-title,
+  .page-main-title {
+    font-size: 1.4rem;
+  }
+
+  .lesson-main-title,
+  .puzzle-play-title {
+    font-size: 1.3rem;
+  }
+
+  .stat-card {
+    padding: 14px;
+    gap: 10px;
+  }
+
+  .stat-value {
+    font-size: 1.3rem;
+  }
+
+  .continue-card,
+  .recommendation-card,
+  .puzzle-choice-card,
+  .opening-repertoire-card,
+  .opening-library-card,
+  .opening-category-card,
+  .opening-family-card {
+    padding: 16px;
+  }
+
+  .continue-card-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .continue-card-actions .btn {
+    width: 100%;
+  }
+
+  .rec-footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .rec-footer .btn {
+    width: 100%;
+  }
+
+  .dashboard-utility-bar {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+  }
+
+  .dashboard-utility-bar .btn {
+    width: 100%;
+  }
+
+  .lesson-topbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .lesson-topbar > .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .lesson-hero-actions,
+  .lesson-hero-actions .btn {
+    width: 100%;
+  }
+
+  .opening-family-variation-item {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .variation-item-name {
+    white-space: normal;
+  }
+
+  .variation-item-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .variation-item-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .opening-card-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .opening-card-actions .btn {
+    width: 100%;
+  }
+
+  .opening-cta-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .opening-cta-actions .btn {
+    width: 100%;
+  }
+}
+
+@media (max-width: 360px) {
+  .card {
+    padding: 14px;
+  }
+
+  .play-controls-row {
+    grid-template-columns: 1fr;
+  }
+
+  .repertoire-stats-row,
+  .practice-live-metrics,
+  .practice-result-stats-grid,
+  .opening-card-meta-grid {
+    grid-template-columns: 1fr;
   }
 }

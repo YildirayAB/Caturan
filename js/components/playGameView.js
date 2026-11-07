@@ -142,11 +142,77 @@ export function renderPlayGameView(
         </div>
       </div>
 
-      <!-- Workspace 2 Kolom: Kiri Papan Catur 8x8, Kanan Panel Info, Bidak Tertangkap, Riwayat Langkah & Kontrol -->
+      <!-- Workspace 2 Kolom (Desktop) & Tata Letak Ergonomis (Mobile):
+           Pada Mobile (<= 860px):
+           1. Header Permainan (.play-game-topbar)
+           2. Panel Lawan Stockfish (.play-mobile-opponent-bar)
+           3. Riwayat Langkah Ringkas (.play-mobile-moves-strip)
+           4. Papan Catur Besar 1:1 di Tengah (#play-chessboard-mount)
+           5. Panel Pemain (.play-mobile-player-bar)
+           6. Toolbar Kontrol Bawah & Hasil Akhir -->
       <div class="puzzle-workspace-grid play-workspace-grid">
-        <!-- Kolom Kiri: Area Utama Papan Catur Interaktif 8x8 -->
+        <!-- Kolom Kiri: Area Utama Papan Catur Interaktif 8x8 + Bar Lawan/Pemain khusus Mobile -->
         <section class="card puzzle-board-card play-board-card" aria-label="Papan Catur Melawan Komputer">
+          <!-- Bar Lawan (Stockfish) — Tampil di atas papan pada layar Mobile/Tablet -->
+          <div class="play-mobile-opponent-bar" data-testid="play-mobile-opponent-bar">
+            <div class="play-mobile-combatant-main">
+              <div class="combatant-avatar combatant-cpu">${UI_ICONS.cpu}</div>
+              <div class="combatant-details">
+                <div class="combatant-name-line">
+                  <strong class="combatant-name">Stockfish 19 Lite</strong>
+                  <span class="badge badge-neutral" data-testid="play-mobile-cpu-diff">
+                    ${escapeHtml(difficultyConfig.title)}
+                  </span>
+                  <span
+                    id="play-mobile-thinking-pill"
+                    class="play-thinking-pill play-mobile-thinking-pill is-hidden"
+                    aria-hidden="true"
+                  >
+                    <span class="thinking-spinner"></span>
+                    <span>Berpikir...</span>
+                  </span>
+                </div>
+                <div class="play-mobile-captured-line">
+                  <span class="combatant-sub" data-testid="play-mobile-cpu-color">Hitam</span>
+                  <span class="meta-dot">•</span>
+                  <div id="play-mobile-cpu-captured" class="play-mobile-captured-inline"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Strip Riwayat Langkah Horizontal Ringkas — Tampil di atas papan pada Mobile -->
+          <div
+            id="play-mobile-moves-strip"
+            class="play-mobile-moves-strip"
+            data-testid="play-mobile-moves-strip"
+            aria-label="Riwayat Langkah Ringkas"
+          >
+            <span class="play-mobile-moves-empty">Belum ada langkah dimainkan</span>
+          </div>
+
+          <!-- Papan Catur Interaktif 8x8 -->
           <div id="play-chessboard-mount" class="chessboard-mount-container"></div>
+
+          <!-- Bar Pemain — Tampil tepat di bawah papan pada layar Mobile/Tablet -->
+          <div class="play-mobile-player-bar" data-testid="play-mobile-player-bar">
+            <div class="play-mobile-combatant-main">
+              <div class="combatant-avatar combatant-user">${UI_ICONS.user}</div>
+              <div class="combatant-details">
+                <div class="combatant-name-line">
+                  <strong class="combatant-name">${escapeHtml(playerDisplayName)} (Anda)</strong>
+                  <span class="badge badge-accent" data-testid="play-mobile-player-color">
+                    Putih
+                  </span>
+                </div>
+                <div class="play-mobile-captured-line">
+                  <span class="combatant-sub" data-testid="play-mobile-turn-status">Menyiapkan permainan...</span>
+                  <span class="meta-dot">•</span>
+                  <div id="play-mobile-player-captured" class="play-mobile-captured-inline"></div>
+                </div>
+              </div>
+            </div>
+          </div>
         </section>
 
         <!-- Kolom Kanan: Panel Informasi, Bidak Tertangkap, Riwayat Langkah, Kontrol & Hasil Akhir -->
@@ -345,6 +411,16 @@ export function renderPlayGameView(
   const resignBtn = container.querySelector('[data-testid="play-resign-btn"]');
   const confirmSlot = container.querySelector('#play-confirm-slot');
   const resultSlot = container.querySelector('#play-result-slot');
+
+  // Referensi elemen khusus tata letak ergonomis Mobile
+  const mobileCpuDiffEl = container.querySelector('[data-testid="play-mobile-cpu-diff"]');
+  const mobileThinkingPill = container.querySelector('#play-mobile-thinking-pill');
+  const mobileCpuColorEl = container.querySelector('[data-testid="play-mobile-cpu-color"]');
+  const mobileCpuCapturedEl = container.querySelector('#play-mobile-cpu-captured');
+  const mobileMovesStripEl = container.querySelector('#play-mobile-moves-strip');
+  const mobilePlayerColorEl = container.querySelector('[data-testid="play-mobile-player-color"]');
+  const mobileTurnStatusEl = container.querySelector('[data-testid="play-mobile-turn-status"]');
+  const mobilePlayerCapturedEl = container.querySelector('#play-mobile-player-captured');
 
   function renderConfirmModal() {
     if (!confirmSlot) return;
@@ -815,6 +891,88 @@ export function renderPlayGameView(
 
         // Auto-scroll ke langkah terbaru
         moveHistoryScroll.scrollTop = moveHistoryScroll.scrollHeight;
+      }
+    }
+
+    // Sinkronisasi Bar Lawan, Strip Riwayat Langkah, dan Bar Pemain untuk Tata Letak Mobile
+    if (mobileCpuDiffEl) {
+      mobileCpuDiffEl.textContent = diffObj.title;
+    }
+    if (mobileThinkingPill) {
+      if (snapshot.isEngineThinking) {
+        mobileThinkingPill.classList.remove('is-hidden');
+      } else {
+        mobileThinkingPill.classList.add('is-hidden');
+      }
+    }
+    if (mobileCpuColorEl) {
+      mobileCpuColorEl.textContent = `Bidak ${computerSideLabel}`;
+    }
+    if (mobilePlayerColorEl) {
+      mobilePlayerColorEl.textContent = `${playerSideLabel}${prefNote}`;
+    }
+    if (mobileTurnStatusEl && gameStatusText) {
+      mobileTurnStatusEl.textContent = gameStatusText.textContent;
+    }
+
+    if (snapshot.capturedInfo) {
+      const cpuCapturedPieces =
+        snapshot.computerColor === 'white'
+          ? snapshot.capturedInfo.capturedByWhite
+          : snapshot.capturedInfo.capturedByBlack;
+      const cpuCapturesColorChar = snapshot.computerColor === 'white' ? 'b' : 'w';
+      const cpuAdvantage =
+        snapshot.computerColor === 'white'
+          ? snapshot.capturedInfo.whiteAdvantage
+          : snapshot.capturedInfo.blackAdvantage;
+
+      const playerCapturedPieces =
+        snapshot.playerColor === 'white'
+          ? snapshot.capturedInfo.capturedByWhite
+          : snapshot.capturedInfo.capturedByBlack;
+      const playerCapturesColorChar = snapshot.playerColor === 'white' ? 'b' : 'w';
+      const playerAdvantage =
+        snapshot.playerColor === 'white'
+          ? snapshot.capturedInfo.whiteAdvantage
+          : snapshot.capturedInfo.blackAdvantage;
+
+      if (mobileCpuCapturedEl) {
+        mobileCpuCapturedEl.innerHTML = renderCapturedPiecesGroup(
+          cpuCapturedPieces,
+          cpuCapturesColorChar,
+          cpuAdvantage
+        );
+      }
+      if (mobilePlayerCapturedEl) {
+        mobilePlayerCapturedEl.innerHTML = renderCapturedPiecesGroup(
+          playerCapturedPieces,
+          playerCapturesColorChar,
+          playerAdvantage
+        );
+      }
+    }
+
+    if (mobileMovesStripEl) {
+      if (pairs.length === 0) {
+        mobileMovesStripEl.innerHTML = `<span class="play-mobile-moves-empty">Belum ada langkah dimainkan</span>`;
+      } else {
+        mobileMovesStripEl.innerHTML = pairs
+          .map((pair, idx) => {
+            const isLatestPair = idx === pairs.length - 1;
+            const whiteSan = pair.white ? pair.white.san : '';
+            const blackSan = pair.black ? pair.black.san : '';
+            const wActive = isLatestPair && pair.white && !pair.black ? 'is-latest-move' : '';
+            const bActive = isLatestPair && Boolean(pair.black) ? 'is-latest-move' : '';
+            return `
+              <span class="play-mobile-move-pair">
+                <span class="play-mobile-move-num">${pair.moveNumber}.</span>
+                ${whiteSan ? `<span class="play-mobile-move-san ${wActive}">${escapeHtml(whiteSan)}</span>` : ''}
+                ${blackSan ? `<span class="play-mobile-move-san ${bActive}">${escapeHtml(blackSan)}</span>` : ''}
+              </span>
+            `;
+          })
+          .join('');
+        mobileMovesStripEl.scrollLeft = mobileMovesStripEl.scrollWidth || 9999;
       }
     }
 
