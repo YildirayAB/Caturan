@@ -10,6 +10,9 @@
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-card);
   padding: 24px;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 /* Tombol */
@@ -88,6 +91,8 @@
   font-size: 0.75rem;
   font-weight: 700;
   line-height: 1.2;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .badge svg {
@@ -790,6 +795,10 @@
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 12px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .lesson-topbar-meta {
@@ -797,6 +806,13 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.lesson-topbar-meta .badge {
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .lesson-completion-banner {
@@ -1513,24 +1529,38 @@
   display: flex;
   flex-direction: column;
   justify-content: center;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .puzzle-side-column {
   display: flex;
   flex-direction: column;
   gap: 18px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .puzzle-info-card {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .puzzle-play-title {
   font-size: 1.45rem;
   font-weight: 800;
   color: var(--text-main);
+  overflow-wrap: anywhere;
 }
 
 .puzzle-play-subtitle {
@@ -1556,27 +1586,39 @@
   background-color: var(--bg-subtle);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .puzzle-meta-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: 4px 10px;
   font-size: 0.84rem;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .meta-row-label {
   color: var(--text-secondary);
   font-weight: 600;
+  min-width: 0;
 }
 
 .meta-row-value {
   display: inline-flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
   color: var(--text-main);
   font-weight: 700;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 /* Panel Penyelesaian Puzzle (Ketika Solusi Selesai) */
@@ -1889,6 +1931,10 @@
   background-color: var(--bg-subtle);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .combatant-avatar {
@@ -1916,7 +1962,8 @@
   flex-direction: column;
   gap: 2px;
   min-width: 0;
-  flex: 1;
+  max-width: 100%;
+  flex: 1 1 0%;
 }
 
 .combatant-name-line {
@@ -1924,18 +1971,28 @@
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px 8px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .combatant-name {
   font-size: 0.9rem;
   font-weight: 800;
   color: var(--text-main);
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .combatant-sub {
   font-size: 0.78rem;
   color: var(--text-secondary);
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .play-engine-error-box {
@@ -1950,6 +2007,9 @@
   border: 1px solid var(--status-warning-border);
   color: var(--status-warning-text);
   font-size: 0.82rem;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 /* Panel Bidak Tertangkap */
@@ -1960,6 +2020,10 @@
   flex-direction: column;
   gap: 12px;
   padding: 18px 20px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .play-panel-section-title {
@@ -2246,6 +2310,11 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    overflow: hidden;
   }
 
   .play-mobile-opponent-bar,
@@ -2259,29 +2328,71 @@
     border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
     width: 100%;
+    max-width: 100%;
+    min-width: 0;
     box-sizing: border-box;
+    overflow: hidden;
   }
 
   .play-mobile-combatant-main {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 10px;
     width: 100%;
+    max-width: 100%;
     min-width: 0;
+  }
+
+  .play-mobile-combatant-main .combatant-details {
+    flex: 1 1 0%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .play-mobile-combatant-main .combatant-name-line {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .play-mobile-combatant-main .combatant-name {
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .play-mobile-combatant-main .badge {
+    max-width: 100%;
+    overflow-wrap: anywhere;
   }
 
   .play-mobile-thinking-pill {
     padding: 3px 9px;
     font-size: 0.72rem;
+    max-width: 100%;
   }
 
   .play-mobile-captured-line {
     display: flex;
     align-items: center;
     flex-wrap: wrap;
-    gap: 6px;
+    gap: 4px 6px;
     margin-top: 2px;
     min-width: 0;
+    max-width: 100%;
+  }
+
+  .play-mobile-captured-line .combatant-sub {
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    line-height: 1.35;
   }
 
   .play-mobile-captured-inline {
@@ -2290,6 +2401,7 @@
     flex-wrap: wrap;
     gap: 2px;
     min-width: 0;
+    max-width: 100%;
   }
 
   .play-mobile-captured-inline .captured-empty-text {
@@ -2307,14 +2419,18 @@
     align-items: center;
     gap: 8px;
     overflow-x: auto;
+    overflow-y: hidden;
     white-space: nowrap;
     padding: 8px 12px;
     background-color: var(--bg-subtle);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
     width: 100%;
+    max-width: 100%;
+    min-width: 0;
     box-sizing: border-box;
     scrollbar-width: thin;
+    -webkit-overflow-scrolling: touch;
   }
 
   .play-mobile-moves-empty {
@@ -2329,6 +2445,7 @@
     gap: 4px;
     font-size: 0.8rem;
     font-family: monospace;
+    flex-shrink: 0;
   }
 
   .play-mobile-move-num {
@@ -2351,6 +2468,9 @@
   /* Di kolom bawah pada mobile/tablet 1-kolom: tampilkan Hasil Akhir & Toolbar Kontrol paling atas tepat setelah papan */
   .play-side-column #play-result-slot {
     order: 1;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
   }
 
   .play-side-column .play-controls-card {
@@ -2372,11 +2492,11 @@
 
 @media (max-width: 960px) {
   .play-setup-layout {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .play-options-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .play-start-action-row .btn {
@@ -3515,11 +3635,11 @@
   .lesson-workspace,
   .opening-learn-workspace,
   .opening-practice-workspace {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .opening-filter-row {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .opening-search-group {

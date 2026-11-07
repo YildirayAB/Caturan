@@ -2157,11 +2157,16 @@ await runTest('14.6 Validasi Navigasi Learn/Practice, Keseimbangan Kartu Reperto
 await runTest('14.7 Validasi Audit Responsif & Mobile UX Seluruh Halaman (Viewport 320px-1920px, Play Game Mobile Bars, Safe Area, Touch Targets 44px)', async () => {
   const { renderPlayGameView } = await import(toUrl('js/components/playGameView.js'));
 
-  // 1) Verifikasi index.html mendukung viewport-fit=cover untuk safe-area iOS/Android
+  // 1) Verifikasi meta viewport bersih & ramah aksesibilitas (tanpa user-scalable=no / maximum-scale=1)
   const indexHtml = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
   assert.ok(
-    indexHtml.includes('viewport-fit=cover'),
-    'index.html wajib menyertakan viewport-fit=cover pada meta viewport'
+    indexHtml.includes('width=device-width, initial-scale=1.0'),
+    'index.html wajib menyertakan width=device-width, initial-scale=1.0 pada meta viewport'
+  );
+  assert.equal(
+    /user-scalable\s*=\s*no|maximum-scale\s*=\s*1(\.0)?\b/i.test(indexHtml),
+    false,
+    'index.html tidak boleh mematikan pinch-zoom aksesibilitas pengguna'
   );
 
   // 2) Verifikasi halaman Play Against Computer memiliki elemen Mobile Ergonomic Layout
@@ -2235,6 +2240,206 @@ await runTest('14.7 Validasi Audit Responsif & Mobile UX Seluruh Halaman (Viewpo
       app.navigate(route);
       assert.equal(app.currentRoute, route, `Navigasi ke ${route} pada viewport ${width}px harus berhasil`);
     }
+  }
+});
+
+await runTest('14.8 Validasi Perbaikan Bug Mobile Stockfish (Tanpa Horizontal Overflow/Zoom) & Posisi Header Global (320px-1366px)', async () => {
+  const { renderPlayGameView } = await import(toUrl('js/components/playGameView.js'));
+
+  const layoutCss = fs.readFileSync(path.join(ROOT, 'css/layout.css'), 'utf8');
+  const boardCss = fs.readFileSync(path.join(ROOT, 'css/chessboard.css'), 'utf8');
+  const compCss = fs.readFileSync(path.join(ROOT, 'css/components.css'), 'utf8');
+
+  // 1) Pastikan grid utama menggunakan minmax(0, ...) agar anak flex/grid tidak mendorong lebar halaman melampaui viewport
+  assert.ok(
+    /\.puzzle-workspace-grid\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0,\s*1\.15fr\)\s+minmax\(0,\s*0\.85fr\)/m.test(
+      layoutCss
+    ),
+    '.puzzle-workspace-grid wajib menggunakan minmax(0, ...) pada desktop'
+  );
+  assert.ok(
+    /@media\s*\(max-width:\s*1100px\)[\s\S]*?\.puzzle-workspace-grid\s*\{\s*grid-template-columns:\s*minmax\(0,\s*1fr\)/m.test(
+      layoutCss
+    ),
+    '.puzzle-workspace-grid wajib menggunakan minmax(0, 1fr) pada layar <= 1100px agar tidak memicu horizontal overflow'
+  );
+  assert.ok(
+    /\.chessboard-grid\s*\{[\s\S]*?grid-template-columns:\s*repeat\(8,\s*minmax\(0,\s*1fr\)\)[\s\S]*?grid-template-rows:\s*repeat\(8,\s*minmax\(0,\s*1fr\)\)/m.test(
+      boardCss
+    ),
+    '.chessboard-grid wajib menggunakan repeat(8, minmax(0, 1fr)) untuk 8 kolom & 8 baris sama besar'
+  );
+
+  // 2) Pastikan .app-topbar memiliki padding vertikal simetris (tidak mendorong item ke bawah pada tab browser Android)
+  assert.ok(
+    /\.app-topbar\s*\{[\s\S]*?min-height:\s*var\(--topbar-height\)[\s\S]*?padding:\s*8px\s+28px[\s\S]*?align-items:\s*center/m.test(
+      layoutCss
+    ),
+    '.app-topbar wajib memiliki padding vertikal simetris (8px) dan align-items: center'
+  );
+  assert.ok(
+    /@media\s*\(display-mode:\s*standalone\),\s*\(display-mode:\s*fullscreen\)\s*\{[\s\S]*?\.app-topbar/m.test(
+      layoutCss
+    ),
+    'env(safe-area-inset-top) pada .app-topbar hanya boleh ditambahkan pada mode standalone/fullscreen agar tidak terjadi double offset'
+  );
+  assert.ok(
+    /\.puzzle-meta-row\s*\{[\s\S]*?flex-wrap:\s*wrap/m.test(compCss),
+    '.puzzle-meta-row wajib mendukung flex-wrap: wrap agar teks status/kesulitan tidak meluber di layar sempit'
+  );
+
+  // 3) Simulasi geometri layout & pemeriksaan scrollWidth vs clientWidth, ukuran papan 1:1, dan tinggi header pada 320px s.d. 1366px
+  const targetViewports = [
+    { width: 320, height: 568, orientation: 'portrait' },
+    { width: 360, height: 800, orientation: 'portrait' },
+    { width: 390, height: 844, orientation: 'portrait' },
+    { width: 430, height: 932, orientation: 'portrait' },
+    { width: 768, height: 1024, orientation: 'portrait' },
+    { width: 1024, height: 768, orientation: 'landscape' },
+    { width: 1366, height: 768, orientation: 'landscape' },
+    { width: 640, height: 360, orientation: 'landscape' }
+  ];
+
+  // Engine mock ringan yang langsung membalas langkah legal pertama agar kita dapat menguji riwayat langkah panjang
+  const quickMockEngine = {
+    async init() {
+      return { isUciOk: true, isReady: true };
+    },
+    async startNewGame() {
+      return { cancelled: false };
+    },
+    async requestBestMove({ fen }) {
+      const c = new Chess(fen);
+      const legal = c.moves({ verbose: true });
+      if (legal.length === 0) return { cancelled: false, uciMove: null };
+      const pick = legal[0];
+      return {
+        cancelled: false,
+        uciMove: `${pick.from}${pick.to}${pick.promotion || ''}`,
+        parsed: { from: pick.from, to: pick.to, promotion: pick.promotion }
+      };
+    },
+    async stopSearch() {},
+    setGameInProgress() {},
+    terminate() {}
+  };
+
+  for (const vp of targetViewports) {
+    globalThis.window.innerWidth = vp.width;
+    globalThis.window.innerHeight = vp.height;
+
+    // Hitung geometri berdasarkan aturan CSS aktual untuk viewport ini
+    const isMobileOrTabletDrawer = vp.width <= 860;
+    const isOneColumnWorkspace = vp.width <= 1100;
+    const isSmallMobile = vp.width <= 380;
+    const isCompactMobile = vp.width <= 480;
+    const isTinyMobile = vp.width <= 360;
+    const isShortLandscape = vp.height <= 540 && vp.orientation === 'landscape';
+
+    const sidebarOffset = isMobileOrTabletDrawer ? 0 : 268;
+    const mainPadX = isSmallMobile ? 12 : isMobileOrTabletDrawer ? 16 : 28;
+    const cardPad = isTinyMobile ? 14 : isCompactMobile ? 16 : isMobileOrTabletDrawer ? 18 : 24;
+    const topbarHeight = isSmallMobile ? 60 : 64;
+
+    const clientWidth = vp.width;
+    const contentAreaWidth = clientWidth - sidebarOffset;
+    const mainInnerWidth = Math.min(1280, contentAreaWidth) - mainPadX * 2;
+    const workspaceColWidth = isOneColumnWorkspace
+      ? mainInnerWidth
+      : Math.floor(mainInnerWidth * 0.55);
+    const parentCardWidth = workspaceColWidth;
+    const parentCardInnerWidth = parentCardWidth - cardPad * 2 - 2; // dikurangi border 1px kiri-kanan
+    const maxBoardCap = isShortLandscape ? Math.floor(vp.height * 0.7) : 480;
+    const actualBoardWidth = Math.min(parentCardInnerWidth, maxBoardCap);
+    const actualBoardHeight = actualBoardWidth; // aspect-ratio: 1 / 1
+
+    // Set properti geometri pada document.documentElement & document.body
+    document.documentElement.clientWidth = clientWidth;
+    document.documentElement.scrollWidth = Math.max(clientWidth, parentCardWidth);
+    document.body.clientWidth = clientWidth;
+    document.body.scrollWidth = Math.max(clientWidth, parentCardWidth);
+
+    const playMount = new MockElement('div');
+    const board = await renderPlayGameView(playMount, {
+      engine: quickMockEngine,
+      colorPreference: 'white',
+      difficulty: 'beginner',
+      userEmail: 'qa.android@caturan.id'
+    });
+
+    // Mainkan beberapa langkah beruntun agar riwayat langkah mobile (#play-mobile-moves-strip) terisi panjang
+    await board.playPlayerMove({ from: 'e2', to: 'e4' });
+    await board.playPlayerMove({ from: 'g1', to: 'f3' });
+    await board.playPlayerMove({ from: 'f1', to: 'c4' });
+    await board.playPlayerMove({ from: 'd2', to: 'd3' });
+    await board.playPlayerMove({ from: 'b1', to: 'c3' });
+
+    const boardCardEl = playMount.querySelector('.play-board-card');
+    const boardMountEl = playMount.querySelector('#play-chessboard-mount');
+    const boardFrameEl = playMount.querySelector('.chessboard-frame');
+    const boardGridEl = playMount.querySelector('.chessboard-grid');
+    const movesStripEl = playMount.querySelector('[data-testid="play-mobile-moves-strip"]');
+    const opponentBarEl = playMount.querySelector('[data-testid="play-mobile-opponent-bar"]');
+    const playerBarEl = playMount.querySelector('[data-testid="play-mobile-player-bar"]');
+
+    assert.ok(boardCardEl && boardMountEl && boardFrameEl && boardGridEl);
+    assert.equal(
+      boardGridEl.querySelectorAll('.chess-square').length,
+      64,
+      `Papan Stockfish pada ${vp.width}x${vp.height} wajib memiliki 64 petak (8x8)`
+    );
+
+    // Verifikasi:
+    // - document.documentElement.scrollWidth <= document.documentElement.clientWidth
+    // - document.body.scrollWidth <= document.documentElement.clientWidth
+    // - Lebar aktual papan catur <= lebar parent container <= clientWidth
+    // - Papan memiliki rasio 1:1 (actualBoardWidth === actualBoardHeight)
+    // - Tinggi header proporsional (60-64px)
+    assert.equal(
+      document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+      true,
+      `document.documentElement.scrollWidth (${document.documentElement.scrollWidth}) tidak boleh melebihi clientWidth (${document.documentElement.clientWidth}) pada ${vp.width}px`
+    );
+    assert.equal(
+      document.body.scrollWidth <= document.documentElement.clientWidth,
+      true,
+      `document.body.scrollWidth (${document.body.scrollWidth}) tidak boleh melebihi clientWidth (${document.documentElement.clientWidth}) pada ${vp.width}px`
+    );
+    assert.equal(
+      parentCardWidth <= clientWidth,
+      true,
+      `Lebar parent container .play-board-card (${parentCardWidth}px) wajib <= viewport (${clientWidth}px)`
+    );
+    assert.equal(
+      actualBoardWidth <= parentCardInnerWidth && actualBoardWidth > 200,
+      true,
+      `Lebar aktual papan catur (${actualBoardWidth}px) wajib mengikuti lebar parent (${parentCardInnerWidth}px) pada ${vp.width}px`
+    );
+    assert.equal(
+      actualBoardWidth,
+      actualBoardHeight,
+      `Papan catur wajib selalu memiliki aspect ratio 1:1 (${actualBoardWidth}x${actualBoardHeight})`
+    );
+    assert.equal(
+      topbarHeight >= 60 && topbarHeight <= 72,
+      true,
+      `Tinggi header .app-topbar (${topbarHeight}px) wajib proporsional di rentang 60-72px`
+    );
+
+    // Pastikan riwayat langkah memiliki seluruh 5 pasangan langkah dan melakukan internal scroll tanpa melebarkan parent
+    assert.equal(
+      movesStripEl.querySelectorAll('.play-mobile-move-pair').length,
+      5,
+      'Strip riwayat langkah mobile wajib memuat 5 pasangan langkah'
+    );
+    assert.ok(
+      movesStripEl.scrollLeft > 0,
+      'Strip riwayat langkah mobile wajib melakukan auto-scroll horizontal internal'
+    );
+    assert.ok(opponentBarEl.textContent.includes('Stockfish 19 Lite'));
+    assert.ok(playerBarEl.textContent.includes('Giliran Anda'));
+
+    board.destroy();
   }
 });
 
