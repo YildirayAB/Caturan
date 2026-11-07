@@ -5,7 +5,17 @@
  * indikator langkah legal, serta tombol Restart, Petunjuk, dan Balik Papan.
  */
 
-import { Chess, WHITE, BLACK, PAWN, QUEEN, ROOK, BISHOP, KNIGHT } from '../vendor/chess.js';
+import {
+  Chess,
+  DEFAULT_POSITION,
+  WHITE,
+  BLACK,
+  PAWN,
+  QUEEN,
+  ROOK,
+  BISHOP,
+  KNIGHT
+} from '../vendor/chess.js';
 import { getPieceSvg, UI_ICONS } from './icons.js';
 import { getPuzzleCategoryById, getPuzzleDifficultyById } from '../data/puzzles.js';
 
@@ -2856,6 +2866,1080 @@ export class ComputerChessboard {
       boardClaimDrawBtn.addEventListener('click', () => {
         this.claimDraw();
       });
+    }
+  }
+}
+
+/**
+ * Memvalidasi daftar langkah opening menggunakan Chess.js dari posisi awal standar.
+ * Memastikan tidak ada langkah PGN yang belum divalidasi yang dieksekusi di atas papan.
+ */
+export function validateOpeningSequenceWithChess(opening) {
+  const initialFen =
+    opening && typeof opening.initialFen === 'string' && opening.initialFen.trim()
+      ? opening.initialFen.trim()
+      : DEFAULT_POSITION;
+
+  const game = new Chess(initialFen);
+  const rawMoves = Array.isArray(opening?.moves) ? opening.moves : [];
+  const annotations = Array.isArray(opening?.moveAnnotations) ? opening.moveAnnotations : [];
+  const validMoves = [];
+
+  for (let i = 0; i < rawMoves.length; i += 1) {
+    const moveToken = rawMoves[i];
+    const applied = game.move(moveToken);
+    if (!applied) {
+      throw new Error(
+        `Langkah opening tidak valid pada ply ${i + 1} (${String(moveToken)}) untuk ${opening?.id || 'unknown'}`
+      );
+    }
+    const ann = annotations[i] || {};
+    validMoves.push({
+      ply: i + 1,
+      moveNumber: Math.floor(i / 2) + 1,
+      color: applied.color === WHITE ? 'white' : 'black',
+      colorChar: applied.color,
+      san: applied.san,
+      uci: `${applied.from}${applied.to}${applied.promotion || ''}`,
+      from: applied.from,
+      to: applied.to,
+      piece: applied.piece,
+      idea:
+        typeof ann.idea === 'string' && ann.idea.trim()
+          ? ann.idea.trim()
+          : `Langkah pengembangan ${applied.san} dari ${applied.from} ke ${applied.to}.`,
+      fenAfter: game.fen()
+    });
+  }
+
+  return {
+    initialFen,
+    validMoves,
+    finalFen: game.fen()
+  };
+}
+
+/**
+ * Komponen Papan Catur Mode Belajar Opening (MVP 4 — Bagian 5: Opening Detail & Learn Mode)
+ * - Mulai dari posisi awal standar.
+ * - Pengguna dapat maju satu langkah, mundur satu langkah, kembali ke posisi awal, membalik papan,
+ *   serta memilih langkah langsung dari daftar notasi.
+ * - Setiap langkah diterapkan melalui Chess.js, meng-highlight langkah terakhir, dan memperbarui riwayat SAN.
+ */
+export class OpeningLearnBoard {
+  constructor(container, opening, callbacks = {}) {
+    this.container = container;
+    this.opening = opening;
+    this.callbacks = callbacks;
+
+    const validated = validateOpeningSequenceWithChess(opening);
+    this.initialFen = validated.initialFen;
+    this.validMoves = validated.validMoves;
+
+    this.chess = new Chess(this.initialFen);
+    this.orientation = opening?.repertoireSide === 'black' ? 'black' : 'white';
+    this.currentPly = 0;
+    this.lastMove = null;
+    this.inspectedSquareInfo =
+      'Posisi awal standar. Gunakan tombol navigasi atau klik daftar langkah untuk mempelajari urutan pembukaan.';
+
+    this.render();
+  }
+
+  destroy() {
+    // Tidak ada timer aktif pada mode Learn
+  }
+
+  loadOpening(opening) {
+    this.opening = opening;
+    const validated = validateOpeningSequenceWithChess(opening);
+    this.initialFen = validated.initialFen;
+    this.validMoves = validated.validMoves;
+    this.orientation = opening?.repertoireSide === 'black' ? 'black' : 'white';
+    this.goToPly(0);
+  }
+
+  getStepState() {
+    const activeMove = this.currentPly > 0 ? this.validMoves[this.currentPly - 1] : null;
+    const nextMove =
+      this.currentPly < this.validMoves.length ? this.validMoves[this.currentPly] : null;
+    return {
+      currentPly: this.currentPly,
+      totalPlies: this.validMoves.length,
+      fen: this.chess.fen(),
+      historySan: this.chess.history(),
+      pgn: this.chess.pgn(),
+      lastMove: this.lastMove ? { ...this.lastMove } : null,
+      activeMove,
+      nextMove,
+      orientation: this.orientation
+    };
+  }
+
+  goToPly(targetPly) {
+    const clampedPly = Math.max(0, Math.min(this.validMoves.length, Math.floor(Number(targetPly) || 0)));
+    this.chess.load(this.initialFen);
+    let lastApplied = null;
+
+    for (let i = 0; i < clampedPly; i += 1) {
+      const step = this.validMoves[i];
+      const moveRes = this.chess.move(step.san);
+      if (!moveRes) {
+        throw new Error(`Gagal menerapkan langkah tervalidasi ${step.san} pada ply ${i + 1}.`);
+      }
+      lastApplied = step;
+    }
+
+    this.currentPly = clampedPly;
+    this.lastMove = lastApplied ? { from: lastApplied.from, to: lastApplied.to } : null;
+
+    if (lastApplied) {
+      const sideLabel = lastApplied.color === 'white' ? 'Putih' : 'Hitam';
+      const moveLabel =
+        lastApplied.color === 'white'
+          ? `${lastApplied.moveNumber}. ${lastApplied.san}`
+          : `${lastApplied.moveNumber}... ${lastApplied.san}`;
+      this.inspectedSquareInfo = `Langkah ${moveLabel} (${sideLabel}): ${lastApplied.from} → ${lastApplied.to}`;
+    } else {
+      this.inspectedSquareInfo = 'Posisi awal standar (sebelum langkah pertama dimainkan).';
+    }
+
+    this.render();
+
+    if (typeof this.callbacks.onStepChange === 'function') {
+      this.callbacks.onStepChange(this.getStepState());
+    }
+    return this.getStepState();
+  }
+
+  nextMove() {
+    if (this.currentPly < this.validMoves.length) {
+      return this.goToPly(this.currentPly + 1);
+    }
+    return this.getStepState();
+  }
+
+  prevMove() {
+    if (this.currentPly > 0) {
+      return this.goToPly(this.currentPly - 1);
+    }
+    return this.getStepState();
+  }
+
+  resetToStart() {
+    return this.goToPly(0);
+  }
+
+  goToEnd() {
+    return this.goToPly(this.validMoves.length);
+  }
+
+  flipBoard() {
+    this.orientation = this.orientation === 'white' ? 'black' : 'white';
+    this.render();
+    if (typeof this.callbacks.onStepChange === 'function') {
+      this.callbacks.onStepChange(this.getStepState());
+    }
+  }
+
+  render() {
+    if (!this.container) return;
+
+    const turn = this.chess.turn();
+    const turnText = turn === WHITE ? 'Giliran Putih' : 'Giliran Hitam';
+    const rowIndices =
+      this.orientation === 'white' ? [0, 1, 2, 3, 4, 5, 6, 7] : [7, 6, 5, 4, 3, 2, 1, 0];
+    const colIndices =
+      this.orientation === 'white' ? [0, 1, 2, 3, 4, 5, 6, 7] : [7, 6, 5, 4, 3, 2, 1, 0];
+
+    const boardState = this.chess.board();
+    let squaresHtml = '';
+
+    for (let visualRowIdx = 0; visualRowIdx < 8; visualRowIdx += 1) {
+      const r = rowIndices[visualRowIdx];
+      for (let visualColIdx = 0; visualColIdx < 8; visualColIdx += 1) {
+        const c = colIndices[visualColIdx];
+        const sq = FILES[c] + RANKS[r];
+        const isLight = (r + c) % 2 === 0;
+        const piece = boardState[r][c];
+        const isLastMove =
+          this.lastMove && (this.lastMove.from === sq || this.lastMove.to === sq);
+        const showRankLabel = visualColIdx === 0;
+        const showFileLabel = visualRowIdx === 7;
+
+        const classes = [
+          'chess-square',
+          isLight ? 'square-light' : 'square-dark',
+          isLastMove ? 'square-last-move' : '',
+          piece ? 'has-piece' : ''
+        ]
+          .filter(Boolean)
+          .join(' ');
+
+        squaresHtml += `
+          <div
+            class="${classes}"
+            data-square="${sq}"
+            aria-label="Petak ${sq}${piece ? ` berisi ${PIECE_NAMES_ID[piece.type]} ${piece.color === WHITE ? 'Putih' : 'Hitam'}` : ''}"
+          >
+            ${showRankLabel ? `<span class="coord-label coord-rank">${RANKS[r]}</span>` : ''}
+            ${showFileLabel ? `<span class="coord-label coord-file">${FILES[c]}</span>` : ''}
+            ${piece ? `<span class="piece-wrapper">${getPieceSvg(piece.color, piece.type)}</span>` : ''}
+          </div>
+        `;
+      }
+    }
+
+    const activeMove = this.currentPly > 0 ? this.validMoves[this.currentPly - 1] : null;
+    const nextMove =
+      this.currentPly < this.validMoves.length ? this.validMoves[this.currentPly] : null;
+
+    let stepExplanationTitle = 'Posisi Awal Pembukaan';
+    let stepExplanationBody =
+      this.validMoves.length > 0
+        ? `Klik tombol "Langkah Berikutnya" untuk melihat langkah pertama (${this.validMoves[0].moveNumber}. ${this.validMoves[0].san}).`
+        : 'Urutan langkah pembukaan siap dipelajari.';
+
+    if (activeMove) {
+      const prefix =
+        activeMove.color === 'white'
+          ? `${activeMove.moveNumber}. ${activeMove.san}`
+          : `${activeMove.moveNumber}... ${activeMove.san}`;
+      stepExplanationTitle = `Langkah ${prefix} (${activeMove.color === 'white' ? 'Putih' : 'Hitam'})`;
+      stepExplanationBody = activeMove.idea;
+    }
+
+    const historySan = this.chess.history();
+
+    this.container.innerHTML = `
+      <div class="chessboard-widget opening-learn-board-widget" data-testid="opening-learn-board">
+        <div class="chessboard-topbar">
+          <div class="turn-indicator" data-turn="${turn}">
+            <span class="turn-dot ${turn === WHITE ? 'dot-white' : 'dot-black'}"></span>
+            <span class="turn-label">${turnText}</span>
+          </div>
+          <div class="board-status-badges">
+            <span class="board-state-badge badge-step" data-testid="opening-learn-ply-badge">
+              Langkah ${this.currentPly} / ${this.validMoves.length}
+            </span>
+          </div>
+        </div>
+
+        <div class="chessboard-frame">
+          <div class="chessboard-grid" role="grid" aria-label="Papan Catur Pembelajaran Opening">
+            ${squaresHtml}
+          </div>
+        </div>
+
+        <div class="chessboard-coord-statusbar">
+          <span class="coord-inspector-text" data-testid="opening-learn-coord-info">${this.inspectedSquareInfo}</span>
+          <span class="move-history-pill" data-testid="opening-learn-san-pill">
+            Riwayat SAN: ${historySan.length > 0 ? historySan.join(' ') : 'Posisi Awal'}
+          </span>
+        </div>
+
+        <div class="chessboard-feedback feedback-info" role="status" data-testid="opening-learn-step-feedback">
+          <div class="feedback-content">
+            <strong>${stepExplanationTitle}:</strong>
+            <span>${stepExplanationBody}</span>
+            ${
+              nextMove
+                ? `<div class="opening-next-move-preview">Langkah selanjutnya dalam variasi: <code>${
+                    nextMove.color === 'white'
+                      ? `${nextMove.moveNumber}. ${nextMove.san}`
+                      : `${nextMove.moveNumber}... ${nextMove.san}`
+                  }</code></div>`
+                : `<div class="opening-next-move-preview">Seluruh langkah variasi telah ditampilkan (${this.validMoves.length} ply).</div>`
+            }
+          </div>
+        </div>
+
+        <div class="chessboard-controls opening-learn-controls">
+          <button
+            type="button"
+            class="btn btn-secondary btn-sm"
+            data-action="learn-reset"
+            data-testid="opening-learn-reset-btn"
+            ${this.currentPly === 0 ? 'disabled' : ''}
+          >
+            ${UI_ICONS.restart}
+            <span>Posisi Awal</span>
+          </button>
+          <button
+            type="button"
+            class="btn btn-secondary btn-sm"
+            data-action="learn-prev"
+            data-testid="opening-learn-prev-btn"
+            ${this.currentPly === 0 ? 'disabled' : ''}
+          >
+            ${UI_ICONS.chevronLeft}
+            <span>Mundur</span>
+          </button>
+          <button
+            type="button"
+            class="btn btn-primary btn-sm"
+            data-action="learn-next"
+            data-testid="opening-learn-next-btn"
+            ${this.currentPly >= this.validMoves.length ? 'disabled' : ''}
+          >
+            <span>Maju</span>
+            ${UI_ICONS.chevronRight}
+          </button>
+          <button
+            type="button"
+            class="btn btn-secondary btn-sm"
+            data-action="learn-flip"
+            data-testid="opening-learn-flip-btn"
+          >
+            ${UI_ICONS.flip}
+            <span>Balik Papan</span>
+          </button>
+        </div>
+      </div>
+    `;
+
+    this._bindEvents();
+  }
+
+  _bindEvents() {
+    const resetBtn = this.container.querySelector('[data-action="learn-reset"]');
+    if (resetBtn) {
+      resetBtn.addEventListener('click', () => this.resetToStart());
+    }
+
+    const prevBtn = this.container.querySelector('[data-action="learn-prev"]');
+    if (prevBtn) {
+      prevBtn.addEventListener('click', () => this.prevMove());
+    }
+
+    const nextBtn = this.container.querySelector('[data-action="learn-next"]');
+    if (nextBtn) {
+      nextBtn.addEventListener('click', () => this.nextMove());
+    }
+
+    const flipBtn = this.container.querySelector('[data-action="learn-flip"]');
+    if (flipBtn) {
+      flipBtn.addEventListener('click', () => this.flipBoard());
+    }
+  }
+}
+
+/**
+ * Komponen Papan Catur Mode Latihan Opening (MVP 4 — Bagian 6: Opening Practice Mode)
+ * Fitur Inti MVP 4:
+ * 1. Mulai dari posisi awal standar.
+ * 2. Sembunyikan langkah yang harus dimainkan pengguna.
+ * 3. Ketika giliran pengguna, validasi setiap langkah dengan Chess.js:
+ *    - Langkah ilegal: ditolak karena melanggar aturan catur.
+ *    - Langkah legal tetapi bukan bagian dari variasi latihan:
+ *      tampilkan pesan sopan bahwa langkah tersebut bukan bagian dari variasi,
+ *      batalkan langkah (undo), catat kesalahan, dan izinkan pengguna mencoba lagi.
+ *    - Langkah benar sesuai variasi: tampilkan langkah tersebut di papan & riwayat.
+ * 4. Ketika giliran lawan, jalankan langkah lawan secara otomatis berdasarkan variasi.
+ * 5. Sistem Hint 3 tahap (Hint 1: ide langkah umum, Hint 2: highlight bidak asal, Hint 3: petak tujuan).
+ */
+export class OpeningPracticeBoard {
+  constructor(container, opening, callbacks = {}) {
+    this.container = container;
+    this.opening = opening;
+    this.callbacks = callbacks;
+    this.replyDelayMs =
+      typeof callbacks.replyDelayMs === 'number' && callbacks.replyDelayMs >= 0
+        ? callbacks.replyDelayMs
+        : 320;
+
+    const validated = validateOpeningSequenceWithChess(opening);
+    this.initialFen = validated.initialFen;
+    this.validMoves = validated.validMoves;
+
+    this.playerColor =
+      callbacks.repertoireSide === 'black' || opening?.repertoireSide === 'black'
+        ? 'black'
+        : 'white';
+    this.playerTurnChar = this.playerColor === 'black' ? BLACK : WHITE;
+
+    this.chess = new Chess(this.initialFen);
+    this.orientation = this.playerColor;
+    this.selectedSquare = null;
+    this.legalMovesForSelected = [];
+    this.lastMove = null;
+    this.hintSquares = [];
+    this.hintStage = 0; // 0 = belum pakai hint pada ply ini, 1 = ide umum, 2 = bidak asal, 3 = petak tujuan
+    this.currentPly = 0;
+    this.correctMoves = 0;
+    this.wrongMoves = 0;
+    this.hintsUsed = 0;
+    this.isPracticeComplete = false;
+    this.isLockedForOpponent = false;
+    this.pendingPromotion = null;
+    this._dragSourceSquare = null;
+    this._replyTimeout = null;
+    this.attemptId = this._createAttemptId();
+
+    this.totalPlayerMovesInVariation = this.validMoves.filter(
+      m => m.color === this.playerColor
+    ).length;
+
+    this._initPracticeSession();
+  }
+
+  _createAttemptId() {
+    const oid = this.opening ? this.opening.id : 'opening';
+    return `open_att_${oid}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  }
+
+  _initPracticeSession() {
+    if (this._replyTimeout) {
+      clearTimeout(this._replyTimeout);
+      this._replyTimeout = null;
+    }
+
+    this.chess.load(this.initialFen);
+    this.selectedSquare = null;
+    this.legalMovesForSelected = [];
+    this.lastMove = null;
+    this.hintSquares = [];
+    this.hintStage = 0;
+    this.currentPly = 0;
+    this.correctMoves = 0;
+    this.wrongMoves = 0;
+    this.hintsUsed = 0;
+    this.isPracticeComplete = false;
+    this.isLockedForOpponent = false;
+    this.pendingPromotion = null;
+    this.attemptId = this._createAttemptId();
+
+    const sideName = this.playerColor === 'white' ? 'Putih' : 'Hitam';
+    this.inspectedSquareInfo = `Repertoire ${sideName} — ${this.opening?.name || 'Opening'}`;
+    this.feedback = {
+      type: 'info',
+      message: `Mulai latihan ${this.opening?.name || 'Opening'} sebagai ${sideName}. Temukan langkah pembukaan yang sesuai dengan variasi!`
+    };
+
+    this.render();
+    this._checkAndRunOpponentTurn();
+  }
+
+  destroy() {
+    if (this._replyTimeout) {
+      clearTimeout(this._replyTimeout);
+      this._replyTimeout = null;
+    }
+  }
+
+  restart() {
+    this._initPracticeSession();
+  }
+
+  flipBoard() {
+    this.orientation = this.orientation === 'white' ? 'black' : 'white';
+    this.render();
+  }
+
+  getPracticeState() {
+    const totalAttempts = this.correctMoves + this.wrongMoves;
+    const accuracy =
+      totalAttempts > 0 ? Math.round((this.correctMoves / totalAttempts) * 100) : 100;
+    return {
+      attemptId: this.attemptId,
+      openingId: this.opening?.id || null,
+      repertoireSide: this.playerColor,
+      currentPly: this.currentPly,
+      totalPlies: this.validMoves.length,
+      correctMoves: this.correctMoves,
+      totalPlayerMoves: this.totalPlayerMovesInVariation,
+      wrongMoves: this.wrongMoves,
+      hintsUsed: this.hintsUsed,
+      hintStage: this.hintStage,
+      accuracy,
+      isPracticeComplete: this.isPracticeComplete,
+      fen: this.chess.fen(),
+      historySan: this.chess.history()
+    };
+  }
+
+  _checkAndRunOpponentTurn() {
+    if (this.isPracticeComplete || this.currentPly >= this.validMoves.length) {
+      return;
+    }
+
+    const expectedStep = this.validMoves[this.currentPly];
+    if (expectedStep.color !== this.playerColor) {
+      this.isLockedForOpponent = true;
+      this.render();
+
+      const executeOpponentStep = () => {
+        if (this.isPracticeComplete || this.currentPly >= this.validMoves.length) return;
+        const oppStep = this.validMoves[this.currentPly];
+        const moveRes = this.chess.move(oppStep.san);
+        if (moveRes) {
+          this.lastMove = { from: moveRes.from, to: moveRes.to };
+          this.currentPly += 1;
+        }
+        this.isLockedForOpponent = false;
+        this.hintStage = 0;
+        this.hintSquares = [];
+
+        if (this.currentPly >= this.validMoves.length) {
+          this._completePractice();
+          return;
+        }
+
+        const oppPrefix =
+          oppStep.color === 'white'
+            ? `${oppStep.moveNumber}. ${oppStep.san}`
+            : `${oppStep.moveNumber}... ${oppStep.san}`;
+        this.feedback = {
+          type: 'info',
+          message: `Lawan memainkan ${oppPrefix}. Sekarang giliran Anda menemukan langkah berikutnya dalam variasi!`
+        };
+        this.render();
+        if (typeof this.callbacks.onStateChange === 'function') {
+          this.callbacks.onStateChange(this.getPracticeState());
+        }
+      };
+
+      if (this.replyDelayMs === 0) {
+        executeOpponentStep();
+      } else {
+        this._replyTimeout = setTimeout(executeOpponentStep, this.replyDelayMs);
+      }
+    }
+  }
+
+  /**
+   * Sistem Petunjuk (Hint) Bertahap 3 Level (Bagian 6):
+   * - Hint 1: Gambaran umum ide langkah.
+   * - Hint 2: Highlight bidak yang perlu diperhatikan (petak asal).
+   * - Hint 3: Tampilkan petak tujuan jika pengguna masih kesulitan.
+   */
+  showHint() {
+    if (this.isPracticeComplete || this.currentPly >= this.validMoves.length) {
+      this.feedback = {
+        type: 'info',
+        message: 'Variasi latihan telah selesai! Anda dapat mengulangi latihan atau memilih opening berikutnya.'
+      };
+      this.render();
+      return null;
+    }
+
+    if (this.isLockedForOpponent || this.chess.turn() !== this.playerTurnChar) {
+      return null;
+    }
+
+    const expectedStep = this.validMoves[this.currentPly];
+    const nextStage = Math.min(3, this.hintStage + 1);
+
+    if (nextStage > this.hintStage) {
+      this.hintStage = nextStage;
+      this.hintsUsed += 1;
+    }
+
+    const pieceName = PIECE_NAMES_ID[expectedStep.piece] || 'Bidak';
+
+    if (this.hintStage === 1) {
+      this.hintSquares = [];
+      this.feedback = {
+        type: 'hint',
+        message: `Petunjuk 1 (Ide Langkah): ${expectedStep.idea}`
+      };
+    } else if (this.hintStage === 2) {
+      this.hintSquares = [expectedStep.from];
+      this.selectedSquare = expectedStep.from;
+      this.legalMovesForSelected = this.chess.moves({ square: expectedStep.from, verbose: true });
+      this.feedback = {
+        type: 'hint',
+        message: `Petunjuk 2 (Bidak Asal): Perhatikan ${pieceName} di petak ${expectedStep.from}. (${expectedStep.idea})`
+      };
+    } else {
+      this.hintSquares = [expectedStep.from, expectedStep.to];
+      this.selectedSquare = expectedStep.from;
+      this.legalMovesForSelected = this.chess.moves({ square: expectedStep.from, verbose: true });
+      this.feedback = {
+        type: 'hint',
+        message: `Petunjuk 3 (Petak Tujuan): Gerakkan ${pieceName} dari petak ${expectedStep.from} menuju petak ${expectedStep.to} (${expectedStep.san}).`
+      };
+    }
+
+    this.render();
+
+    if (typeof this.callbacks.onHintUsed === 'function') {
+      this.callbacks.onHintUsed({
+        hintStage: this.hintStage,
+        hintsUsed: this.hintsUsed,
+        expectedStep,
+        state: this.getPracticeState()
+      });
+    }
+    if (typeof this.callbacks.onStateChange === 'function') {
+      this.callbacks.onStateChange(this.getPracticeState());
+    }
+
+    return {
+      hintStage: this.hintStage,
+      hintsUsed: this.hintsUsed,
+      hintSquares: [...this.hintSquares],
+      expectedStep
+    };
+  }
+
+  /**
+   * Mengeksekusi dan memvalidasi langkah pemain menggunakan Chess.js.
+   * Membedakan antara:
+   * - Langkah ilegal (melanggar aturan catur)
+   * - Langkah legal tetapi bukan bagian dari variasi latihan (dibatalkan/undo + pesan sopan)
+   * - Langkah benar sesuai variasi latihan
+   */
+  submitPlayerMove(moveInput) {
+    if (this.isPracticeComplete || this.isLockedForOpponent) {
+      return { valid: false, reason: 'locked' };
+    }
+
+    if (this.chess.turn() !== this.playerTurnChar) {
+      return { valid: false, reason: 'not_player_turn' };
+    }
+
+    const expectedStep = this.validMoves[this.currentPly];
+    if (!expectedStep) {
+      return { valid: false, reason: 'no_expected_step' };
+    }
+
+    // 1. Validasi aturan catur menggunakan Chess.js
+    const moveResult = this.chess.move(moveInput);
+    if (!moveResult) {
+      this.feedback = {
+        type: 'warning',
+        message:
+          'Langkah tersebut tidak sah menurut aturan catur. Pilih bidak Anda dan klik petak yang memiliki indikator langkah legal.'
+      };
+      this.render();
+      return {
+        valid: false,
+        isLegalChessMove: false,
+        isVariationMove: false,
+        reason: 'illegal_move'
+      };
+    }
+
+    this.selectedSquare = null;
+    this.legalMovesForSelected = [];
+
+    const playedUci = `${moveResult.from}${moveResult.to}${moveResult.promotion || ''}`;
+    const isVariationMatch =
+      moveResult.san === expectedStep.san ||
+      moveResult.san.replace(/[+#]$/, '') === expectedStep.san.replace(/[+#]$/, '') ||
+      playedUci === expectedStep.uci;
+
+    // 2. Langkah legal menurut aturan catur, tetapi BUKAN bagian dari variasi latihan
+    if (!isVariationMatch) {
+      const playedSan = moveResult.san;
+      // Kembalikan ke posisi sebelumnya tanpa merusak state papan
+      this.chess.undo();
+      this.wrongMoves += 1;
+
+      this.feedback = {
+        type: 'warning',
+        message: `Langkah ${playedSan} adalah langkah catur yang sah, tetapi bukan bagian dari variasi "${this.opening.name}" yang sedang dilatih. Posisi telah dikembalikan — silakan coba lagi atau gunakan tombol Petunjuk.`
+      };
+      this.render();
+
+      if (typeof this.callbacks.onWrongMove === 'function') {
+        this.callbacks.onWrongMove({
+          playedSan,
+          playedUci,
+          expectedSan: expectedStep.san,
+          wrongMoves: this.wrongMoves,
+          state: this.getPracticeState()
+        });
+      }
+      if (typeof this.callbacks.onStateChange === 'function') {
+        this.callbacks.onStateChange(this.getPracticeState());
+      }
+
+      return {
+        valid: false,
+        isLegalChessMove: true,
+        isVariationMove: false,
+        playedSan,
+        expectedSan: expectedStep.san,
+        reason: 'not_in_variation'
+      };
+    }
+
+    // 3. Langkah benar sesuai variasi latihan!
+    this.lastMove = { from: moveResult.from, to: moveResult.to };
+    this.correctMoves += 1;
+    this.currentPly += 1;
+    this.hintStage = 0;
+    this.hintSquares = [];
+
+    this.feedback = {
+      type: 'success',
+      message: `Tepat (${moveResult.san})! ${expectedStep.idea}`
+    };
+
+    if (typeof this.callbacks.onMoveCorrect === 'function') {
+      this.callbacks.onMoveCorrect({
+        move: moveResult,
+        step: expectedStep,
+        state: this.getPracticeState()
+      });
+    }
+
+    if (this.currentPly >= this.validMoves.length) {
+      this._completePractice();
+      return {
+        valid: true,
+        isLegalChessMove: true,
+        isVariationMove: true,
+        playedSan: moveResult.san,
+        completed: true
+      };
+    }
+
+    this.render();
+    if (typeof this.callbacks.onStateChange === 'function') {
+      this.callbacks.onStateChange(this.getPracticeState());
+    }
+
+    // Jalankan balasan lawan otomatis berdasarkan variasi
+    this._checkAndRunOpponentTurn();
+
+    return {
+      valid: true,
+      isLegalChessMove: true,
+      isVariationMove: true,
+      playedSan: moveResult.san,
+      completed: this.isPracticeComplete
+    };
+  }
+
+  _completePractice() {
+    this.isPracticeComplete = true;
+    this.isLockedForOpponent = false;
+    this.selectedSquare = null;
+    this.legalMovesForSelected = [];
+    this.hintSquares = [];
+
+    const practiceState = this.getPracticeState();
+    const isMasteredClean = this.wrongMoves === 0 && this.hintsUsed === 0;
+
+    this.feedback = {
+      type: 'success',
+      message: isMasteredClean
+        ? `Luar biasa! Anda menyelesaikan seluruh urutan variasi "${this.opening.name}" tanpa kesalahan dan tanpa petunjuk.`
+        : `Latihan selesai! Anda telah menuntaskan urutan langkah variasi "${this.opening.name}".`
+    };
+
+    this.render();
+
+    if (typeof this.callbacks.onStateChange === 'function') {
+      this.callbacks.onStateChange(practiceState);
+    }
+    if (typeof this.callbacks.onPracticeComplete === 'function') {
+      this.callbacks.onPracticeComplete(practiceState);
+    }
+  }
+
+  _handleSquareClick(square) {
+    if (this.isPracticeComplete || this.isLockedForOpponent || this.pendingPromotion) return;
+    if (this.chess.turn() !== this.playerTurnChar) return;
+
+    const clickedPiece = this.chess.get(square);
+    if (clickedPiece) {
+      const colorName = clickedPiece.color === WHITE ? 'Putih' : 'Hitam';
+      const pieceName = PIECE_NAMES_ID[clickedPiece.type] || clickedPiece.type;
+      this.inspectedSquareInfo = `Petak ${square}: ${pieceName} ${colorName}`;
+    } else {
+      this.inspectedSquareInfo = `Petak ${square}: Kosong`;
+    }
+
+    if (this.selectedSquare && this.selectedSquare !== square) {
+      const candidateMoves = this.legalMovesForSelected.filter(m => m.to === square);
+      if (candidateMoves.length > 0) {
+        const isPromotion = candidateMoves.some(m => Boolean(m.promotion));
+        if (isPromotion) {
+          this.pendingPromotion = { from: this.selectedSquare, to: square };
+          this.render();
+          return;
+        }
+        this.submitPlayerMove({ from: this.selectedSquare, to: square });
+        return;
+      }
+
+      // Jika pengguna mengklik petak yang bukan langkah legal bagi bidak yang sedang dipilih
+      // dan bukan memilih bidak kawan lain, validasikan via submitPlayerMove untuk umpan balik langkah ilegal
+      if (!clickedPiece || clickedPiece.color !== this.playerTurnChar) {
+        this.submitPlayerMove({ from: this.selectedSquare, to: square });
+        return;
+      }
+    }
+
+    if (clickedPiece && clickedPiece.color === this.playerTurnChar) {
+      if (this.selectedSquare === square) {
+        this.selectedSquare = null;
+        this.legalMovesForSelected = [];
+      } else {
+        this.selectedSquare = square;
+        this.legalMovesForSelected = this.chess.moves({ square, verbose: true });
+      }
+      this.render();
+      return;
+    }
+
+    this.selectedSquare = null;
+    this.legalMovesForSelected = [];
+    this.render();
+  }
+
+  _handlePromotionSelect(promoPiece) {
+    if (!this.pendingPromotion) return;
+    const { from, to } = this.pendingPromotion;
+    this.pendingPromotion = null;
+    this.submitPlayerMove({ from, to, promotion: promoPiece });
+  }
+
+  render() {
+    if (!this.container) return;
+
+    const turn = this.chess.turn();
+    const turnText = turn === WHITE ? 'Giliran Putih' : 'Giliran Hitam';
+    const rowIndices =
+      this.orientation === 'white' ? [0, 1, 2, 3, 4, 5, 6, 7] : [7, 6, 5, 4, 3, 2, 1, 0];
+    const colIndices =
+      this.orientation === 'white' ? [0, 1, 2, 3, 4, 5, 6, 7] : [7, 6, 5, 4, 3, 2, 1, 0];
+
+    const boardState = this.chess.board();
+    const legalTargetMap = new Map();
+    for (const m of this.legalMovesForSelected) {
+      legalTargetMap.set(m.to, m);
+    }
+
+    const hintSet = new Set(this.hintSquares || []);
+    let squaresHtml = '';
+
+    for (let visualRowIdx = 0; visualRowIdx < 8; visualRowIdx += 1) {
+      const r = rowIndices[visualRowIdx];
+      for (let visualColIdx = 0; visualColIdx < 8; visualColIdx += 1) {
+        const c = colIndices[visualColIdx];
+        const sq = FILES[c] + RANKS[r];
+        const isLight = (r + c) % 2 === 0;
+        const piece = boardState[r][c];
+        const isSelected = this.selectedSquare === sq;
+        const isLastMove =
+          this.lastMove && (this.lastMove.from === sq || this.lastMove.to === sq);
+        const isHintHighlight = hintSet.has(sq);
+        const legalMove = legalTargetMap.get(sq);
+        const showRankLabel = visualColIdx === 0;
+        const showFileLabel = visualRowIdx === 7;
+
+        const classes = [
+          'chess-square',
+          isLight ? 'square-light' : 'square-dark',
+          isSelected ? 'square-selected' : '',
+          isLastMove ? 'square-last-move' : '',
+          isHintHighlight ? 'square-hint-highlight' : '',
+          piece ? 'has-piece' : ''
+        ]
+          .filter(Boolean)
+          .join(' ');
+
+        let legalIndicatorHtml = '';
+        if (legalMove) {
+          if (legalMove.captured) {
+            legalIndicatorHtml = `<span class="legal-capture-ring" aria-hidden="true"></span>`;
+          } else {
+            legalIndicatorHtml = `<span class="legal-move-dot" aria-hidden="true"></span>`;
+          }
+        }
+
+        const isDraggable = Boolean(
+          piece &&
+            piece.color === this.playerTurnChar &&
+            turn === this.playerTurnChar &&
+            !this.isLockedForOpponent &&
+            !this.isPracticeComplete &&
+            !this.pendingPromotion
+        );
+
+        squaresHtml += `
+          <button
+            type="button"
+            class="${classes}"
+            data-square="${sq}"
+            draggable="${isDraggable ? 'true' : 'false'}"
+            aria-label="Petak ${sq}${piece ? ` berisi ${PIECE_NAMES_ID[piece.type]} ${piece.color === WHITE ? 'Putih' : 'Hitam'}` : ''}"
+          >
+            ${showRankLabel ? `<span class="coord-label coord-rank">${RANKS[r]}</span>` : ''}
+            ${showFileLabel ? `<span class="coord-label coord-file">${FILES[c]}</span>` : ''}
+            ${piece ? `<span class="piece-wrapper">${getPieceSvg(piece.color, piece.type)}</span>` : ''}
+            ${legalIndicatorHtml}
+          </button>
+        `;
+      }
+    }
+
+    const historySan = this.chess.history();
+    let statusBadgeHtml = '';
+    if (this.isPracticeComplete) {
+      statusBadgeHtml = `<span class="board-state-badge badge-success" data-testid="opening-practice-status-badge">${UI_ICONS.check} Variasi Selesai</span>`;
+    } else if (this.isLockedForOpponent) {
+      statusBadgeHtml = `<span class="board-state-badge badge-step" data-testid="opening-practice-status-badge">Lawan Melangkah...</span>`;
+    } else {
+      statusBadgeHtml = `<span class="board-state-badge badge-step" data-testid="opening-practice-status-badge">Langkah Anda (${this.correctMoves + 1} / ${this.totalPlayerMovesInVariation})</span>`;
+    }
+
+    const hintBtnLabel =
+      this.hintStage === 0
+        ? 'Petunjuk (1/3: Ide)'
+        : this.hintStage === 1
+        ? 'Petunjuk (2/3: Bidak)'
+        : this.hintStage === 2
+        ? 'Petunjuk (3/3: Petak)'
+        : 'Petunjuk Maksimal (3/3)';
+
+    this.container.innerHTML = `
+      <div class="chessboard-widget opening-practice-board-widget" data-testid="opening-practice-board">
+        <div class="chessboard-topbar">
+          <div class="turn-indicator" data-turn="${turn}">
+            <span class="turn-dot ${turn === WHITE ? 'dot-white' : 'dot-black'}"></span>
+            <span class="turn-label">${turnText}</span>
+          </div>
+          <div class="board-status-badges">
+            ${statusBadgeHtml}
+          </div>
+        </div>
+
+        <div class="chessboard-frame">
+          <div class="chessboard-grid" role="grid" aria-label="Papan Catur Latihan Opening">
+            ${squaresHtml}
+          </div>
+        </div>
+
+        <div class="chessboard-coord-statusbar">
+          <span class="coord-inspector-text">${this.inspectedSquareInfo}</span>
+          <span class="move-history-pill" data-testid="opening-practice-san-pill">
+             langkah: ${historySan.length > 0 ? historySan.join(' → ') : 'Posisi Awal'}
+          </span>
+        </div>
+
+        <div class="chessboard-feedback feedback-${this.feedback.type}" role="status" data-testid="opening-practice-feedback">
+          <div class="feedback-content">
+            <strong>${
+              this.feedback.type === 'success'
+                ? 'Langkah Benar:'
+                : this.feedback.type === 'warning'
+                ? 'Perhatikan:'
+                : this.feedback.type === 'hint'
+                ? 'Petunjuk Latihan:'
+                : 'Instruksi:'
+            }</strong>
+            <span>${this.feedback.message}</span>
+          </div>
+        </div>
+
+        <div class="chessboard-controls opening-practice-controls">
+          <button
+            type="button"
+            class="btn btn-secondary btn-sm"
+            data-action="practice-restart"
+            data-testid="opening-practice-restart-btn"
+          >
+            ${UI_ICONS.restart}
+            <span>Ulangi dari Awal</span>
+          </button>
+          <button
+            type="button"
+            class="btn btn-secondary btn-sm"
+            data-action="practice-hint"
+            data-testid="opening-practice-hint-btn"
+            ${this.isPracticeComplete || this.isLockedForOpponent ? 'disabled' : ''}
+          >
+            ${UI_ICONS.hint}
+            <span>${hintBtnLabel}</span>
+          </button>
+          <button
+            type="button"
+            class="btn btn-secondary btn-sm"
+            data-action="practice-flip"
+            data-testid="opening-practice-flip-btn"
+          >
+            ${UI_ICONS.flip}
+            <span>Balik Papan</span>
+          </button>
+        </div>
+      </div>
+    `;
+
+    this._bindEvents();
+  }
+
+  _bindEvents() {
+    const squares = this.container.querySelectorAll('.chess-square');
+    squares.forEach(sqBtn => {
+      sqBtn.addEventListener('click', () => {
+        const sq = sqBtn.getAttribute('data-square');
+        this._handleSquareClick(sq);
+      });
+
+      sqBtn.addEventListener('dragstart', e => {
+        const sq = sqBtn.getAttribute('data-square');
+        const p = this.chess.get(sq);
+        if (
+          !p ||
+          p.color !== this.playerTurnChar ||
+          this.chess.turn() !== this.playerTurnChar ||
+          this.isLockedForOpponent ||
+          this.isPracticeComplete ||
+          this.pendingPromotion
+        ) {
+          e.preventDefault();
+          return;
+        }
+        this._dragSourceSquare = sq;
+        this.selectedSquare = sq;
+        this.legalMovesForSelected = this.chess.moves({ square: sq, verbose: true });
+        if (e.dataTransfer) {
+          e.dataTransfer.setData('text/plain', sq);
+          e.dataTransfer.effectAllowed = 'move';
+        }
+      });
+
+      sqBtn.addEventListener('dragover', e => {
+        e.preventDefault();
+        if (e.dataTransfer) {
+          e.dataTransfer.dropEffect = 'move';
+        }
+      });
+
+      sqBtn.addEventListener('drop', e => {
+        e.preventDefault();
+        const targetSq = sqBtn.getAttribute('data-square');
+        const sourceSq =
+          this._dragSourceSquare ||
+          (e.dataTransfer ? e.dataTransfer.getData('text/plain') : null);
+        this._dragSourceSquare = null;
+
+        if (!sourceSq || !targetSq || sourceSq === targetSq) return;
+        this.selectedSquare = sourceSq;
+        this.legalMovesForSelected = this.chess.moves({ square: sourceSq, verbose: true });
+        this._handleSquareClick(targetSq);
+      });
+    });
+
+    const restartBtn = this.container.querySelector('[data-action="practice-restart"]');
+    if (restartBtn) {
+      restartBtn.addEventListener('click', () => this.restart());
+    }
+
+    const hintBtn = this.container.querySelector('[data-action="practice-hint"]');
+    if (hintBtn) {
+      hintBtn.addEventListener('click', () => this.showHint());
+    }
+
+    const flipBtn = this.container.querySelector('[data-action="practice-flip"]');
+    if (flipBtn) {
+      flipBtn.addEventListener('click', () => this.flipBoard());
     }
   }
 }

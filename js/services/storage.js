@@ -63,6 +63,19 @@ export function createInitialPlayProgressState() {
 }
 
 /**
+ * State awal progres Opening Trainer (MVP 4 — semua statistik dimulai dari 0)
+ */
+export function createInitialOpeningProgressState() {
+  return {
+    studiedOpeningIds: [],
+    masteredOpeningIds: [],
+    attemptEvents: [],
+    lastStudiedOpeningId: null,
+    updatedAt: null
+  };
+}
+
+/**
  * State awal yang jujur (semua statistik bernilai 0)
  */
 export function createInitialProgressState() {
@@ -76,6 +89,7 @@ export function createInitialProgressState() {
     lessonCompletedAt: {}, // Map lessonId -> ISO timestamp
     puzzleProgress: createInitialPuzzleProgressState(),
     playProgress: createInitialPlayProgressState(),
+    openingProgress: createInitialOpeningProgressState(),
     updatedAt: null
   };
 }
@@ -526,6 +540,290 @@ export function mergePlayProgress(localPlayRaw, cloudPlayRaw) {
   };
 }
 
+const VALID_OPENING_SIDES = new Set(['white', 'black']);
+const VALID_OPENING_COMPLETION_STATUS = new Set([
+  'completed',
+  'mastered',
+  'needs-review',
+  'in_progress',
+  'failed'
+]);
+
+/**
+ * Sanitasi namespace openingProgress (MVP 4 — Opening Trainer)
+ * Deduplikasi attemptEvents berdasarkan ID unik serta menyinkronkan studiedOpeningIds & masteredOpeningIds.
+ */
+export function sanitizeOpeningProgress(rawOpening) {
+  const initial = createInitialOpeningProgressState();
+  if (!rawOpening || typeof rawOpening !== 'object' || Array.isArray(rawOpening)) {
+    return initial;
+  }
+
+  const cleanStringArray = arr =>
+    Array.isArray(arr)
+      ? [
+          ...new Set(
+            arr
+              .filter(item => typeof item === 'string' && item.trim().length > 0)
+              .map(item => item.trim())
+          )
+        ]
+      : [];
+
+  const eventsById = new Map();
+  if (Array.isArray(rawOpening.attemptEvents)) {
+    for (const rawEv of rawOpening.attemptEvents) {
+      if (!rawEv || typeof rawEv !== 'object' || Array.isArray(rawEv)) continue;
+
+      const id =
+        typeof rawEv.id === 'string' && rawEv.id.trim().length > 0 ? rawEv.id.trim() : null;
+      const openingId =
+        typeof rawEv.openingId === 'string' && rawEv.openingId.trim().length > 0
+          ? rawEv.openingId.trim()
+          : null;
+      if (!id || !openingId) continue;
+
+      const rawSide =
+        typeof rawEv.repertoireSide === 'string'
+          ? rawEv.repertoireSide.trim().toLowerCase()
+          : 'white';
+      const repertoireSide = VALID_OPENING_SIDES.has(rawSide) ? rawSide : 'white';
+
+      const correctMoves =
+        typeof rawEv.correctMoves === 'number' &&
+        Number.isFinite(rawEv.correctMoves) &&
+        rawEv.correctMoves >= 0
+          ? Math.floor(rawEv.correctMoves)
+          : 0;
+
+      const wrongMoves =
+        typeof rawEv.wrongMoves === 'number' &&
+        Number.isFinite(rawEv.wrongMoves) &&
+        rawEv.wrongMoves >= 0
+          ? Math.floor(rawEv.wrongMoves)
+          : 0;
+
+      const hintsUsed =
+        typeof rawEv.hintsUsed === 'number' &&
+        Number.isFinite(rawEv.hintsUsed) &&
+        rawEv.hintsUsed >= 0
+          ? Math.floor(rawEv.hintsUsed)
+          : 0;
+
+      const rawStatus =
+        typeof rawEv.completionStatus === 'string'
+          ? rawEv.completionStatus.trim().toLowerCase()
+          : 'completed';
+      const completionStatus = VALID_OPENING_COMPLETION_STATUS.has(rawStatus)
+        ? rawStatus
+        : 'completed';
+
+      const ts = isValidIsoTimestamp(rawEv.timestamp)
+        ? rawEv.timestamp
+        : new Date(0).toISOString();
+
+      let dateStr =
+        typeof rawEv.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(rawEv.date.trim())
+          ? rawEv.date.trim()
+          : null;
+      if (!dateStr) {
+        const d = new Date(Date.parse(ts));
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        dateStr = `${y}-${m}-${day}`;
+      }
+
+      const cleanEv = {
+        id,
+        openingId,
+        repertoireSide,
+        correctMoves,
+        wrongMoves,
+        hintsUsed,
+        completionStatus,
+        timestamp: ts,
+        date: dateStr
+      };
+
+      const existing = eventsById.get(id);
+      if (!existing) {
+        eventsById.set(id, cleanEv);
+      } else {
+        eventsById.set(id, {
+          ...existing,
+          correctMoves: Math.max(existing.correctMoves, cleanEv.correctMoves),
+          wrongMoves: Math.max(existing.wrongMoves, cleanEv.wrongMoves),
+          hintsUsed: Math.max(existing.hintsUsed, cleanEv.hintsUsed)
+        });
+      }
+    }
+  }
+
+  const attemptEvents = Array.from(eventsById.values()).sort((a, b) => {
+    const tA = Date.parse(a.timestamp);
+    const tB = Date.parse(b.timestamp);
+    if (tA !== tB) return tA - tB;
+    return a.id.localeCompare(b.id);
+  });
+
+  const rawStudiedIds = cleanStringArray(rawOpening.studiedOpeningIds);
+  const rawMasteredIds = cleanStringArray(rawOpening.masteredOpeningIds);
+
+  const studiedFromEvents = attemptEvents.map(ev => ev.openingId);
+  const masteredFromEvents = attemptEvents
+    .filter(
+      ev =>
+        ev.completionStatus === 'mastered' ||
+        (ev.completionStatus === 'completed' &&
+          ev.correctMoves > 0 &&
+          ev.wrongMoves === 0 &&
+          ev.hintsUsed === 0)
+    )
+    .map(ev => ev.openingId);
+
+  const masteredOpeningIds = [...new Set([...rawMasteredIds, ...masteredFromEvents])];
+  const studiedOpeningIds = [
+    ...new Set([...rawStudiedIds, ...studiedFromEvents, ...masteredOpeningIds])
+  ];
+
+  const lastStudiedOpeningId =
+    typeof rawOpening.lastStudiedOpeningId === 'string' &&
+    rawOpening.lastStudiedOpeningId.trim().length > 0
+      ? rawOpening.lastStudiedOpeningId.trim()
+      : attemptEvents.length > 0
+      ? attemptEvents[attemptEvents.length - 1].openingId
+      : studiedOpeningIds.length > 0
+      ? studiedOpeningIds[studiedOpeningIds.length - 1]
+      : null;
+
+  return {
+    studiedOpeningIds,
+    masteredOpeningIds,
+    attemptEvents,
+    lastStudiedOpeningId,
+    updatedAt: isValidIsoTimestamp(rawOpening.updatedAt) ? rawOpening.updatedAt : null
+  };
+}
+
+/**
+ * Memeriksa apakah openingProgress memiliki aktivitas belajar/latihan nyata
+ */
+export function hasMeaningfulOpeningProgress(openingProg) {
+  if (!openingProg || typeof openingProg !== 'object' || Array.isArray(openingProg)) {
+    return false;
+  }
+  const clean = sanitizeOpeningProgress(openingProg);
+  return (
+    clean.studiedOpeningIds.length > 0 ||
+    clean.masteredOpeningIds.length > 0 ||
+    clean.attemptEvents.length > 0 ||
+    Boolean(clean.lastStudiedOpeningId)
+  );
+}
+
+/**
+ * Menggabungkan (Merge) openingProgress Local dan Cloud secara deterministik & idempoten (MVP 4 Bagian 9):
+ * 1. Gabungkan attemptEvents unik berdasarkan ID.
+ * 2. Gabungkan studiedOpeningIds dan masteredOpeningIds sebagai himpunan unik serta turunkan dari attemptEvents.
+ * 3. Jangan pernah menggandakan sesi latihan yang sama.
+ */
+export function mergeOpeningProgress(
+  localOpeningRaw,
+  cloudOpeningRaw,
+  localRootUpdatedAt = null,
+  cloudRootUpdatedAt = null
+) {
+  const localO = sanitizeOpeningProgress(localOpeningRaw);
+  const cloudO = sanitizeOpeningProgress(cloudOpeningRaw);
+
+  const mergedEventsMap = new Map();
+  for (const ev of [...cloudO.attemptEvents, ...localO.attemptEvents]) {
+    const existing = mergedEventsMap.get(ev.id);
+    if (!existing) {
+      mergedEventsMap.set(ev.id, { ...ev });
+    } else {
+      mergedEventsMap.set(ev.id, {
+        ...existing,
+        correctMoves: Math.max(existing.correctMoves, ev.correctMoves),
+        wrongMoves: Math.max(existing.wrongMoves, ev.wrongMoves),
+        hintsUsed: Math.max(existing.hintsUsed, ev.hintsUsed)
+      });
+    }
+  }
+
+  const attemptEvents = Array.from(mergedEventsMap.values()).sort((a, b) => {
+    const tA = Date.parse(a.timestamp);
+    const tB = Date.parse(b.timestamp);
+    if (tA !== tB) return tA - tB;
+    return a.id.localeCompare(b.id);
+  });
+
+  const masteredFromEvents = attemptEvents
+    .filter(
+      ev =>
+        ev.completionStatus === 'mastered' ||
+        (ev.completionStatus === 'completed' &&
+          ev.correctMoves > 0 &&
+          ev.wrongMoves === 0 &&
+          ev.hintsUsed === 0)
+    )
+    .map(ev => ev.openingId);
+
+  const masteredOpeningIds = [
+    ...new Set([...cloudO.masteredOpeningIds, ...localO.masteredOpeningIds, ...masteredFromEvents])
+  ];
+
+  const studiedOpeningIds = [
+    ...new Set([
+      ...cloudO.studiedOpeningIds,
+      ...localO.studiedOpeningIds,
+      ...attemptEvents.map(ev => ev.openingId),
+      ...masteredOpeningIds
+    ])
+  ];
+
+  const localOTime = isValidIsoTimestamp(localO.updatedAt)
+    ? Date.parse(localO.updatedAt)
+    : isValidIsoTimestamp(localRootUpdatedAt)
+    ? Date.parse(localRootUpdatedAt)
+    : -1;
+  const cloudOTime = isValidIsoTimestamp(cloudO.updatedAt)
+    ? Date.parse(cloudO.updatedAt)
+    : isValidIsoTimestamp(cloudRootUpdatedAt)
+    ? Date.parse(cloudRootUpdatedAt)
+    : -1;
+
+  let lastStudiedOpeningId = null;
+  if (localOTime > cloudOTime) {
+    lastStudiedOpeningId = localO.lastStudiedOpeningId || cloudO.lastStudiedOpeningId || null;
+  } else if (cloudOTime > localOTime) {
+    lastStudiedOpeningId = cloudO.lastStudiedOpeningId || localO.lastStudiedOpeningId || null;
+  } else {
+    lastStudiedOpeningId = localO.lastStudiedOpeningId || cloudO.lastStudiedOpeningId || null;
+  }
+
+  let openingUpdatedAt = null;
+  if (isValidIsoTimestamp(localO.updatedAt) && isValidIsoTimestamp(cloudO.updatedAt)) {
+    openingUpdatedAt =
+      Date.parse(localO.updatedAt) >= Date.parse(cloudO.updatedAt)
+        ? localO.updatedAt
+        : cloudO.updatedAt;
+  } else if (isValidIsoTimestamp(localO.updatedAt)) {
+    openingUpdatedAt = localO.updatedAt;
+  } else if (isValidIsoTimestamp(cloudO.updatedAt)) {
+    openingUpdatedAt = cloudO.updatedAt;
+  }
+
+  return {
+    studiedOpeningIds,
+    masteredOpeningIds,
+    attemptEvents,
+    lastStudiedOpeningId,
+    updatedAt: openingUpdatedAt
+  };
+}
+
 /**
  * Sanitasi objek progres agar tahan terhadap data LocalStorage atau JSONB yang rusak/korup
  * Mendukung backward compatibility penuh dari schemaVersion 1 ke schemaVersion 2.
@@ -585,6 +883,7 @@ export function sanitizeProgressState(parsed, { recalculateXp = false } = {}) {
 
   const puzzleProgress = sanitizePuzzleProgress(parsed.puzzleProgress);
   const playProgress = sanitizePlayProgress(parsed.playProgress);
+  const openingProgress = sanitizeOpeningProgress(parsed.openingProgress);
 
   return {
     schemaVersion: 2,
@@ -599,12 +898,13 @@ export function sanitizeProgressState(parsed, { recalculateXp = false } = {}) {
     lessonCompletedAt: cleanCompletedAt,
     puzzleProgress,
     playProgress,
+    openingProgress,
     updatedAt: isValidIsoTimestamp(parsed.updatedAt) ? parsed.updatedAt : null
   };
 }
 
 /**
- * Memeriksa apakah state progres memiliki aktivitas/data belajar, puzzle, atau bermain nyata (bukan state kosong awal)
+ * Memeriksa apakah state progres memiliki aktivitas/data belajar, puzzle, bermain, atau opening nyata (bukan state kosong awal)
  */
 export function hasMeaningfulProgress(state) {
   if (!state || typeof state !== 'object' || Array.isArray(state)) {
@@ -619,18 +919,21 @@ export function hasMeaningfulProgress(state) {
     Object.keys(sanitized.lessonCompletedAt).length > 0 ||
     sanitized.totalXp > 0 ||
     hasMeaningfulPuzzleProgress(sanitized.puzzleProgress) ||
-    hasMeaningfulPlayProgress(sanitized.playProgress)
+    hasMeaningfulPlayProgress(sanitized.playProgress) ||
+    hasMeaningfulOpeningProgress(sanitized.openingProgress)
   );
 }
 
 /**
- * Menggabungkan (Merge) progres Local dan Cloud secara deterministik (MVP 1 + MVP 2):
+ * Menggabungkan (Merge) progres Local dan Cloud secara deterministik (MVP 1 + MVP 2 + MVP 3 + MVP 4):
  * - completedLessonIds: Set union unik (diurutkan mengikuti urutan kurikulum bila ada).
  * - startedLessonIds: Set union unik (mencakup seluruh completedLessonIds).
  * - activityDates: tanggal unik 'YYYY-MM-DD' terurut naik.
  * - lessonCompletedAt: gabungan seluruh riwayat penyelesaian materi yang valid (simpan timestamp paling awal jika ada di keduanya).
  * - lastOpenedLessonId: diambil dari state yang memiliki updatedAt paling baru.
  * - puzzleProgress: gabungan solvedPuzzleIds unik, attemptEvents unik berdasarkan ID, dailyPuzzleDates unik, dan lastPlayedPuzzleId terbaru.
+ * - playProgress: gabungan gameEvents unik berdasarkan ID.
+ * - openingProgress: gabungan studiedOpeningIds unik, masteredOpeningIds unik, attemptEvents unik berdasarkan ID, dan lastStudiedOpeningId terbaru.
  * - updatedAt: timestamp terbaru.
  * - totalXp: dihitung ulang secara deterministik dari completedLessonIds hasil merge dan kurikulum.
  */
@@ -715,6 +1018,14 @@ export function mergeProgressStates(localRaw, cloudRaw) {
   // 7. Merge namespace playProgress secara deterministik & idempoten (MVP 3)
   const playProgress = mergePlayProgress(local.playProgress, cloud.playProgress);
 
+  // 8. Merge namespace openingProgress secara deterministik & idempoten (MVP 4)
+  const openingProgress = mergeOpeningProgress(
+    local.openingProgress,
+    cloud.openingProgress,
+    local.updatedAt,
+    cloud.updatedAt
+  );
+
   const localPuzzleTime = isValidIsoTimestamp(local.puzzleProgress?.updatedAt)
     ? Date.parse(local.puzzleProgress.updatedAt)
     : -1;
@@ -727,13 +1038,21 @@ export function mergeProgressStates(localRaw, cloudRaw) {
   const cloudPlayTime = isValidIsoTimestamp(cloud.playProgress?.lastPlayedAt)
     ? Date.parse(cloud.playProgress.lastPlayedAt)
     : -1;
+  const localOpeningTime = isValidIsoTimestamp(local.openingProgress?.updatedAt)
+    ? Date.parse(local.openingProgress.updatedAt)
+    : -1;
+  const cloudOpeningTime = isValidIsoTimestamp(cloud.openingProgress?.updatedAt)
+    ? Date.parse(cloud.openingProgress.updatedAt)
+    : -1;
   const maxTime = Math.max(
     localTime,
     cloudTime,
     localPuzzleTime,
     cloudPuzzleTime,
     localPlayTime,
-    cloudPlayTime
+    cloudPlayTime,
+    localOpeningTime,
+    cloudOpeningTime
   );
 
   let latestUpdatedAt = null;
@@ -743,7 +1062,7 @@ export function mergeProgressStates(localRaw, cloudRaw) {
     latestUpdatedAt = new Date().toISOString();
   }
 
-  // 8. Hitung ulang totalXp secara deterministik dari completedLessonIds
+  // 9. Hitung ulang totalXp secara deterministik dari completedLessonIds
   const totalXp = calculateXpFromCompletedLessons(completedLessonIds);
 
   return {
@@ -756,6 +1075,7 @@ export function mergeProgressStates(localRaw, cloudRaw) {
     lessonCompletedAt,
     puzzleProgress,
     playProgress,
+    openingProgress,
     updatedAt: latestUpdatedAt
   };
 }
@@ -786,6 +1106,13 @@ export function areProgressStatesEqual(stateA, stateB) {
     a.playProgress.lastPlayedAt === b.playProgress.lastPlayedAt &&
     JSON.stringify(a.playProgress.gameEvents) ===
       JSON.stringify(b.playProgress.gameEvents) &&
+    a.openingProgress.lastStudiedOpeningId === b.openingProgress.lastStudiedOpeningId &&
+    JSON.stringify(a.openingProgress.studiedOpeningIds) ===
+      JSON.stringify(b.openingProgress.studiedOpeningIds) &&
+    JSON.stringify(a.openingProgress.masteredOpeningIds) ===
+      JSON.stringify(b.openingProgress.masteredOpeningIds) &&
+    JSON.stringify(a.openingProgress.attemptEvents) ===
+      JSON.stringify(b.openingProgress.attemptEvents) &&
     a.updatedAt === b.updatedAt
   );
 }

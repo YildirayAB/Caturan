@@ -8,7 +8,9 @@ import {
   createInitialPuzzleProgressState,
   sanitizePuzzleProgress,
   createInitialPlayProgressState,
-  sanitizePlayProgress
+  sanitizePlayProgress,
+  createInitialOpeningProgressState,
+  sanitizeOpeningProgress
 } from './storage.js';
 import { PLAY_DIFFICULTIES, getPlayDifficultyById } from './stockfishEngine.js';
 import { CURRICULUM_CATEGORIES, getAllLessons, getLessonById } from '../data/curriculum.js';
@@ -21,6 +23,14 @@ import {
   getAvailablePuzzleCategories,
   getDailyPuzzle
 } from '../data/puzzles.js';
+import {
+  OPENING_CATEGORIES,
+  OPENING_DIFFICULTIES,
+  OPENING_REPERTOIRE_SIDES,
+  OPENING_STATUS_META,
+  getAllOpenings,
+  getOpeningById
+} from '../data/openings.js';
 
 const LEVEL_THRESHOLDS = [
   { level: 0, minXp: 0, title: 'Belum Berlevel (Pemula Baru)' },
@@ -768,6 +778,360 @@ class ProgressService {
     };
   }
 
+  // =========================================================================
+  // MVP 4 — PROGRES OPENING TRAINER (Bagian 3, 4, 6, 9)
+  // =========================================================================
+
+  _getOpeningProgress() {
+    return sanitizeOpeningProgress(
+      this._state && this._state.openingProgress
+        ? this._state.openingProgress
+        : createInitialOpeningProgressState()
+    );
+  }
+
+  /**
+   * Menentukan status pembelajaran opening secara deterministik:
+   * - 'mastered' (Dikuasai)
+   * - 'needs-review' (Perlu Diulang)
+   * - 'studying' (Sedang Dipelajari)
+   * - 'not-studied' (Belum Dipelajari)
+   */
+  getOpeningStatus(openingId) {
+    if (!openingId) return 'not-studied';
+    const openingProg = this._getOpeningProgress();
+
+    if (openingProg.masteredOpeningIds.includes(openingId)) {
+      return 'mastered';
+    }
+
+    const attemptsForOpening = openingProg.attemptEvents.filter(
+      ev => ev.openingId === openingId
+    );
+    if (attemptsForOpening.length > 0) {
+      const hasImperfectAttempt = attemptsForOpening.some(
+        ev =>
+          ev.wrongMoves > 0 ||
+          ev.hintsUsed > 0 ||
+          ev.completionStatus === 'needs-review' ||
+          ev.completionStatus === 'failed'
+      );
+      if (hasImperfectAttempt) {
+        return 'needs-review';
+      }
+      return 'studying';
+    }
+
+    if (openingProg.studiedOpeningIds.includes(openingId)) {
+      return 'studying';
+    }
+
+    return 'not-studied';
+  }
+
+  getOpeningStatusInfo(openingId) {
+    const status = this.getOpeningStatus(openingId);
+    return OPENING_STATUS_META[status] || OPENING_STATUS_META['not-studied'];
+  }
+
+  /**
+   * Mencatat bahwa sebuah variasi opening sedang/sudah dipelajari pada Learn Mode.
+   * Tidak menambahkan XP global.
+   */
+  markOpeningStudied(openingId, { referenceDate = new Date() } = {}) {
+    const found = getOpeningById(openingId);
+    if (!found) return null;
+
+    const currentOpeningProg = this._getOpeningProgress();
+    const nowIso = new Date().toISOString();
+    const today = getLocalDateString(referenceDate);
+
+    const studiedSet = new Set(currentOpeningProg.studiedOpeningIds);
+    studiedSet.add(openingId);
+
+    const activityDatesSet = new Set(this._state.activityDates);
+    activityDatesSet.add(today);
+
+    this._state = storageService.saveProgress({
+      ...this._state,
+      activityDates: Array.from(activityDatesSet),
+      openingProgress: {
+        ...currentOpeningProg,
+        studiedOpeningIds: Array.from(studiedSet),
+        lastStudiedOpeningId: openingId,
+        updatedAt: nowIso
+      }
+    });
+
+    this._notify();
+    return this.getOpeningStatusInfo(openingId);
+  }
+
+  /**
+   * Mencatat satu sesi latihan opening (Opening Practice Mode) secara idempoten berdasarkan `id` unik.
+   * Tidak menambahkan XP global tanpa aturan yang jelas.
+   */
+  recordOpeningPracticeAttempt({
+    id = null,
+    openingId,
+    repertoireSide = null,
+    correctMoves = 0,
+    wrongMoves = 0,
+    hintsUsed = 0,
+    completionStatus = null,
+    referenceDate = new Date()
+  } = {}) {
+    const found = getOpeningById(openingId);
+    if (!found) {
+      return { success: false, error: 'Opening tidak ditemukan.' };
+    }
+
+    const currentOpeningProg = this._getOpeningProgress();
+    const nowIso = new Date().toISOString();
+    const today = getLocalDateString(referenceDate);
+    const eventId =
+      typeof id === 'string' && id.trim().length > 0
+        ? id.trim()
+        : `open_att_${openingId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+    const cleanCorrect = Math.max(0, Math.floor(Number(correctMoves) || 0));
+    const cleanWrong = Math.max(0, Math.floor(Number(wrongMoves) || 0));
+    const cleanHints = Math.max(0, Math.floor(Number(hintsUsed) || 0));
+    const validSide =
+      repertoireSide === 'black' || found.repertoireSide === 'black' ? 'black' : 'white';
+
+    const isCleanMastery = cleanCorrect > 0 && cleanWrong === 0 && cleanHints === 0;
+    let effectiveStatus = 'completed';
+    if (isCleanMastery) {
+      effectiveStatus = 'mastered';
+    } else if (cleanWrong > 0 || cleanHints > 0) {
+      effectiveStatus = 'needs-review';
+    }
+    if (
+      typeof completionStatus === 'string' &&
+      ['completed', 'mastered', 'needs-review', 'in_progress', 'failed'].includes(
+        completionStatus.trim()
+      )
+    ) {
+      effectiveStatus = completionStatus.trim();
+    }
+
+    const updatedEvents = [...currentOpeningProg.attemptEvents];
+    const existingIdx = updatedEvents.findIndex(ev => ev.id === eventId);
+
+    const eventPayload = {
+      id: eventId,
+      openingId,
+      repertoireSide: validSide,
+      correctMoves: cleanCorrect,
+      wrongMoves: cleanWrong,
+      hintsUsed: cleanHints,
+      completionStatus: effectiveStatus,
+      timestamp: nowIso,
+      date: today
+    };
+
+    if (existingIdx >= 0) {
+      const prev = updatedEvents[existingIdx];
+      updatedEvents[existingIdx] = {
+        ...prev,
+        correctMoves: Math.max(prev.correctMoves || 0, eventPayload.correctMoves),
+        wrongMoves: Math.max(prev.wrongMoves || 0, eventPayload.wrongMoves),
+        hintsUsed: Math.max(prev.hintsUsed || 0, eventPayload.hintsUsed),
+        completionStatus: eventPayload.completionStatus,
+        timestamp: nowIso,
+        date: today
+      };
+    } else {
+      updatedEvents.push(eventPayload);
+    }
+
+    const studiedSet = new Set(currentOpeningProg.studiedOpeningIds);
+    studiedSet.add(openingId);
+
+    const masteredSet = new Set(currentOpeningProg.masteredOpeningIds);
+    if (isCleanMastery || effectiveStatus === 'mastered') {
+      masteredSet.add(openingId);
+    }
+
+    const activityDatesSet = new Set(this._state.activityDates);
+    activityDatesSet.add(today);
+
+    this._state = storageService.saveProgress({
+      ...this._state,
+      activityDates: Array.from(activityDatesSet),
+      openingProgress: {
+        studiedOpeningIds: Array.from(studiedSet),
+        masteredOpeningIds: Array.from(masteredSet),
+        attemptEvents: updatedEvents,
+        lastStudiedOpeningId: openingId,
+        updatedAt: nowIso
+      }
+    });
+
+    this._notify();
+
+    const totalMoveAttempts = cleanCorrect + cleanWrong;
+    const sessionAccuracy =
+      totalMoveAttempts > 0 ? Math.round((cleanCorrect / totalMoveAttempts) * 100) : 0;
+
+    return {
+      success: true,
+      eventId,
+      openingId,
+      status: this.getOpeningStatus(openingId),
+      statusInfo: this.getOpeningStatusInfo(openingId),
+      isMastered: masteredSet.has(openingId),
+      sessionAccuracy,
+      openingSummary: this.getOpeningSummary()
+    };
+  }
+
+  /**
+   * Menghitung seluruh statistik Opening Trainer secara jujur dari data aktual openingProgress.
+   */
+  getOpeningSummary() {
+    const allOpenings = getAllOpenings();
+    const totalOpeningsCount = allOpenings.length;
+    const openingProg = this._getOpeningProgress();
+
+    const studiedSet = new Set(openingProg.studiedOpeningIds);
+    const masteredSet = new Set(openingProg.masteredOpeningIds);
+
+    const validStudiedOpenings = allOpenings.filter(o => studiedSet.has(o.id));
+    const validMasteredOpenings = allOpenings.filter(o => masteredSet.has(o.id));
+
+    const studiedCount = validStudiedOpenings.length;
+    const masteredCount = validMasteredOpenings.length;
+
+    const attemptEvents = openingProg.attemptEvents;
+    const totalPracticeSessions = attemptEvents.length;
+
+    let totalCorrectMoves = 0;
+    let totalWrongMoves = 0;
+    let totalHintsUsed = 0;
+
+    for (const ev of attemptEvents) {
+      totalCorrectMoves += ev.correctMoves || 0;
+      totalWrongMoves += ev.wrongMoves || 0;
+      totalHintsUsed += ev.hintsUsed || 0;
+    }
+
+    const totalEvaluatedMoves = totalCorrectMoves + totalWrongMoves;
+    const successRate =
+      totalEvaluatedMoves > 0
+        ? Math.round((totalCorrectMoves / totalEvaluatedMoves) * 100)
+        : 0;
+
+    let lastStudiedOpening = null;
+    if (openingProg.lastStudiedOpeningId) {
+      const foundLast = getOpeningById(openingProg.lastStudiedOpeningId);
+      if (foundLast) {
+        const statusInfo = this.getOpeningStatusInfo(foundLast.id);
+        lastStudiedOpening = {
+          ...foundLast,
+          status: statusInfo.id,
+          statusLabel: statusInfo.label,
+          statusBadgeClass: statusInfo.badgeClass
+        };
+      }
+    }
+
+    // Ringkasan Repertoire Putih & Repertoire Hitam
+    const buildRepertoireStats = sideInfo => {
+      const sideOpenings = allOpenings.filter(o => o.repertoireSide === sideInfo.id);
+      const totalAvailable = sideOpenings.length;
+      const studied = sideOpenings.filter(o => studiedSet.has(o.id)).length;
+      const mastered = sideOpenings.filter(o => masteredSet.has(o.id)).length;
+      const percentage = totalAvailable > 0 ? Math.round((studied / totalAvailable) * 100) : 0;
+      const masteryPercentage =
+        totalAvailable > 0 ? Math.round((mastered / totalAvailable) * 100) : 0;
+
+      return {
+        ...sideInfo,
+        totalAvailable,
+        studiedCount: studied,
+        masteredCount: mastered,
+        percentage,
+        masteryPercentage
+      };
+    };
+
+    const repertoireSummary = {
+      white: buildRepertoireStats(OPENING_REPERTOIRE_SIDES[0]),
+      black: buildRepertoireStats(OPENING_REPERTOIRE_SIDES[1])
+    };
+
+    // Ringkasan Kategori Opening (hanya tampilkan kategori yang memiliki data)
+    const categoriesSummary = OPENING_CATEGORIES.map(cat => {
+      const catOpenings = allOpenings.filter(
+        o => o.categoryId === cat.id || o.category === cat.title
+      );
+      const total = catOpenings.length;
+      if (total === 0) return null;
+
+      const studied = catOpenings.filter(o => studiedSet.has(o.id)).length;
+      const mastered = catOpenings.filter(o => masteredSet.has(o.id)).length;
+      const percentage = Math.round((studied / total) * 100);
+
+      return {
+        ...cat,
+        totalOpenings: total,
+        studiedOpenings: studied,
+        masteredOpenings: mastered,
+        percentage
+      };
+    }).filter(Boolean);
+
+    const difficultiesSummary = OPENING_DIFFICULTIES.map(diff => {
+      const diffOpenings = allOpenings.filter(o => o.difficulty === diff.id);
+      const total = diffOpenings.length;
+      const studied = diffOpenings.filter(o => studiedSet.has(o.id)).length;
+      const mastered = diffOpenings.filter(o => masteredSet.has(o.id)).length;
+      return {
+        ...diff,
+        totalOpenings: total,
+        studiedOpenings: studied,
+        masteredOpenings: mastered
+      };
+    });
+
+    const recentSessions = [...attemptEvents]
+      .reverse()
+      .slice(0, 10)
+      .map(ev => {
+        const opening = getOpeningById(ev.openingId);
+        const totalMoves = (ev.correctMoves || 0) + (ev.wrongMoves || 0);
+        const accuracy = totalMoves > 0 ? Math.round((ev.correctMoves / totalMoves) * 100) : 0;
+        return {
+          ...ev,
+          opening,
+          openingName: opening ? opening.name : ev.openingId,
+          eco: opening ? opening.eco : '-',
+          accuracy
+        };
+      });
+
+    return {
+      totalOpeningsCount,
+      studiedCount,
+      masteredCount,
+      totalPracticeSessions,
+      totalCorrectMoves,
+      totalWrongMoves,
+      totalHintsUsed,
+      successRate,
+      lastStudiedOpening,
+      repertoireSummary,
+      categoriesSummary,
+      difficultiesSummary,
+      recentSessions,
+      studiedOpeningIds: openingProg.studiedOpeningIds,
+      masteredOpeningIds: openingProg.masteredOpeningIds,
+      attemptEvents
+    };
+  }
+
   /**
    * Mendapatkan ringkasan lengkap untuk Dashboard dan Halaman Belajar
    */
@@ -877,7 +1241,8 @@ class ProgressService {
       categoriesSummary,
       firstLesson: allLessons[0],
       puzzleSummary: this.getPuzzleSummary(),
-      playSummary: this.getPlaySummary()
+      playSummary: this.getPlaySummary(),
+      openingSummary: this.getOpeningSummary()
     };
   }
 

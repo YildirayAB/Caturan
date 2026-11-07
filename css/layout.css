@@ -59,7 +59,7 @@ body.drawer-open {
   display: flex;
   flex-direction: column;
   height: 100%;
-  padding: 20px 16px;
+  padding: calc(20px + env(safe-area-inset-top, 0px)) 16px calc(20px + env(safe-area-inset-bottom, 0px)) 16px;
 }
 
 .sidebar-top-row {
@@ -419,10 +419,11 @@ body.drawer-open {
 
 /* Topbar */
 .app-topbar {
-  height: var(--topbar-height);
+  min-height: var(--topbar-height);
+  height: auto;
   background-color: var(--bg-surface);
   border-bottom: 1px solid var(--border-color);
-  padding: 0 28px;
+  padding: env(safe-area-inset-top, 0px) 28px 0 28px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -556,9 +557,10 @@ body.drawer-open {
 /* Main View Container */
 .app-main {
   flex: 1;
-  padding: 28px;
+  padding: 28px 28px calc(28px + env(safe-area-inset-bottom, 0px)) 28px;
   max-width: 1280px;
   width: 100%;
+  min-width: 0;
   margin: 0 auto;
   transition: max-width 0.25s ease;
 }
@@ -640,7 +642,7 @@ body.drawer-open {
 @media (max-width: 1100px) {
   .stats-grid,
   .stats-grid.play-stats-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .dashboard-two-col,
@@ -649,18 +651,23 @@ body.drawer-open {
     grid-template-columns: 1fr;
   }
 
+  .lesson-workspace-grid .lesson-practice-card {
+    order: -1;
+  }
+
   .puzzle-choices-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .puzzle-difficulty-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 /* Tablet & Smartphone: Responsive Drawer */
 @media (max-width: 860px) {
   .app-sidebar {
+    width: min(var(--sidebar-width), 86vw);
     transform: translateX(-100%);
     visibility: hidden;
     pointer-events: none;
@@ -676,6 +683,21 @@ body.drawer-open {
 
   .sidebar-close-drawer-btn {
     display: inline-flex;
+    width: 44px;
+    height: 44px;
+  }
+
+  .sidebar-nav-link {
+    min-height: 44px;
+  }
+
+  .mobile-menu-trigger {
+    width: 44px;
+    height: 44px;
+  }
+
+  .theme-toggle-btn {
+    min-height: 44px;
   }
 
   .app-content-area {
@@ -688,23 +710,45 @@ body.drawer-open {
   }
 
   .app-topbar {
-    padding: 0 16px;
+    padding: env(safe-area-inset-top, 0px) 16px 0 16px;
+    gap: 8px;
+  }
+
+  .topbar-right {
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .topbar-quick-stats {
+    gap: 6px;
   }
 
   .app-main {
-    padding: 18px 16px;
+    padding: 18px 16px calc(22px + env(safe-area-inset-bottom, 0px)) 16px;
+  }
+
+  .dashboard-page,
+  .learn-page,
+  .lesson-detail-page {
+    gap: 18px;
   }
 
   .recommendation-list,
-  .puzzle-choices-grid {
+  .puzzle-choices-grid,
+  .puzzle-difficulty-grid {
     grid-template-columns: 1fr;
   }
 }
 
-@media (max-width: 560px) {
+@media (max-width: 640px) {
   .stats-grid,
   .stats-grid.play-stats-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .stats-grid.play-stats-grid > .stat-card:last-child {
+    grid-column: 1 / -1;
   }
 
   .hide-on-xs {
@@ -716,6 +760,33 @@ body.drawer-open {
   }
 
   .theme-toggle-btn {
-    padding: 8px 10px;
+    padding: 8px 11px;
+    min-width: 44px;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 380px) {
+  .stats-grid,
+  .stats-grid.play-stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .app-topbar {
+    padding: env(safe-area-inset-top, 0px) 12px 0 12px;
+  }
+
+  .app-main {
+    padding: 14px 12px calc(18px + env(safe-area-inset-bottom, 0px)) 12px;
+  }
+
+  .topbar-app-name {
+    font-size: 0.92rem;
+  }
+
+  .quick-stat-pill {
+    padding: 5px 8px;
+    font-size: 0.74rem;
+    gap: 4px;
   }
 }
