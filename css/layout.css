@@ -594,6 +594,10 @@ body.drawer-open {
   gap: 16px;
 }
 
+.stats-grid.play-stats-grid {
+  grid-template-columns: repeat(5, 1fr);
+}
+
 .dashboard-two-col {
   display: grid;
   grid-template-columns: 1.05fr 0.95fr;
@@ -634,7 +638,8 @@ body.drawer-open {
 
 /* Responsive Breakpoints */
 @media (max-width: 1100px) {
-  .stats-grid {
+  .stats-grid,
+  .stats-grid.play-stats-grid {
     grid-template-columns: repeat(2, 1fr);
   }
 
@@ -697,7 +702,8 @@ body.drawer-open {
 }
 
 @media (max-width: 560px) {
-  .stats-grid {
+  .stats-grid,
+  .stats-grid.play-stats-grid {
     grid-template-columns: 1fr;
   }
 

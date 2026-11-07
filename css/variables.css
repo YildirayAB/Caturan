@@ -148,6 +148,11 @@ body,
 .puzzle-info-card,
 .puzzle-solved-list,
 .puzzle-history-list,
+.play-dashboard-page,
+.play-game-page,
+.play-board-card,
+.play-info-card,
+.play-move-history-scroll,
 .auth-screen {
   scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
 }
@@ -172,6 +177,11 @@ body,
 [data-theme="dark"] .puzzle-info-card,
 [data-theme="dark"] .puzzle-solved-list,
 [data-theme="dark"] .puzzle-history-list,
+[data-theme="dark"] .play-dashboard-page,
+[data-theme="dark"] .play-game-page,
+[data-theme="dark"] .play-board-card,
+[data-theme="dark"] .play-info-card,
+[data-theme="dark"] .play-move-history-scroll,
 [data-theme="dark"] .auth-screen {
   scrollbar-color: #34445C #101C30;
 }

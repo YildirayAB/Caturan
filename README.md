@@ -96,6 +96,8 @@ Caturan/
 │   │   ├── lessonDetailView.js# Tampilan ruang belajar teori + praktik papan catur
 │   │   ├── puzzleView.js      # Tampilan halaman Dashboard Puzzle Catur (MVP 2)
 │   │   ├── puzzlePlayView.js  # Tampilan ruang latihan Papan Puzzle Interaktif (MVP 2)
+│   │   ├── playView.js        # Tampilan halaman Dashboard Bermain & Pengaturan Permainan (MVP 3)
+│   │   ├── playGameView.js    # Tampilan ruang pertandingan Melawan Komputer / Stockfish (MVP 3)
 │   │   ├── loginView.js       # Tampilan halaman Login privat
 │   │   ├── sidebar.js         # Komponen navigasi sidebar, status sinkronisasi, & akun
 │   │   └── icons.js           # Kumpulan ikon UI & vektor bidak catur SVG standar turnamen
@@ -105,20 +107,23 @@ Caturan/
 │   │   └── puzzles.js         # Modul ES dataset puzzle, kategori tema, kesulitan, & pemilihan harian
 │   ├── services/
 │   │   ├── auth.js            # Layanan autentikasi Supabase Auth & manajemen sesi
-│   │   ├── progress.js        # Kalkulasi XP, Level, Streak harian, & rekomendasi materi
+│   │   ├── progress.js        # Kalkulasi XP, Level, Streak harian, progres puzzle, & statistik bermain
+│   │   ├── stockfishEngine.js # Layanan UCI Web Worker untuk engine Stockfish 19 Lite WASM (MVP 3)
 │   │   ├── storage.js         # LocalStorageAdapter, SupabaseStorageAdapter, & algoritma Merge
 │   │   ├── supabaseClient.js  # Inisialisasi Supabase client & validasi keamanan kunci publik
 │   │   └── theme.js           # Pengelolaan tema Light Mode & Dark Mode
 │   └── vendor/
 │       ├── chess.js           # Mesin aturan catur Chess.js
-│       └── supabase.js        # Bundel ES Module @supabase/supabase-js untuk browser
+│       ├── supabase.js        # Bundel ES Module @supabase/supabase-js untuk browser
+│       └── stockfish/         # Binary lokal Stockfish 19 Lite Single-Threaded (.js, .wasm, Copying.txt)
 ├── scripts/
-│   └── generate-env.js        # Script penyuntik variabel environment untuk build deployment
+│   └── generate-env.js        # Script penyuntik variabel environment & penyalin aset static dist/
 ├── supabase/
 │   ├── config.toml            # Konfigurasi proyek lokal Supabase CLI v3
 │   ├── migrations/            # Riwayat migrasi SQL skema database & kebijakan RLS
 │   ├── seed.sql               # File seed database lokal
 │   └── README.md              # Dokumentasi alur kerja database & Supabase CLI
+├── THIRD_PARTY_NOTICES.md     # Pemberitahuan lisensi pihak ketiga (Stockfish GPL-3.0, Lichess CC0, dll.)
 ├── .env.example               # Template variabel environment publik
 ├── index.html                 # Dokumen utama aplikasi
 ├── package.json               # Manifes proyek & dependensi
@@ -194,17 +199,18 @@ Proyek ini telah dikonfigurasi agar siap di-deploy ke **Vercel**:
   - Autentikasi Privat Supabase Auth & Sinkronisasi Progres Cloud (`public.user_progress` dengan RLS).
 - [x] **Tahap 2 (MVP 2 — Selesai)**:
   - 🧩 **Puzzle Taktik Catur Interaktif**: Dashboard Puzzle, Statistik Akurasi, Puzzle Harian Deterministik, 6 Kategori Tema Taktik, 3 Tingkat Kesulitan, Sistem Petunjuk 2 Tahap, serta Sinkronisasi Cloud `puzzleProgress`.
+- [x] **Tahap 3 (MVP 3 — Selesai)**:
+  - 🤖 **Bermain Melawan Komputer (Stockfish 19 Lite WASM)**: Pertandingan catur standar melawan engine Stockfish di Web Worker dengan 3 tingkat kesulitan (*Pemula*, *Menengah*, *Lanjutan*), pilihan warna bidak (*Putih*, *Hitam*, *Acak*), riwayat notasi SAN, bidak tertangkap, serta sinkronisasi cloud `playProgress`.
 - [ ] **Tahap Berikutnya (Coming Soon)**:
-  - 🤖 **Bermain Melawan Bot**: Sparring melawan AI dengan berbagai tingkat kesulitan.
   - 🧭 **Opening Trainer**: Pelatih hafalan repertoar pembukaan interaktif.
   - 📈 **Papan Analisis**: Evaluasi posisi dan peninjauan notasi pertandingan (PGN).
 
 ---
 
-## 📚 Atribusi Sumber Data Puzzle
+## 📚 Atribusi Pihak Ketiga & Sumber Data
 
-Dataset teka-teki taktik catur pada fitur **Puzzle Catur (MVP 2)** bersumber dari:
-- **Lichess Open Database — CC0 Public Domain.** (`https://database.lichess.org/#puzzles`)
+- **Stockfish 19 Lite WASM (`stockfish@19.0.1`)**: Mesin catur lawan komputer pada fitur **Bermain Melawan Komputer (MVP 3)** didistribusikan di bawah lisensi **GNU General Public License v3.0 (GPL-3.0)**. Informasi lengkap sumber kode dan teks lisensi tersedia pada [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md).
+- **Lichess Open Database**: Dataset teka-teki taktik catur pada fitur **Puzzle Catur (MVP 2)** bersumber dari **Lichess Open Database — CC0 Public Domain** (`https://database.lichess.org/#puzzles`).
 
 ---
 

@@ -129,10 +129,46 @@ function copyDirectoryFiltered(srcDir, destDir, allowedExtensions) {
 }
 
 /**
+ * Memastikan file engine Stockfish 19 lite-single (.js, .wasm) dan Copying.txt
+ * tersedia di js/vendor/stockfish/ dari paket npm `stockfish` jika node_modules tersedia.
+ */
+export function ensureStockfishVendorAssets(customRoot = rootDir) {
+  const pkgBinDir = path.join(customRoot, 'node_modules', 'stockfish', 'bin');
+  const pkgRootDir = path.join(customRoot, 'node_modules', 'stockfish');
+  const vendorStockfishDir = path.join(customRoot, 'js', 'vendor', 'stockfish');
+
+  fs.mkdirSync(vendorStockfishDir, { recursive: true });
+
+  const filesToSync = [
+    {
+      src: path.join(pkgBinDir, 'stockfish-19-lite-single.js'),
+      dest: path.join(vendorStockfishDir, 'stockfish-19-lite-single.js')
+    },
+    {
+      src: path.join(pkgBinDir, 'stockfish-19-lite-single.wasm'),
+      dest: path.join(vendorStockfishDir, 'stockfish-19-lite-single.wasm')
+    },
+    {
+      src: path.join(pkgRootDir, 'Copying.txt'),
+      dest: path.join(vendorStockfishDir, 'Copying.txt')
+    }
+  ];
+
+  for (const item of filesToSync) {
+    if (fs.existsSync(item.src) && !fs.existsSync(item.dest)) {
+      fs.copyFileSync(item.src, item.dest);
+    }
+  }
+}
+
+/**
  * Menjalankan proses build static website ke dalam direktori `dist/`
  */
 export function buildStaticSite(customRoot = rootDir) {
   const distDir = path.join(customRoot, 'dist');
+
+  // 0. Pastikan aset Stockfish vendor tersedia
+  ensureStockfishVendorAssets(customRoot);
 
   // 1. Bersihkan direktori dist/ lama jika ada
   if (fs.existsSync(distDir)) {
@@ -140,12 +176,17 @@ export function buildStaticSite(customRoot = rootDir) {
   }
   fs.mkdirSync(distDir, { recursive: true });
 
-  // 2. Salin index.html
+  // 2. Salin index.html & THIRD_PARTY_NOTICES.md (atribusi lisensi Stockfish GPL-3.0)
   const indexSrc = path.join(customRoot, 'index.html');
   if (!fs.existsSync(indexSrc)) {
     throw new Error('File index.html tidak ditemukan pada root proyek.');
   }
   fs.copyFileSync(indexSrc, path.join(distDir, 'index.html'));
+
+  const noticesSrc = path.join(customRoot, 'THIRD_PARTY_NOTICES.md');
+  if (fs.existsSync(noticesSrc)) {
+    fs.copyFileSync(noticesSrc, path.join(distDir, 'THIRD_PARTY_NOTICES.md'));
+  }
 
   // 3. Salin direktori css/
   copyDirectoryFiltered(
@@ -154,11 +195,11 @@ export function buildStaticSite(customRoot = rootDir) {
     new Set(['.css'])
   );
 
-  // 4. Salin direktori js/ (components, services, data, vendor, main.js)
+  // 4. Salin direktori js/ (components, services, data, vendor termasuk Stockfish .js & .wasm, main.js)
   copyDirectoryFiltered(
     path.join(customRoot, 'js'),
     path.join(distDir, 'js'),
-    new Set(['.js', '.mjs', '.json'])
+    new Set(['.js', '.mjs', '.json', '.wasm', '.txt'])
   );
 
   // 5. Hasilkan dist/js/env.js dari variabel environment tanpa memodifikasi js/env.js di source
