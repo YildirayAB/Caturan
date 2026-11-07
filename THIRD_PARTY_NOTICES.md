@@ -42,7 +42,16 @@ Sesuai dengan ketentuan **GNU General Public License Version 3 (GPL-3.0)**, bina
 
 ---
 
-## 3. Supabase JavaScript Client (`@supabase/supabase-js`)
+## 3. Lichess Chess Openings Dataset (MVP 4 — Opening Trainer)
+
+- **Sumber Resmi**: Lichess Chess Openings (`https://github.com/lichess-org/chess-openings`)
+- **Data yang Digunakan**: Kode ECO, nama opening dan variasi resmi, notasi langkah PGN, urutan langkah UCI, serta posisi EPD untuk koleksi terkurasi pada `js/data/openings.json` dan `js/data/openings.js`.
+- **Catatan Penjelasan**: Deskripsi pembukaan, ide utama (*key ideas*), dan *Explanation Panel* dalam Bahasa Indonesia ditulis secara orisinal sebagai panduan belajar umum dan bukan salinan dari buku pembukaan komersial.
+- **Lisensi Dataset**: **CC0 1.0 Universal (CC0 Public Domain Dedication)**
+
+---
+
+## 4. Supabase JavaScript Client (`@supabase/supabase-js`)
 
 - **Paket npm**: `@supabase/supabase-js`
 - **Sumber**: https://github.com/supabase/supabase-js

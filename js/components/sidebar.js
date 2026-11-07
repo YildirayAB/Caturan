@@ -36,8 +36,7 @@ export const NAV_ITEMS = [
     id: 'opening-trainer',
     label: 'Opening Trainer',
     icon: UI_ICONS.opening,
-    activeInMvp: false,
-    badge: 'Coming Soon'
+    activeInMvp: true
   },
   {
     id: 'analysis',
@@ -80,6 +79,10 @@ export function renderSidebar(
       ? 'puzzle'
       : currentRoute === 'play-game'
       ? 'play'
+      : currentRoute === 'opening-library' ||
+        currentRoute === 'opening-learn' ||
+        currentRoute === 'opening-practice'
+      ? 'opening-trainer'
       : currentRoute;
 
   const navLinksHtml = NAV_ITEMS.map(item => {

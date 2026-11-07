@@ -14,6 +14,7 @@ import { progressService } from './services/progress.js';
 import { authService } from './services/auth.js';
 import { getLessonById } from './data/curriculum.js';
 import { getPuzzleById, getDailyPuzzle, selectNextPuzzle } from './data/puzzles.js';
+import { getOpeningById } from './data/openings.js';
 import { renderSidebar } from './components/sidebar.js';
 import { renderDashboardView } from './components/dashboardView.js';
 import { renderLearnView } from './components/learnView.js';
@@ -28,6 +29,12 @@ import {
   renderPlayGameView,
   destroyActivePlayBoard
 } from './components/playGameView.js';
+import {
+  renderOpeningDashboardView,
+  renderOpeningLibraryView
+} from './components/openingView.js';
+import { renderOpeningLearnView } from './components/openingLearnView.js';
+import { renderOpeningPracticeView } from './components/openingPracticeView.js';
 import {
   renderLessonDetailView,
   updateLessonCompletionUI,
@@ -65,6 +72,17 @@ export class CaturanApp {
       difficulty: 'beginner' // 'beginner' | 'intermediate' | 'advanced'
     };
     this.unfinishedPlayNotice = null;
+
+    // State Opening Trainer (MVP 4)
+    this.activeOpeningId = null;
+    this.openingLibraryFilters = {
+      repertoireSide: 'all',
+      category: 'all',
+      difficulty: 'all',
+      status: 'all',
+      searchQuery: ''
+    };
+    this._activeOpeningBoard = null;
 
     // State Sidebar:
     // - Desktop: membaca preferensi dari LocalStorage (default terbuka = false)
@@ -165,7 +183,9 @@ export class CaturanApp {
         if (
           this.currentRoute === 'lesson-detail' ||
           this.currentRoute === 'puzzle-play' ||
-          this.currentRoute === 'play-game'
+          this.currentRoute === 'play-game' ||
+          this.currentRoute === 'opening-learn' ||
+          this.currentRoute === 'opening-practice'
         ) {
           this._refreshChromeUI();
         } else {
@@ -209,6 +229,7 @@ export class CaturanApp {
       destroyActiveLessonBoard();
       destroyActivePuzzleBoard();
       destroyActivePlayBoard({ terminateEngine: true });
+      this._destroyActiveOpeningBoard();
       this._clearActivePlaySession();
       this.closeMobileSidebar();
       this.renderAuthGate();
@@ -238,6 +259,7 @@ export class CaturanApp {
     destroyActiveLessonBoard();
     destroyActivePuzzleBoard();
     destroyActivePlayBoard({ terminateEngine: true });
+    this._destroyActiveOpeningBoard();
     this._clearActivePlaySession();
 
     if (this.appShell && this.appShell.classList) {
@@ -383,6 +405,26 @@ export class CaturanApp {
         this.openPuzzle(puzzleId, null, false);
         return;
       }
+    } else if (hash.startsWith('opening-learn/')) {
+      const openingId = hash.slice('opening-learn/'.length);
+      const exists = getOpeningById(openingId);
+      if (exists) {
+        this.openOpeningLearn(openingId, false);
+        return;
+      }
+    } else if (hash.startsWith('opening-practice/')) {
+      const openingId = hash.slice('opening-practice/'.length);
+      const exists = getOpeningById(openingId);
+      if (exists) {
+        this.openOpeningPractice(openingId, false);
+        return;
+      }
+    } else if (hash === 'opening-library') {
+      this.openOpeningLibrary(null, false);
+      return;
+    } else if (hash === 'opening-trainer') {
+      this.navigate('opening-trainer', false);
+      return;
     } else if (hash === 'play-game') {
       // Jika halaman direfresh saat berada di #play-game, arahkan ke #play dengan bersih
       // tanpa mengklaim game selesai apabila sesi sebelumnya belum berakhir
@@ -487,10 +529,18 @@ export class CaturanApp {
     });
   }
 
+  _destroyActiveOpeningBoard() {
+    if (this._activeOpeningBoard && typeof this._activeOpeningBoard.destroy === 'function') {
+      this._activeOpeningBoard.destroy();
+    }
+    this._activeOpeningBoard = null;
+  }
+
   navigate(route, updateHash = true) {
     destroyActiveLessonBoard();
     destroyActivePuzzleBoard();
     destroyActivePlayBoard({ terminateEngine: route !== 'play-game' });
+    this._destroyActiveOpeningBoard();
     if (route !== 'play-game') {
       this._clearActivePlaySession();
     }
@@ -518,6 +568,7 @@ export class CaturanApp {
     destroyActiveLessonBoard();
     destroyActivePuzzleBoard();
     destroyActivePlayBoard({ terminateEngine: true });
+    this._destroyActiveOpeningBoard();
     this._clearActivePlaySession();
     this.unfinishedPlayNotice = null;
     this.closeMobileSidebar();
@@ -612,6 +663,7 @@ export class CaturanApp {
     destroyActiveLessonBoard();
     destroyActivePuzzleBoard();
     destroyActivePlayBoard({ terminateEngine: true });
+    this._destroyActiveOpeningBoard();
     this._clearActivePlaySession();
     this.unfinishedPlayNotice = null;
     this.closeMobileSidebar();
@@ -766,6 +818,7 @@ export class CaturanApp {
     destroyActiveLessonBoard();
     destroyActivePuzzleBoard();
     destroyActivePlayBoard({ terminateEngine: false });
+    this._destroyActiveOpeningBoard();
     this.closeMobileSidebar();
 
     if (settings) {
@@ -796,6 +849,106 @@ export class CaturanApp {
     this._clearActivePlaySession();
     if (!gameResult || !gameResult.id) return;
     progressService.recordPlayGameFinished(gameResult);
+    this._refreshChromeUI();
+  }
+
+  // =========================================================================
+  // MVP 4 — KONTROLER OPENING TRAINER (DASHBOARD, LIBRARY, LEARN, PRACTICE)
+  // =========================================================================
+
+  openOpeningLibrary(filters = null, updateHash = true) {
+    destroyActiveLessonBoard();
+    destroyActivePuzzleBoard();
+    destroyActivePlayBoard({ terminateEngine: true });
+    this._destroyActiveOpeningBoard();
+    this._clearActivePlaySession();
+    this.unfinishedPlayNotice = null;
+    this.closeMobileSidebar();
+
+    if (filters && typeof filters === 'object') {
+      this.openingLibraryFilters = {
+        repertoireSide: filters.repertoireSide || 'all',
+        category: filters.category || 'all',
+        difficulty: filters.difficulty || 'all',
+        status: filters.status || 'all',
+        searchQuery: filters.searchQuery || ''
+      };
+    }
+
+    this.currentRoute = 'opening-library';
+
+    if (updateHash && window.history && typeof window.history.replaceState === 'function') {
+      window.history.replaceState(null, '', '#opening-library');
+    }
+
+    this.renderAll();
+    if (typeof window.scrollTo === 'function') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }
+
+  openOpeningLearn(openingId, updateHash = true) {
+    const found = getOpeningById(openingId);
+    if (!found) return;
+
+    destroyActiveLessonBoard();
+    destroyActivePuzzleBoard();
+    destroyActivePlayBoard({ terminateEngine: true });
+    this._destroyActiveOpeningBoard();
+    this._clearActivePlaySession();
+    this.unfinishedPlayNotice = null;
+    this.closeMobileSidebar();
+
+    progressService.markOpeningStudied(openingId);
+
+    this.currentRoute = 'opening-learn';
+    this.activeOpeningId = openingId;
+
+    if (updateHash && window.history && typeof window.history.replaceState === 'function') {
+      window.history.replaceState(null, '', `#opening-learn/${openingId}`);
+    }
+
+    this.renderAll();
+    if (typeof window.scrollTo === 'function') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }
+
+  openOpeningPractice(openingId, updateHash = true) {
+    const found = getOpeningById(openingId);
+    if (!found) return;
+
+    destroyActiveLessonBoard();
+    destroyActivePuzzleBoard();
+    destroyActivePlayBoard({ terminateEngine: true });
+    this._destroyActiveOpeningBoard();
+    this._clearActivePlaySession();
+    this.unfinishedPlayNotice = null;
+    this.closeMobileSidebar();
+
+    this.currentRoute = 'opening-practice';
+    this.activeOpeningId = openingId;
+
+    if (updateHash && window.history && typeof window.history.replaceState === 'function') {
+      window.history.replaceState(null, '', `#opening-practice/${openingId}`);
+    }
+
+    this.renderAll();
+    if (typeof window.scrollTo === 'function') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }
+
+  handleOpeningPracticeComplete(practiceState) {
+    if (!practiceState || !practiceState.openingId) return;
+    progressService.recordOpeningPracticeAttempt({
+      id: practiceState.attemptId,
+      openingId: practiceState.openingId,
+      repertoireSide: practiceState.repertoireSide,
+      correctMoves: practiceState.correctMoves,
+      wrongMoves: practiceState.wrongMoves,
+      hintsUsed: practiceState.hintsUsed
+    });
     this._refreshChromeUI();
   }
 
@@ -932,6 +1085,47 @@ export class CaturanApp {
         },
         onGameStarted: snapshot => this._markActivePlaySession(snapshot),
         onGameEnd: gameResult => this.handlePlayGameEnded(gameResult)
+      });
+    } else if (this.currentRoute === 'opening-trainer') {
+      renderOpeningDashboardView(this.mainContainer, {
+        openingSummary: summary.openingSummary || progressService.getOpeningSummary(),
+        userEmail: this.currentUser?.email || null,
+        onExploreLibrary: filters => this.openOpeningLibrary(filters),
+        onOpenLearn: id => this.openOpeningLearn(id),
+        onStartPractice: id => this.openOpeningPractice(id)
+      });
+    } else if (this.currentRoute === 'opening-library') {
+      renderOpeningLibraryView(this.mainContainer, {
+        initialFilters: this.openingLibraryFilters,
+        getOpeningStatus: id => progressService.getOpeningStatus(id),
+        onBackToDashboard: () => this.navigate('opening-trainer'),
+        onOpenLearn: id => this.openOpeningLearn(id),
+        onStartPractice: id => this.openOpeningPractice(id),
+        onFilterChange: updatedFilters => {
+          this.openingLibraryFilters = { ...updatedFilters };
+        }
+      });
+    } else if (this.currentRoute === 'opening-learn') {
+      const targetId = this.activeOpeningId || 'italian-game-main';
+      this._activeOpeningBoard = renderOpeningLearnView(this.mainContainer, {
+        openingId: targetId,
+        statusInfo: progressService.getOpeningStatusInfo(targetId),
+        onBackToLibrary: () => this.openOpeningLibrary(),
+        onBackToDashboard: () => this.navigate('opening-trainer'),
+        onSelectVariation: varId => this.openOpeningLearn(varId),
+        onStartPractice: id => this.openOpeningPractice(id)
+      });
+    } else if (this.currentRoute === 'opening-practice') {
+      const targetId = this.activeOpeningId || 'italian-game-main';
+      const openingSummary = summary.openingSummary || progressService.getOpeningSummary();
+      this._activeOpeningBoard = renderOpeningPracticeView(this.mainContainer, {
+        openingId: targetId,
+        masteredOpeningIds: openingSummary.masteredOpeningIds || [],
+        onSelectOpening: nextId => this.openOpeningPractice(nextId),
+        onOpenLearn: id => this.openOpeningLearn(id),
+        onBackToLibrary: () => this.openOpeningLibrary(),
+        onBackToDashboard: () => this.navigate('opening-trainer'),
+        onPracticeComplete: practiceState => this.handleOpeningPracticeComplete(practiceState)
       });
     }
   }

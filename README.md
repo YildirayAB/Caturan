@@ -98,13 +98,18 @@ Caturan/
 │   │   ├── puzzlePlayView.js  # Tampilan ruang latihan Papan Puzzle Interaktif (MVP 2)
 │   │   ├── playView.js        # Tampilan halaman Dashboard Bermain & Pengaturan Permainan (MVP 3)
 │   │   ├── playGameView.js    # Tampilan ruang pertandingan Melawan Komputer / Stockfish (MVP 3)
+│   │   ├── openingView.js     # Tampilan halaman Opening Dashboard & Opening Library (MVP 4)
+│   │   ├── openingLearnView.js# Tampilan halaman Opening Detail & Learn Mode (MVP 4)
+│   │   ├── openingPracticeView.js # Tampilan halaman Opening Practice Mode & Practice Result (MVP 4)
 │   │   ├── loginView.js       # Tampilan halaman Login privat
 │   │   ├── sidebar.js         # Komponen navigasi sidebar, status sinkronisasi, & akun
 │   │   └── icons.js           # Kumpulan ikon UI & vektor bidak catur SVG standar turnamen
 │   ├── data/
 │   │   ├── curriculum.js      # Database lengkap 6 level & 30 materi beserta skenario FEN & langkah
 │   │   ├── puzzles.json       # Dataset statis 60 puzzle taktik terkurasi dari Lichess Open Database
-│   │   └── puzzles.js         # Modul ES dataset puzzle, kategori tema, kesulitan, & pemilihan harian
+│   │   ├── puzzles.js         # Modul ES dataset puzzle, kategori tema, kesulitan, & pemilihan harian
+│   │   ├── openings.json      # Dataset statis 24 variasi opening terkurasi dari Lichess Chess Openings
+│   │   └── openings.js        # Modul ES dataset opening, kategori, repertoire, & pemilih variasi
 │   ├── services/
 │   │   ├── auth.js            # Layanan autentikasi Supabase Auth & manajemen sesi
 │   │   ├── progress.js        # Kalkulasi XP, Level, Streak harian, progres puzzle, & statistik bermain
@@ -201,8 +206,9 @@ Proyek ini telah dikonfigurasi agar siap di-deploy ke **Vercel**:
   - 🧩 **Puzzle Taktik Catur Interaktif**: Dashboard Puzzle, Statistik Akurasi, Puzzle Harian Deterministik, 6 Kategori Tema Taktik, 3 Tingkat Kesulitan, Sistem Petunjuk 2 Tahap, serta Sinkronisasi Cloud `puzzleProgress`.
 - [x] **Tahap 3 (MVP 3 — Selesai)**:
   - 🤖 **Bermain Melawan Komputer (Stockfish 19 Lite WASM)**: Pertandingan catur standar melawan engine Stockfish di Web Worker dengan 3 tingkat kesulitan (*Pemula*, *Menengah*, *Lanjutan*), pilihan warna bidak (*Putih*, *Hitam*, *Acak*), riwayat notasi SAN, bidak tertangkap, serta sinkronisasi cloud `playProgress`.
+- [x] **Tahap 4 (MVP 4 — Selesai)**:
+  - 🧭 **Opening Trainer**: Koleksi 24 variasi pembukaan catur tervalidasi (12 Repertoire Putih & 12 Repertoire Hitam), Opening Dashboard, Opening Library dengan filter & pencarian nama/ECO, Opening Detail & Learn Mode dengan Explanation Panel berbahasa Indonesia, Opening Practice Mode interaktif dengan sistem Hint 3 tahap, serta sinkronisasi cloud `openingProgress`.
 - [ ] **Tahap Berikutnya (Coming Soon)**:
-  - 🧭 **Opening Trainer**: Pelatih hafalan repertoar pembukaan interaktif.
   - 📈 **Papan Analisis**: Evaluasi posisi dan peninjauan notasi pertandingan (PGN).
 
 ---
@@ -211,6 +217,7 @@ Proyek ini telah dikonfigurasi agar siap di-deploy ke **Vercel**:
 
 - **Stockfish 19 Lite WASM (`stockfish@19.0.1`)**: Mesin catur lawan komputer pada fitur **Bermain Melawan Komputer (MVP 3)** didistribusikan di bawah lisensi **GNU General Public License v3.0 (GPL-3.0)**. Informasi lengkap sumber kode dan teks lisensi tersedia pada [`THIRD_PARTY_NOTICES.md`](./THIRD_PARTY_NOTICES.md).
 - **Lichess Open Database**: Dataset teka-teki taktik catur pada fitur **Puzzle Catur (MVP 2)** bersumber dari **Lichess Open Database — CC0 Public Domain** (`https://database.lichess.org/#puzzles`).
+- **Lichess Chess Openings Dataset (`lichess-org/chess-openings`)**: Data kode ECO, nama pembukaan, urutan langkah PGN, UCI, dan EPD pada fitur **Opening Trainer (MVP 4)** bersumber dari **Lichess Chess Openings Dataset — CC0 1.0 Universal Public Domain** (`https://github.com/lichess-org/chess-openings`). Penjelasan strategis dan ide utama disusun secara orisinal dalam Bahasa Indonesia sebagai panduan belajar umum.
 
 ---
 
