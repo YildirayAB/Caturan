@@ -6,8 +6,11 @@ import {
   storageService,
   calculateXpFromCompletedLessons,
   createInitialPuzzleProgressState,
-  sanitizePuzzleProgress
+  sanitizePuzzleProgress,
+  createInitialPlayProgressState,
+  sanitizePlayProgress
 } from './storage.js';
+import { PLAY_DIFFICULTIES, getPlayDifficultyById } from './stockfishEngine.js';
 import { CURRICULUM_CATEGORIES, getAllLessons, getLessonById } from '../data/curriculum.js';
 import {
   PUZZLE_DIFFICULTIES,
@@ -617,6 +620,154 @@ class ProgressService {
     };
   }
 
+  // =========================================================================
+  // MVP 3 — PROGRES BERMAIN MELAWAN KOMPUTER (Bagian 9)
+  // =========================================================================
+
+  _getPlayProgress() {
+    return sanitizePlayProgress(
+      this._state && this._state.playProgress
+        ? this._state.playProgress
+        : createInitialPlayProgressState()
+    );
+  }
+
+  /**
+   * Mencatat satu permainan melawan komputer yang telah selesai secara idempoten.
+   * Hanya menyimpan game yang benar-benar selesai dan mencegah duplikasi berdasarkan `id` unik.
+   * Tidak menambahkan XP global MVP 1 sesuai aturan Bagian 9.
+   */
+  recordPlayGameFinished({
+    id,
+    result,
+    playerColor = 'white',
+    difficulty = 'beginner',
+    startedAt = null,
+    finishedAt = null,
+    termination = 'checkmate',
+    pgn = ''
+  } = {}) {
+    if (!result || !['win', 'loss', 'draw'].includes(result)) {
+      return { success: false, error: 'Hasil permainan tidak valid.' };
+    }
+
+    const currentPlayProg = this._getPlayProgress();
+    const nowIso = new Date().toISOString();
+    const validFinishedAt =
+      typeof finishedAt === 'string' && Number.isFinite(Date.parse(finishedAt))
+        ? finishedAt
+        : nowIso;
+    const validStartedAt =
+      typeof startedAt === 'string' && Number.isFinite(Date.parse(startedAt))
+        ? startedAt
+        : validFinishedAt;
+
+    const eventId =
+      typeof id === 'string' && id.trim().length > 0
+        ? id.trim()
+        : `play_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+    const alreadyRecorded = currentPlayProg.gameEvents.some(ev => ev.id === eventId);
+    if (alreadyRecorded) {
+      return {
+        success: true,
+        alreadyRecorded: true,
+        eventId,
+        playSummary: this.getPlaySummary()
+      };
+    }
+
+    const newEvent = {
+      id: eventId,
+      result,
+      playerColor: playerColor === 'black' || playerColor === 'b' ? 'black' : 'white',
+      difficulty: getPlayDifficultyById(difficulty).id,
+      startedAt: validStartedAt,
+      finishedAt: validFinishedAt,
+      termination: typeof termination === 'string' && termination.trim() ? termination.trim() : 'draw',
+      pgn: typeof pgn === 'string' ? pgn.trim() : ''
+    };
+
+    const updatedEvents = [...currentPlayProg.gameEvents, newEvent];
+
+    this._state = storageService.saveProgress({
+      ...this._state,
+      playProgress: {
+        gameEvents: updatedEvents,
+        lastPlayedAt: validFinishedAt
+      }
+    });
+
+    this._notify();
+
+    return {
+      success: true,
+      alreadyRecorded: false,
+      eventId,
+      gameEvent: newEvent,
+      playSummary: this.getPlaySummary()
+    };
+  }
+
+  /**
+   * Menghitung statistik permainan melawan komputer secara jujur dari gameEvents yang tersimpan.
+   * Tidak menyimpan angka total secara terpisah agar bebas duplikasi saat sinkronisasi multi-perangkat.
+   */
+  getPlaySummary() {
+    const playProg = this._getPlayProgress();
+    const gameEvents = playProg.gameEvents;
+
+    const totalGames = gameEvents.length;
+    const wins = gameEvents.filter(e => e.result === 'win').length;
+    const losses = gameEvents.filter(e => e.result === 'loss').length;
+    const draws = gameEvents.filter(e => e.result === 'draw').length;
+    const winRate = totalGames > 0 ? Math.round((wins / totalGames) * 100) : 0;
+
+    const recentGames = [...gameEvents]
+      .reverse()
+      .slice(0, 10)
+      .map(ev => {
+        const diffInfo = getPlayDifficultyById(ev.difficulty);
+        return {
+          ...ev,
+          resultLabel: formatPlayResultLabel(ev.result),
+          playerColorLabel: ev.playerColor === 'black' ? 'Hitam' : 'Putih',
+          difficultyTitle: diffInfo ? diffInfo.title : ev.difficulty,
+          terminationLabel: formatPlayTerminationLabel(ev.termination)
+        };
+      });
+
+    const byDifficulty = PLAY_DIFFICULTIES.map(diff => {
+      const diffEvents = gameEvents.filter(e => e.difficulty === diff.id);
+      const dTotal = diffEvents.length;
+      const dWins = diffEvents.filter(e => e.result === 'win').length;
+      const dLosses = diffEvents.filter(e => e.result === 'loss').length;
+      const dDraws = diffEvents.filter(e => e.result === 'draw').length;
+      const dWinRate = dTotal > 0 ? Math.round((dWins / dTotal) * 100) : 0;
+
+      return {
+        ...diff,
+        totalGames: dTotal,
+        wins: dWins,
+        losses: dLosses,
+        draws: dDraws,
+        winRate: dWinRate
+      };
+    });
+
+    return {
+      totalGames,
+      wins,
+      losses,
+      draws,
+      winRate,
+      lastPlayedAt: playProg.lastPlayedAt,
+      recentGames,
+      byDifficulty,
+      gameEvents
+    };
+  }
+
   /**
    * Mendapatkan ringkasan lengkap untuk Dashboard dan Halaman Belajar
    */
@@ -725,7 +876,8 @@ class ProgressService {
       recommendedLessons,
       categoriesSummary,
       firstLesson: allLessons[0],
-      puzzleSummary: this.getPuzzleSummary()
+      puzzleSummary: this.getPuzzleSummary(),
+      playSummary: this.getPlaySummary()
     };
   }
 
@@ -747,6 +899,35 @@ class ProgressService {
     for (const cb of this._listeners) {
       cb(summary);
     }
+  }
+}
+
+export function formatPlayResultLabel(res) {
+  if (res === 'win') return 'Menang';
+  if (res === 'loss') return 'Kalah';
+  return 'Seri';
+}
+
+export function formatPlayTerminationLabel(term) {
+  switch (term) {
+    case 'checkmate':
+      return 'Skakmat';
+    case 'stalemate':
+      return 'Remis Otomatis — Stalemate';
+    case 'threefold_repetition':
+      return 'Klaim Remis — Pengulangan Tiga Kali';
+    case 'fifty_move_rule':
+      return 'Klaim Remis — Aturan 50 Langkah';
+    case 'fivefold_repetition':
+      return 'Remis Otomatis — Pengulangan Lima Kali';
+    case 'seventy_five_move_rule':
+      return 'Remis Otomatis — Aturan 75 Langkah';
+    case 'insufficient_material':
+      return 'Remis Otomatis — Materi Tidak Cukup';
+    case 'resign':
+      return 'Menyerah';
+    default:
+      return 'Remis';
   }
 }
 

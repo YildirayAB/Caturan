@@ -1691,3 +1691,558 @@
     width: 100%;
   }
 }
+
+/* ==========================================================================
+   MVP 3 — Halaman Bermain Melawan Komputer & Game Interface (100% Solid Colors)
+   ========================================================================== */
+
+.is-hidden {
+  display: none !important;
+}
+
+/* Layout Pengaturan Sebelum Bermain (Play Dashboard) */
+.play-setup-layout {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: 24px;
+  align-items: start;
+  padding: 20px;
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+}
+
+.play-setup-preview-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.play-selected-summary-box {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+}
+
+.play-setup-controls-col {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.play-setting-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.play-setting-label {
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: var(--text-main);
+}
+
+.play-options-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.play-option-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 14px;
+  text-align: left;
+  border-radius: var(--radius-sm);
+  border: 2px solid var(--border-color);
+  background-color: var(--bg-surface);
+  color: var(--text-main);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.play-option-btn:hover {
+  border-color: var(--border-strong);
+  background-color: var(--bg-subtle);
+}
+
+.play-option-btn.is-selected {
+  border-color: var(--accent-main);
+  background-color: var(--accent-soft);
+}
+
+.play-option-top {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.color-choice-piece {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+}
+
+.color-choice-piece svg {
+  width: 26px;
+  height: 26px;
+}
+
+.color-choice-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background-color: var(--bg-muted);
+  color: var(--accent-main);
+}
+
+.play-option-title {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--text-main);
+  flex: 1;
+}
+
+.play-option-desc {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.play-start-action-row {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 4px;
+}
+
+.play-main-start-btn {
+  min-width: 220px;
+  padding: 12px 22px;
+  font-size: 0.95rem;
+}
+
+/* Halaman Game Interface Melawan Komputer */
+.play-info-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.play-thinking-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background-color: var(--accent-soft);
+  border: 1px solid var(--accent-border);
+  color: var(--accent-main);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.thinking-spinner {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--accent-border);
+  border-top-color: var(--accent-main);
+  animation: caturanSpin 0.85s linear infinite;
+}
+
+@keyframes caturanSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.play-combatants-box {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.play-combatant-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+}
+
+.combatant-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.combatant-cpu {
+  background-color: var(--bg-muted);
+  color: var(--text-main);
+}
+
+.combatant-user {
+  background-color: var(--accent-soft);
+  color: var(--accent-main);
+}
+
+.combatant-details {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.combatant-name-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.combatant-name {
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: var(--text-main);
+}
+
+.combatant-sub {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.play-engine-error-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background-color: var(--status-warning-bg);
+  border: 1px solid var(--status-warning-border);
+  color: var(--status-warning-text);
+  font-size: 0.82rem;
+}
+
+/* Panel Bidak Tertangkap */
+.play-captured-card,
+.play-history-card,
+.play-controls-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 20px;
+}
+
+.play-panel-section-title {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--text-main);
+}
+
+.play-captured-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.play-captured-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 12px;
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+}
+
+.captured-side-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.captured-empty-text {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.captured-pieces-icons {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+.captured-piece-icon {
+  display: inline-flex;
+  width: 22px;
+  height: 22px;
+}
+
+.captured-piece-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.captured-adv-badge {
+  margin-left: 6px;
+}
+
+/* Panel Riwayat Langkah SAN */
+.play-history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.play-move-history-scroll {
+  max-height: 220px;
+  overflow-y: auto;
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+}
+
+.play-history-empty {
+  padding: 20px 14px;
+  text-align: center;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.play-move-history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.84rem;
+}
+
+.play-move-history-table th {
+  text-align: left;
+  padding: 8px 12px;
+  background-color: var(--bg-muted);
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 800;
+  border-bottom: 1px solid var(--border-color);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.play-move-history-table td {
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-main);
+}
+
+.play-move-row:last-child td {
+  border-bottom: none;
+}
+
+.play-move-num {
+  width: 48px;
+  color: var(--text-muted);
+  font-weight: 700;
+  font-family: monospace;
+}
+
+.play-move-san {
+  font-family: monospace;
+  font-weight: 700;
+}
+
+.play-move-san.is-latest-move {
+  background-color: var(--accent-soft);
+  color: var(--accent-main);
+}
+
+/* Tombol Kontrol & Konfirmasi */
+.play-controls-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.play-controls-row .btn {
+  flex: 1;
+  min-width: 120px;
+}
+
+.play-confirm-box {
+  margin-top: 6px;
+  padding: 14px;
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-subtle);
+  border: 2px solid var(--accent-main);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.play-confirm-title {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--text-main);
+}
+
+.play-confirm-desc {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.play-modal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.play-modal-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.play-modal-btn-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.play-modal-btn-group .btn {
+  flex: 1;
+}
+
+.play-confirm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.play-confirm-actions .btn {
+  flex: 1;
+}
+
+/* Kartu Hasil Akhir Pertandingan */
+.play-result-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px;
+  border-width: 2px;
+}
+
+.play-result-card.result-win {
+  background-color: var(--status-success-bg);
+  border-color: var(--status-success-border);
+}
+
+.play-result-card.result-loss {
+  background-color: var(--status-warning-bg);
+  border-color: var(--status-warning-border);
+}
+
+.play-result-card.result-draw {
+  background-color: var(--accent-soft);
+  border-color: var(--accent-border);
+}
+
+.play-result-card.result-loss .completion-eyebrow,
+.play-result-card.result-loss .completion-title {
+  color: var(--status-warning-text);
+}
+
+.play-result-card.result-draw .completion-eyebrow,
+.play-result-card.result-draw .completion-title {
+  color: var(--text-main);
+}
+
+.play-result-subtitle {
+  font-size: 0.84rem;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+/* Banner & Tombol Klaim Remis (TASK 7 — Draw Rules Refinement) */
+.play-claim-draw-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  background-color: var(--accent-soft);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-md);
+  margin-bottom: 4px;
+}
+
+.play-claim-draw-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.play-claim-draw-title {
+  font-size: 0.86rem;
+  font-weight: 800;
+  color: var(--text-main);
+}
+
+.play-claim-draw-desc {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.board-claim-draw-bar {
+  margin-top: 8px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+@media (max-width: 960px) {
+  .play-setup-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .play-options-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .play-start-action-row .btn {
+    width: 100%;
+  }
+}

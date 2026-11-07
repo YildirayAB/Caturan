@@ -64,6 +64,7 @@ export class Chess {
     this._halfMoves = 0;
     this._fullMoves = 1;
     this._history = [];
+    this._initialFen = DEFAULT_POSITION;
   }
 
   load(fen) {
@@ -113,6 +114,7 @@ export class Chess {
     this._halfMoves = parseInt(tokens[4] || '0', 10) || 0;
     this._fullMoves = parseInt(tokens[5] || '1', 10) || 1;
     this._history = [];
+    this._initialFen = this.fen();
     return true;
   }
 
@@ -717,13 +719,17 @@ export class Chess {
     });
   }
 
-  move(moveInput) {
+  /**
+   * Mencari objek langkah legal (verbose) dari input string (SAN / LAN / UCI) atau objek { from, to, promotion }
+   * tanpa mengubah state papan maupun riwayat permainan.
+   */
+  _resolveLegalMove(moveInput) {
+    if (!moveInput) return null;
     const legalMoves = this.moves({ verbose: true });
     let chosen = null;
 
     if (typeof moveInput === 'string') {
       const clean = moveInput.trim();
-      // Coba cocokkan SAN persis atau tanpa +/#
       chosen = legalMoves.find(
         m =>
           m.san === clean ||
@@ -738,27 +744,43 @@ export class Chess {
           m => m.from === from && m.to === to && (!m.promotion || m.promotion === (promo || QUEEN))
         );
       }
-    } else if (moveInput && typeof moveInput === 'object') {
-      const { from, to, promotion } = moveInput;
-      chosen = legalMoves.find(
-        m =>
-          m.from === from &&
-          m.to === to &&
-          (!m.promotion || m.promotion === (promotion ? promotion.toLowerCase() : QUEEN))
-      );
+    } else if (typeof moveInput === 'object') {
+      const { from, to, promotion, san } = moveInput;
+      if (from && to) {
+        chosen = legalMoves.find(
+          m =>
+            m.from === from &&
+            m.to === to &&
+            (!m.promotion || m.promotion === (promotion ? promotion.toLowerCase() : QUEEN))
+        );
+      } else if (typeof san === 'string') {
+        const clean = san.trim();
+        chosen = legalMoves.find(
+          m => m.san === clean || m.san.replace(/[+#]$/, '') === clean.replace(/[+#]$/, '')
+        );
+      }
     }
 
+    return chosen || null;
+  }
+
+  move(moveInput) {
+    const chosen = this._resolveLegalMove(moveInput);
     if (!chosen) {
       return null;
     }
 
     const beforeFen = this.fen();
+    const beforeKey = this._positionKey(beforeFen);
     const snapshot = this._applyRawMove(chosen);
     const afterFen = this.fen();
+    const afterKey = this._positionKey(afterFen);
     const moveRecord = {
       ...chosen,
       before: beforeFen,
-      after: afterFen
+      after: afterFen,
+      beforeKey,
+      afterKey
     };
     snapshot.moveRecord = moveRecord;
     this._history.push(snapshot);
@@ -777,12 +799,355 @@ export class Chess {
     return this._history.map(h => (verbose ? h.moveRecord : h.moveRecord.san));
   }
 
+  pgn() {
+    if (this._history.length === 0) return '';
+    const tokens = [];
+    for (let i = 0; i < this._history.length; i++) {
+      const snap = this._history[i];
+      const san = snap.moveRecord.san;
+      if (snap.turn === WHITE) {
+        tokens.push(`${snap.fullMoves}. ${san}`);
+      } else if (i === 0) {
+        tokens.push(`${snap.fullMoves}... ${san}`);
+      } else {
+        tokens.push(san);
+      }
+    }
+    return tokens.join(' ');
+  }
+
+  /**
+   * Memeriksa apakah pada state papan saat ini benar-benar terdapat minimal satu
+   * langkah tangkapan en passant yang legal (termasuk memvalidasi bahwa langkah tersebut
+   * tidak membiarkan Raja sendiri dalam keadaan skak / pin).
+   */
+  _hasLegalEnPassantCapture() {
+    if (!this._epSquare) return false;
+    const epCoords = squareToCoords(this._epSquare);
+    if (!epCoords) return false;
+
+    const pawnRow = this._turn === WHITE ? epCoords.row + 1 : epCoords.row - 1;
+    if (pawnRow < 0 || pawnRow > 7) return false;
+
+    for (const dc of [-1, 1]) {
+      const col = epCoords.col + dc;
+      if (col < 0 || col > 7) continue;
+      const p = this._board[pawnRow][col];
+      if (p && p.color === this._turn && p.type === PAWN) {
+        const fromSq = coordsToSquare(pawnRow, col);
+        const legalFromPawn = this._generateLegalMoves(fromSq);
+        if (legalFromPawn.some(m => m.flags === 'e' && m.to === this._epSquare)) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Menghasilkan kunci identitas posisi berdasarkan 4 komponen aturan FIDE (Article 9.2.3):
+   * 1. Susunan bidak (piece placement)
+   * 2. Pemain yang mendapat giliran (turn: w / b)
+   * 3. Hak rokade (castling rights: KQkq / -)
+   * 4. Hak en passant HANYA JIKA tangkapan en passant benar-benar tersedia secara legal
+   *    (bila tidak ada tangkapan en passant legal, dinormalisasi menjadi '-')
+   */
+  _positionKey(fenStr = this.fen()) {
+    if (typeof fenStr !== 'string') return '';
+    const trimmed = fenStr.trim();
+    if (!trimmed) return '';
+
+    const tokens = trimmed.split(/\s+/);
+    if (tokens.length < 2) return '';
+
+    const placement = tokens[0];
+    const turn = tokens[1] === 'b' ? BLACK : WHITE;
+    const rawCastling = tokens[2] || '-';
+    const castling =
+      rawCastling === '-'
+        ? '-'
+        : ['K', 'Q', 'k', 'q'].filter(ch => rawCastling.includes(ch)).join('') || '-';
+    const rawEp = tokens[3] && tokens[3] !== '-' ? tokens[3] : '-';
+
+    if (rawEp === '-') {
+      return `${placement} ${turn} ${castling} -`;
+    }
+
+    // Periksa apakah tangkapan en passant ke rawEp benar-benar legal pada posisi tersebut
+    let hasLegalEp = false;
+    if (trimmed === this.fen()) {
+      hasLegalEp = this._hasLegalEnPassantCapture();
+    } else {
+      try {
+        const probe = new Chess(trimmed);
+        hasLegalEp = probe._hasLegalEnPassantCapture();
+      } catch {
+        hasLegalEp = false;
+      }
+    }
+
+    const effectiveEp = hasLegalEp ? rawEp : '-';
+    return `${placement} ${turn} ${castling} ${effectiveEp}`;
+  }
+
+  /**
+   * Menghitung berapa kali posisi `targetFen` (default: posisi saat ini) telah muncul
+   * sepanjang riwayat permainan, dengan mempertimbangkan susunan bidak, giliran,
+   * hak rokade, dan hak en passant yang benar-benar legal.
+   */
+  getPositionRepetitionCount(targetFen = this.fen()) {
+    const targetKey = this._positionKey(targetFen);
+    if (!targetKey) return 0;
+
+    const initialFen =
+      this._history.length > 0
+        ? this._history[0].moveRecord.before
+        : this._initialFen || this.fen();
+
+    let count = this._positionKey(initialFen) === targetKey ? 1 : 0;
+
+    for (const h of this._history) {
+      const afterFen = h.moveRecord ? h.moveRecord.after : null;
+      if (afterFen && this._positionKey(afterFen) === targetKey) {
+        count++;
+      }
+    }
+
+    return count;
+  }
+
   isCheckmate() {
     return this.inCheck(this._turn) && this._generateLegalMoves().length === 0;
   }
 
   isStalemate() {
     return !this.inCheck(this._turn) && this._generateLegalMoves().length === 0;
+  }
+
+  /**
+   * Mengevaluasi kelayakan Klaim Remis baik berdasarkan posisi saat ini (`intendedMove == null`)
+   * maupun berdasarkan langkah legal yang direncanakan (`intendedMove != null`)
+   * TANPA mengubah posisi papan maupun riwayat permainan.
+   */
+  evaluateDrawClaim(intendedMove = null) {
+    if (this.isCheckmate() || this.isAutomaticDraw()) {
+      return {
+        valid: false,
+        mode: intendedMove != null ? 'intended_move' : 'current_position',
+        reason: null,
+        label: null,
+        intendedMove: null
+      };
+    }
+
+    // 1. Evaluasi klaim berdasarkan langkah yang direncanakan (Intended-Move Draw Claim)
+    if (intendedMove !== null && intendedMove !== undefined) {
+      const resolvedMove = this._resolveLegalMove(intendedMove);
+      if (!resolvedMove) {
+        return {
+          valid: false,
+          mode: 'intended_move',
+          reason: 'illegal_intended_move',
+          label: null,
+          intendedMove: null
+        };
+      }
+
+      let nextFen = '';
+      let nextPosKey = '';
+      let nextHalfMoves = 0;
+      let nextIsCheckmate = false;
+
+      // Simulasikan langkah secara sementara lalu kembalikan state utuh tanpa memodifikasi _history
+      const snap = this._applyRawMove(resolvedMove);
+      try {
+        nextFen = this.fen();
+        nextPosKey = this._positionKey(nextFen);
+        nextHalfMoves = this._halfMoves;
+        nextIsCheckmate = this.isCheckmate();
+      } finally {
+        this._revertRawMove(snap);
+      }
+
+      // Apabila langkah yang direncanakan menghasilkan Checkmate, Checkmate diutamakan (bukan Draw)
+      if (nextIsCheckmate) {
+        return {
+          valid: false,
+          mode: 'intended_move',
+          reason: 'checkmate_takes_precedence',
+          label: null,
+          intendedMove: resolvedMove,
+          resultingFen: nextFen,
+          resultingPositionKey: nextPosKey,
+          halfMoves: nextHalfMoves
+        };
+      }
+
+      // Hitung berapa kali posisi hasil langkah tersebut sudah pernah muncul sebelumnya + 1 (saat langkah dijalankan)
+      const priorOccurrences = this.getPositionRepetitionCount(nextFen);
+      const resultingRepetitionCount = priorOccurrences + 1;
+
+      if (resultingRepetitionCount >= 3) {
+        return {
+          valid: true,
+          mode: 'intended_move',
+          reason: 'threefold_repetition',
+          label: 'Pengulangan Tiga Kali',
+          intendedMove: resolvedMove,
+          resultingFen: nextFen,
+          resultingPositionKey: nextPosKey,
+          repetitionCount: resultingRepetitionCount,
+          halfMoves: nextHalfMoves
+        };
+      }
+
+      if (nextHalfMoves >= 100) {
+        return {
+          valid: true,
+          mode: 'intended_move',
+          reason: 'fifty_move_rule',
+          label: 'Aturan 50 Langkah',
+          intendedMove: resolvedMove,
+          resultingFen: nextFen,
+          resultingPositionKey: nextPosKey,
+          repetitionCount: resultingRepetitionCount,
+          halfMoves: nextHalfMoves
+        };
+      }
+
+      return {
+        valid: false,
+        mode: 'intended_move',
+        reason: 'invalid_intended_move_claim',
+        label: null,
+        intendedMove: resolvedMove,
+        resultingFen: nextFen,
+        resultingPositionKey: nextPosKey,
+        repetitionCount: resultingRepetitionCount,
+        halfMoves: nextHalfMoves
+      };
+    }
+
+    // 2. Evaluasi klaim berdasarkan posisi saat ini yang sudah muncul di papan
+    const currentFen = this.fen();
+    const currentRepCount = this.getPositionRepetitionCount(currentFen);
+    if (currentRepCount >= 3) {
+      return {
+        valid: true,
+        mode: 'current_position',
+        reason: 'threefold_repetition',
+        label: 'Pengulangan Tiga Kali',
+        intendedMove: null,
+        resultingFen: currentFen,
+        resultingPositionKey: this._positionKey(currentFen),
+        repetitionCount: currentRepCount,
+        halfMoves: this._halfMoves
+      };
+    }
+
+    if (this._halfMoves >= 100) {
+      return {
+        valid: true,
+        mode: 'current_position',
+        reason: 'fifty_move_rule',
+        label: 'Aturan 50 Langkah',
+        intendedMove: null,
+        resultingFen: currentFen,
+        resultingPositionKey: this._positionKey(currentFen),
+        repetitionCount: currentRepCount,
+        halfMoves: this._halfMoves
+      };
+    }
+
+    return {
+      valid: false,
+      mode: 'current_position',
+      reason: null,
+      label: null,
+      intendedMove: null,
+      resultingFen: currentFen,
+      repetitionCount: currentRepCount,
+      halfMoves: this._halfMoves
+    };
+  }
+
+  /**
+   * Mengembalikan daftar seluruh langkah legal pada giliran saat ini yang dapat digunakan
+   * untuk mengajukan Klaim Remis berdasarkan langkah yang direncanakan (Intended-Move Draw Claim).
+   */
+  getClaimableIntendedMoves() {
+    if (this.isCheckmate() || this.isAutomaticDraw()) return [];
+    const legalMoves = this.moves({ verbose: true });
+    const claimable = [];
+    for (const m of legalMoves) {
+      const ev = this.evaluateDrawClaim(m);
+      if (ev.valid) {
+        claimable.push({
+          ...m,
+          claimReason: ev.reason,
+          claimLabel: ev.label,
+          repetitionCount: ev.repetitionCount,
+          halfMoves: ev.halfMoves
+        });
+      }
+    }
+    return claimable;
+  }
+
+  /**
+   * Threefold Repetition:
+   * - Tanpa parameter: posisi saat ini telah muncul sedikitnya 3 kali.
+   * - Dengan `intendedMove`: langkah legal yang direncanakan akan membuat posisi yang sama muncul minimal 3 kali.
+   * Tidak otomatis mengakhiri permainan; memberikan hak Klaim Remis kepada pemain.
+   */
+  isThreefoldRepetition(intendedMove = null) {
+    if (intendedMove !== null && intendedMove !== undefined) {
+      const ev = this.evaluateDrawClaim(intendedMove);
+      return Boolean(ev.valid && ev.reason === 'threefold_repetition');
+    }
+    if (this.isCheckmate()) return false;
+    return this.getPositionRepetitionCount(this.fen()) >= 3;
+  }
+
+  /**
+   * Fivefold Repetition: posisi saat ini telah muncul sedikitnya 5 kali.
+   * Otomatis mengakhiri permainan sebagai Remis Otomatis (kecuali langkah tersebut Checkmate).
+   */
+  isFivefoldRepetition() {
+    if (this.isCheckmate()) return false;
+    return this.getPositionRepetitionCount(this.fen()) >= 5;
+  }
+
+  /**
+   * Fifty-Move Rule:
+   * - Tanpa parameter: 50 langkah oleh masing-masing pemain (100 halfmove) telah tercapai.
+   * - Dengan `intendedMove`: langkah legal yang direncanakan akan mencapai minimal 100 halfmoves.
+   * Tidak otomatis mengakhiri permainan; memberikan hak Klaim Remis kepada pemain.
+   */
+  isFiftyMoveRule(intendedMove = null) {
+    if (intendedMove !== null && intendedMove !== undefined) {
+      const ev = this.evaluateDrawClaim(intendedMove);
+      return Boolean(ev.valid && ev.reason === 'fifty_move_rule');
+    }
+    return !this.isCheckmate() && this._halfMoves >= 100;
+  }
+
+  isFiftyMoves(intendedMove = null) {
+    return this.isFiftyMoveRule(intendedMove);
+  }
+
+  /**
+   * Seventy-Five-Move Rule: 75 langkah oleh masing-masing pemain (150 halfmove) tanpa langkah pion atau tangkapan.
+   * Otomatis mengakhiri permainan sebagai Remis Otomatis.
+   * Apabila langkah ke-75 menghasilkan Checkmate, Checkmate selalu diutamakan (!this.isCheckmate()).
+   */
+  isSeventyFiveMoveRule() {
+    return !this.isCheckmate() && this._halfMoves >= 150;
+  }
+
+  isSeventyFiveMoves() {
+    return this.isSeventyFiveMoveRule();
   }
 
   isInsufficientMaterial() {
@@ -799,15 +1164,56 @@ export class Chess {
     if (pieces.length === 1 && (pieces[0].type === KNIGHT || pieces[0].type === BISHOP)) {
       return true; // K+N vs K atau K+B vs K
     }
+    // K+B vs K+B dengan seluruh gajah berada pada warna petak yang sama
+    if (pieces.length >= 2 && pieces.every(p => p.type === BISHOP)) {
+      const firstSquareColor = (pieces[0].row + pieces[0].col) % 2;
+      if (pieces.every(p => (p.row + p.col) % 2 === firstSquareColor)) {
+        return true;
+      }
+    }
     return false;
   }
 
+  /**
+   * Memeriksa apakah permainan memenuhi syarat Remis Otomatis:
+   * - Stalemate
+   * - Fivefold Repetition (Pengulangan Lima Kali)
+   * - Seventy-Five-Move Rule (Aturan 75 Langkah)
+   * - Insufficient Material (Materi Tidak Cukup)
+   * Catatan: Checkmate selalu diutamakan di atas aturan remis.
+   */
+  isAutomaticDraw() {
+    if (this.isCheckmate()) return false;
+    return (
+      this.isStalemate() ||
+      this.isFivefoldRepetition() ||
+      this.isSeventyFiveMoveRule() ||
+      this.isInsufficientMaterial()
+    );
+  }
+
+  /**
+   * Memeriksa apakah pemain saat ini berhak mengajukan Klaim Remis
+   * (baik berdasarkan posisi saat ini maupun berdasarkan `intendedMove` apabila diberikan)
+   */
+  canClaimDraw(intendedMove = null) {
+    return this.evaluateDrawClaim(intendedMove).valid;
+  }
+
+  /**
+   * Mengembalikan alasan Klaim Remis yang aktif ('threefold_repetition' | 'fifty_move_rule' | null)
+   */
+  getClaimableDrawReason(intendedMove = null) {
+    const ev = this.evaluateDrawClaim(intendedMove);
+    return ev.valid ? ev.reason : null;
+  }
+
   isDraw() {
-    return this.isStalemate() || this._halfMoves >= 100 || this.isInsufficientMaterial();
+    return this.isAutomaticDraw();
   }
 
   isGameOver() {
-    return this.isCheckmate() || this.isDraw();
+    return this.isCheckmate() || this.isAutomaticDraw();
   }
 }
 

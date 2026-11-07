@@ -1377,4 +1377,1487 @@ export class PuzzleChessboard {
   }
 }
 
+const PIECE_SORT_ORDER = { q: 1, r: 2, b: 3, n: 4, p: 5 };
+const PIECE_MATERIAL_VALUES = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
+
+/**
+ * Menghitung bidak yang telah ditangkap oleh Putih maupun Hitam dari riwayat langkah verbose Chess.js
+ */
+export function calculateCapturedPieces(verboseHistory = []) {
+  const capturedByWhite = []; // Bidak hitam ('b') yang ditangkap oleh Putih
+  const capturedByBlack = []; // Bidak putih ('w') yang ditangkap oleh Hitam
+
+  if (Array.isArray(verboseHistory)) {
+    for (const move of verboseHistory) {
+      if (!move || !move.captured) continue;
+      const capType = String(move.captured).toLowerCase();
+      if (move.color === WHITE) {
+        capturedByWhite.push(capType);
+      } else if (move.color === BLACK) {
+        capturedByBlack.push(capType);
+      }
+    }
+  }
+
+  const sortPieces = arr =>
+    [...arr].sort((a, b) => (PIECE_SORT_ORDER[a] || 99) - (PIECE_SORT_ORDER[b] || 99));
+
+  const sortedByWhite = sortPieces(capturedByWhite);
+  const sortedByBlack = sortPieces(capturedByBlack);
+
+  const whiteCapturedScore = sortedByWhite.reduce(
+    (sum, t) => sum + (PIECE_MATERIAL_VALUES[t] || 0),
+    0
+  );
+  const blackCapturedScore = sortedByBlack.reduce(
+    (sum, t) => sum + (PIECE_MATERIAL_VALUES[t] || 0),
+    0
+  );
+
+  return {
+    capturedByWhite: sortedByWhite,
+    capturedByBlack: sortedByBlack,
+    whiteAdvantage: Math.max(0, whiteCapturedScore - blackCapturedScore),
+    blackAdvantage: Math.max(0, blackCapturedScore - whiteCapturedScore)
+  };
+}
+
+/**
+ * Menyusun daftar langkah verbose Chess.js menjadi pasangan langkah bernomor (Putih & Hitam)
+ */
+export function buildMovePairs(verboseHistory = []) {
+  const pairs = [];
+  if (!Array.isArray(verboseHistory) || verboseHistory.length === 0) {
+    return pairs;
+  }
+
+  let currentPair = null;
+  for (let i = 0; i < verboseHistory.length; i++) {
+    const move = verboseHistory[i];
+    if (!move) continue;
+
+    if (move.color === WHITE) {
+      currentPair = {
+        moveNumber: pairs.length + 1,
+        white: {
+          san: move.san,
+          from: move.from,
+          to: move.to,
+          lan: move.lan,
+          ply: i + 1
+        },
+        black: null
+      };
+      pairs.push(currentPair);
+    } else {
+      if (!currentPair || currentPair.black !== null) {
+        currentPair = {
+          moveNumber: pairs.length + 1,
+          white: null,
+          black: null
+        };
+        pairs.push(currentPair);
+      }
+      currentPair.black = {
+        san: move.san,
+        from: move.from,
+        to: move.to,
+        lan: move.lan,
+        ply: i + 1
+      };
+    }
+  }
+
+  return pairs;
+}
+
+/**
+ * Komponen Papan Catur Bermain Melawan Komputer (MVP 3 — Bagian 6, 7, 8)
+ * Menggunakan Chess.js sebagai satu-satunya sumber kebenaran aturan catur
+ * dan StockfishEngineService (Web Worker UCI) sebagai lawan komputer.
+ */
+export class ComputerChessboard {
+  /**
+   * @param {HTMLElement} container - Elemen DOM tempat papan catur dirender
+   * @param {Object} options - Konfigurasi permainan { engine, colorPreference, difficulty, initialFen, onStateChange, onGameEnd }
+   */
+  constructor(container, options = {}) {
+    this.container = container;
+    this.engine = options.engine || null;
+    this.callbacks = {
+      onStateChange: options.onStateChange || null,
+      onGameEnd: options.onGameEnd || null
+    };
+
+    this.colorPreference = options.colorPreference || 'white'; // 'white' | 'black' | 'random'
+    this.difficultyId = options.difficulty || 'beginner';
+    this.initialFen = options.initialFen || undefined;
+
+    this.chess = new Chess(this.initialFen);
+    this.playerColor = 'white'; // 'white' | 'black'
+    this.playerTurnChar = WHITE;
+    this.computerColor = 'black';
+    this.computerTurnChar = BLACK;
+    this.orientation = 'white';
+
+    this.gameId = null;
+    this.startedAt = null;
+    this.finishedAt = null;
+
+    this.selectedSquare = null;
+    this.legalMovesForSelected = [];
+    this.intendedMove = null;
+    this.lastMove = null;
+    this.pendingPromotion = null;
+    this._dragSourceSquare = null;
+
+    this.isEngineThinking = false;
+    this.isGameOver = false;
+    this.gameResult = null;
+    this.engineError = null;
+    this._hasRecordedEnd = false;
+    this._pendingPlayerClaimableDraw = null;
+    this._destroyed = false;
+
+    this.inspectedSquareInfo = 'Klik atau seret bidak Anda untuk melangkah.';
+    this.feedback = {
+      type: 'info',
+      message: 'Menyiapkan permainan baru melawan komputer...'
+    };
+  }
+
+  _resolvePlayerColor(pref) {
+    if (pref === 'black' || pref === 'b') return 'black';
+    if (pref === 'random') {
+      return Math.random() < 0.5 ? 'white' : 'black';
+    }
+    return 'white';
+  }
+
+  _createGameId() {
+    return `game_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  }
+
+  /**
+   * Memulai permainan baru (Bagian 8 — New Game & Lifecycle):
+   * 1. Menghentikan pencarian Stockfish yang sedang berjalan
+   * 2. Membatalkan respons engine lama dengan gameId baru
+   * 3. Mereset Chess.js ke posisi awal
+   * 4. Mereset riwayat langkah & bidak tertangkap
+   * 5. Menjalankan langkah pertama komputer secara otomatis apabila pemain memilih Hitam
+   */
+  async startNewGame({
+    colorPreference = this.colorPreference,
+    difficulty = this.difficultyId,
+    initialFen = undefined
+  } = {}) {
+    if (this._destroyed) return null;
+
+    this.colorPreference = colorPreference || 'white';
+    this.difficultyId = difficulty || 'beginner';
+    if (initialFen !== undefined) {
+      this.initialFen = initialFen;
+    }
+
+    const resolvedColor = this._resolvePlayerColor(this.colorPreference);
+    this.playerColor = resolvedColor;
+    this.playerTurnChar = resolvedColor === 'black' ? BLACK : WHITE;
+    this.computerColor = resolvedColor === 'white' ? 'black' : 'white';
+    this.computerTurnChar = this.playerTurnChar === WHITE ? BLACK : WHITE;
+    this.orientation = resolvedColor;
+
+    const newGameId = this._createGameId();
+    this.gameId = newGameId;
+    this.startedAt = new Date().toISOString();
+    this.finishedAt = null;
+
+    if (this.initialFen) {
+      this.chess.load(this.initialFen);
+    } else {
+      this.chess.reset();
+    }
+
+    this.selectedSquare = null;
+    this.legalMovesForSelected = [];
+    this.intendedMove = null;
+    this.lastMove = null;
+    this.pendingPromotion = null;
+    this.isGameOver = false;
+    this.gameResult = null;
+    this.engineError = null;
+    this._hasRecordedEnd = false;
+    this._pendingPlayerClaimableDraw = null;
+    this.isEngineThinking = true;
+
+    const playerSideName = this.playerColor === 'white' ? 'Putih' : 'Hitam';
+    this.inspectedSquareInfo = `Anda bermain sebagai ${playerSideName}.`;
+    this.feedback = {
+      type: 'info',
+      message: 'Menyiapkan engine Stockfish untuk permainan baru...'
+    };
+
+    this.render();
+    this._emitStateChange();
+
+    if (this.engine) {
+      try {
+        const startRes = await this.engine.startNewGame({
+          gameId: newGameId,
+          difficulty: this.difficultyId
+        });
+        if (this._destroyed || this.gameId !== newGameId || startRes?.cancelled) {
+          return null;
+        }
+      } catch (err) {
+        if (this._destroyed || this.gameId !== newGameId) return null;
+        this.isEngineThinking = false;
+        this.engineError =
+          err?.message || 'Gagal menginisialisasi engine Stockfish.';
+        this.feedback = {
+          type: 'warning',
+          message: `Perhatian: ${this.engineError}`
+        };
+        this.render();
+        this._emitStateChange();
+        return null;
+      }
+    }
+
+    if (this._destroyed || this.gameId !== newGameId) return null;
+
+    this.isEngineThinking = false;
+
+    // Cek apakah posisi awal sudah game over (mis. pada skenario pengujian posisi khusus)
+    if (this._checkAndHandleGameEnd()) {
+      this.render();
+      this._emitStateChange();
+      return this.getGameStateSnapshot();
+    }
+
+    // Jika giliran saat ini adalah komputer (mis. pemain memilih Hitam pada posisi awal standar),
+    // komputer melakukan langkah pertama secara otomatis
+    if (this.chess.turn() === this.computerTurnChar) {
+      this.feedback = {
+        type: 'info',
+        message: 'Anda bermain sebagai Hitam. Komputer (Putih) sedang memikirkan langkah pertama...'
+      };
+      this.render();
+      this._emitStateChange();
+      await this._triggerComputerTurn(newGameId);
+    } else {
+      this.feedback = {
+        type: 'info',
+        message: `Permainan dimulai! Anda memegang bidak ${playerSideName}. Silakan lakukan langkah Anda.`
+      };
+      this.render();
+      this._emitStateChange();
+    }
+
+    return this.getGameStateSnapshot();
+  }
+
+  flipBoard() {
+    this.orientation = this.orientation === 'white' ? 'black' : 'white';
+    this.render();
+    this._emitStateChange();
+  }
+
+  /**
+   * Pemain menyerah (Resign) — mengakhiri permainan sebagai kekalahan pemain
+   */
+  async resign() {
+    if (this.isGameOver || this._destroyed) return null;
+
+    const activeGameId = this.gameId;
+    this.pendingPromotion = null;
+    this.selectedSquare = null;
+    this.legalMovesForSelected = [];
+    this.isEngineThinking = false;
+
+    if (this.engine) {
+      try {
+        await this.engine.stopSearch('player_resigned');
+        this.engine.setGameInProgress(false);
+      } catch {
+        // Abaikan
+      }
+    }
+
+    if (this._destroyed || this.gameId !== activeGameId || this.isGameOver) {
+      return this.gameResult;
+    }
+
+    this._finalizeGame({
+      result: 'loss',
+      termination: 'resign',
+      winnerColor: this.computerColor,
+      title: 'Anda Menyerah — Komputer Menang',
+      description: 'Anda memilih menyerah pada pertandingan ini. Kemenangan diberikan kepada komputer.'
+    });
+
+    this.render();
+    this._emitStateChange();
+    return this.gameResult;
+  }
+
+  /**
+   * Mengeksekusi langkah pemain secara terprogram maupun dari interaksi papan UI.
+   * Seluruh langkah wajib divalidasi melalui Chess.js.
+   */
+  async playPlayerMove(moveInput) {
+    if (this._destroyed || this.isGameOver || this.isEngineThinking) {
+      return { ok: false, reason: 'not_ready_or_game_over' };
+    }
+
+    if (this.chess.turn() !== this.playerTurnChar) {
+      return { ok: false, reason: 'not_player_turn' };
+    }
+
+    const moveObj = typeof moveInput === 'string' ? parseUciMove(moveInput) || moveInput : moveInput;
+    if (!moveObj) {
+      return { ok: false, reason: 'invalid_move_format' };
+    }
+
+    // Jika berupa objek { from, to } tanpa promotion, cek apakah langkah tersebut adalah promosi pion
+    if (typeof moveObj === 'object' && moveObj.from && moveObj.to && !moveObj.promotion) {
+      const legalFromSquare = this.chess.moves({ square: moveObj.from, verbose: true });
+      const matchingTargets = legalFromSquare.filter(m => m.to === moveObj.to);
+      if (matchingTargets.length > 0 && matchingTargets.some(m => Boolean(m.promotion))) {
+        this.pendingPromotion = { from: moveObj.from, to: moveObj.to };
+        this.selectedSquare = moveObj.from;
+        this.legalMovesForSelected = legalFromSquare;
+        this.render();
+        this._emitStateChange();
+        return { ok: false, pendingPromotion: true };
+      }
+    }
+
+    let moveResult = null;
+    try {
+      moveResult = this.chess.move(moveObj);
+    } catch {
+      moveResult = null;
+    }
+
+    if (!moveResult) {
+      return { ok: false, reason: 'illegal_move' };
+    }
+
+    this.selectedSquare = null;
+    this.legalMovesForSelected = [];
+    this.intendedMove = null;
+    this.pendingPromotion = null;
+    this.engineError = null;
+    this.lastMove = {
+      from: moveResult.from,
+      to: moveResult.to,
+      san: moveResult.san,
+      color: moveResult.color
+    };
+
+    this.inspectedSquareInfo = `Langkah Anda: ${moveResult.san} (${moveResult.from} → ${moveResult.to})`;
+
+    // Periksa apakah langkah pemain mengakhiri permainan secara otomatis
+    // (Skakmat, Stalemate, Pengulangan Lima Kali, Aturan 75 Langkah, Materi Tidak Cukup)
+    if (this._checkAndHandleGameEnd()) {
+      this._pendingPlayerClaimableDraw = null;
+      this.render();
+      this._emitStateChange();
+      return { ok: true, move: moveResult, gameOver: true, gameResult: this.gameResult };
+    }
+
+    // Deteksi apakah langkah pemain sendiri baru saja mencapai syarat Klaim Remis
+    // (Threefold Repetition atau Fifty-Move Rule) sebelum komputer membalas otomatis
+    if (this.chess.isThreefoldRepetition()) {
+      this._pendingPlayerClaimableDraw = {
+        reason: 'threefold_repetition',
+        label: 'Pengulangan Tiga Kali',
+        playerMoveFen: this.chess.fen(),
+        historyIndexBeforeReply: this.chess._history.length,
+        afterComputerFen: null
+      };
+    } else if (this.chess.isFiftyMoveRule()) {
+      this._pendingPlayerClaimableDraw = {
+        reason: 'fifty_move_rule',
+        label: 'Aturan 50 Langkah',
+        playerMoveFen: this.chess.fen(),
+        historyIndexBeforeReply: this.chess._history.length,
+        afterComputerFen: null
+      };
+    } else {
+      this._pendingPlayerClaimableDraw = null;
+    }
+
+    const activeGameId = this.gameId;
+    const claimCheckAfterPlayer = this.verifyDrawClaim();
+    const claimHintAfterPlayer = claimCheckAfterPlayer.valid
+      ? ` Anda berhak mengajukan Klaim Remis (${claimCheckAfterPlayer.label}).`
+      : '';
+
+    this.feedback = {
+      type: 'info',
+      message: this.engine
+        ? `Anda melangkah ${moveResult.san}. Komputer sedang memikirkan balasan...${claimHintAfterPlayer}`
+        : `Anda melangkah ${moveResult.san}.${claimHintAfterPlayer}`
+    };
+    this.render();
+    this._emitStateChange();
+
+    // Kirim posisi terkini ke Stockfish dan tunggu bestmove
+    const replyRes = await this._triggerComputerTurn(activeGameId);
+    const finalClaimInfo = this.verifyDrawClaim();
+    return {
+      ok: true,
+      move: moveResult,
+      computerReply: replyRes?.move || null,
+      canClaimDraw: finalClaimInfo.valid,
+      claimableDrawReason: finalClaimInfo.reason,
+      gameOver: this.isGameOver,
+      gameResult: this.gameResult
+    };
+  }
+
+  async _triggerComputerTurn(expectedGameId = this.gameId) {
+    if (
+      this._destroyed ||
+      this.isGameOver ||
+      !this.engine ||
+      expectedGameId !== this.gameId ||
+      this.chess.turn() !== this.computerTurnChar
+    ) {
+      return null;
+    }
+
+    this.isEngineThinking = true;
+    this.engineError = null;
+    this.render();
+    this._emitStateChange();
+
+    const currentFen = this.chess.fen();
+
+    let engineResponse = null;
+    try {
+      engineResponse = await this.engine.requestBestMove({
+        fen: currentFen,
+        gameId: expectedGameId
+      });
+    } catch (err) {
+      if (this._destroyed || expectedGameId !== this.gameId || this.isGameOver) {
+        return null;
+      }
+      this.isEngineThinking = false;
+      this.engineError =
+        err?.message || 'Terjadi kendala saat menunggu langkah komputer.';
+      this.feedback = {
+        type: 'warning',
+        message: `${this.engineError} Anda dapat menekan "Coba Ulang Langkah Komputer" atau memulai Permainan Baru.`
+      };
+      this.render();
+      this._emitStateChange();
+      return { ok: false, error: this.engineError };
+    }
+
+    // Pastikan respons berasal dari game yang masih aktif dan belum berakhir
+    if (
+      this._destroyed ||
+      !engineResponse ||
+      engineResponse.cancelled ||
+      expectedGameId !== this.gameId ||
+      this.isGameOver
+    ) {
+      return { ok: false, cancelled: true };
+    }
+
+    const uciMove = engineResponse.uciMove;
+    const parsedMove = engineResponse.parsed || parseUciMove(uciMove);
+
+    if (!parsedMove) {
+      this.isEngineThinking = false;
+      this._checkAndHandleGameEnd();
+      this.render();
+      this._emitStateChange();
+      return { ok: false, reason: 'no_bestmove' };
+    }
+
+    // WAJIB: Validasi langkah komputer menggunakan Chess.js (Bagian 7)
+    let computerMoveResult = null;
+    try {
+      computerMoveResult = this.chess.move(parsedMove);
+    } catch {
+      computerMoveResult = null;
+    }
+
+    if (!computerMoveResult) {
+      this.isEngineThinking = false;
+      this.engineError = `Engine mengembalikan langkah tidak sah (${uciMove}) yang ditolak oleh validator Chess.js.`;
+      this.feedback = {
+        type: 'warning',
+        message: this.engineError
+      };
+      this.render();
+      this._emitStateChange();
+      return { ok: false, reason: 'invalid_engine_move', uciMove };
+    }
+
+    this.isEngineThinking = false;
+    this.lastMove = {
+      from: computerMoveResult.from,
+      to: computerMoveResult.to,
+      san: computerMoveResult.san,
+      color: computerMoveResult.color
+    };
+    this.inspectedSquareInfo = `Langkah Komputer: ${computerMoveResult.san} (${computerMoveResult.from} → ${computerMoveResult.to})`;
+
+    if (this._pendingPlayerClaimableDraw) {
+      this._pendingPlayerClaimableDraw.afterComputerFen = this.chess.fen();
+    }
+
+    // Periksa kondisi akhir permainan setelah langkah komputer
+    if (this._checkAndHandleGameEnd()) {
+      this._pendingPlayerClaimableDraw = null;
+      this.render();
+      this._emitStateChange();
+      return {
+        ok: true,
+        move: computerMoveResult,
+        gameOver: true,
+        gameResult: this.gameResult
+      };
+    }
+
+    const checkWarning = this.chess.inCheck()
+      ? ' Perhatian: Raja Anda sedang dalam kondisi Skak (Check)!'
+      : '';
+    const claimCheck = this.verifyDrawClaim();
+    const claimNote = claimCheck.valid
+      ? ` Anda berhak mengajukan Klaim Remis (${claimCheck.label}).`
+      : '';
+
+    this.feedback = {
+      type: this.chess.inCheck() ? 'warning' : 'info',
+      message: `Komputer melangkah ${computerMoveResult.san}.${checkWarning} Sekarang giliran Anda.${claimNote}`
+    };
+
+    this.render();
+    this._emitStateChange();
+
+    return {
+      ok: true,
+      move: computerMoveResult,
+      canClaimDraw: claimCheck.valid,
+      claimableDrawReason: claimCheck.reason,
+      gameOver: false
+    };
+  }
+
+  async retryComputerTurn() {
+    if (this.isGameOver || this.isEngineThinking) return null;
+    if (this.chess.turn() !== this.computerTurnChar) return null;
+    return this._triggerComputerTurn(this.gameId);
+  }
+
+  /**
+   * Memilih / menetapkan langkah yang direncanakan (Intended Move) untuk klaim remis
+   * TANPA mengubah posisi papan permainan (`this.chess` tetap utuh).
+   */
+  setIntendedMove(moveInput) {
+    if (this._destroyed || this.isGameOver || !this.chess) {
+      return { ok: false, reason: 'game_already_over', intendedMove: null };
+    }
+
+    if (moveInput === null || moveInput === undefined) {
+      this.intendedMove = null;
+      this.render();
+      this._emitStateChange();
+      return { ok: true, intendedMove: null, canClaimDraw: this.verifyDrawClaim().valid };
+    }
+
+    const resolved = this.chess._resolveLegalMove(moveInput);
+    if (!resolved) {
+      this.intendedMove = null;
+      this.feedback = {
+        type: 'warning',
+        message: 'Langkah yang direncanakan tidak sah pada posisi saat ini. Permainan tetap berjalan.'
+      };
+      this.render();
+      this._emitStateChange();
+      return { ok: false, reason: 'illegal_intended_move', intendedMove: null };
+    }
+
+    this.intendedMove = resolved;
+    const claimCheck = this.verifyDrawClaim(resolved);
+    if (claimCheck.valid) {
+      this.feedback = {
+        type: 'info',
+        message: `Langkah yang direncanakan (${resolved.san}) memenuhi syarat Klaim Remis (${claimCheck.label}). Tekan "Klaim Remis" untuk mengakhiri permainan sebagai Seri.`
+      };
+    } else {
+      this.feedback = {
+        type: 'info',
+        message: `Langkah yang direncanakan: ${resolved.san} (${resolved.from} → ${resolved.to}).`
+      };
+    }
+
+    this.render();
+    this._emitStateChange();
+    return {
+      ok: true,
+      intendedMove: { ...resolved },
+      canClaimDraw: claimCheck.valid,
+      claimEvaluation: claimCheck
+    };
+  }
+
+  selectIntendedMove(moveInput) {
+    return this.setIntendedMove(moveInput);
+  }
+
+  clearIntendedMove() {
+    return this.setIntendedMove(null);
+  }
+
+  getIntendedMove() {
+    return this.intendedMove ? { ...this.intendedMove } : null;
+  }
+
+  /**
+   * Memverifikasi apakah kondisi Klaim Remis (Threefold Repetition atau Fifty-Move Rule)
+   * benar-benar terpenuhi:
+   * - Berdasarkan langkah yang direncanakan (`intendedMove` yang diberikan atau `this.intendedMove` yang dipilih)
+   *   TANPA mengubah posisi permainan.
+   * - Atau berdasarkan posisi saat ini yang sudah muncul di papan.
+   */
+  verifyDrawClaim(intendedMove = undefined) {
+    if (this._destroyed || this.isGameOver || !this.chess) {
+      return { valid: false, mode: null, reason: null, label: null, intendedMove: null };
+    }
+
+    if (this.chess.isCheckmate() || this.chess.isAutomaticDraw()) {
+      return { valid: false, mode: null, reason: null, label: null, intendedMove: null };
+    }
+
+    // 1. Jika pemanggil memberikan intendedMove secara eksplisit, evaluasi langkah tersebut tanpa mengubah posisi papan
+    if (intendedMove !== undefined && intendedMove !== null) {
+      const ev = this.chess.evaluateDrawClaim(intendedMove);
+      return {
+        valid: ev.valid,
+        mode: 'intended_move',
+        reason: ev.reason,
+        label: ev.label,
+        intendedMove: ev.intendedMove || null,
+        resultingFen: ev.resultingFen || null,
+        repetitionCount: ev.repetitionCount,
+        halfMoves: ev.halfMoves
+      };
+    }
+
+    // 2. Verifikasi langsung terhadap posisi papan saat ini (mempertimbangkan susunan bidak, giliran, hak rokade, dan hak en passant legal)
+    const currentEv = this.chess.evaluateDrawClaim(null);
+    if (currentEv.valid) {
+      return {
+        valid: true,
+        mode: 'current_position',
+        reason: currentEv.reason,
+        label: currentEv.label,
+        intendedMove: null,
+        resultingFen: currentEv.resultingFen,
+        repetitionCount: currentEv.repetitionCount,
+        halfMoves: currentEv.halfMoves
+      };
+    }
+
+    // 3. Jika pengguna telah memilih langkah yang direncanakan (this.intendedMove), evaluasi langkah tersebut tanpa mengubah posisi papan
+    if (this.intendedMove) {
+      const intendedEv = this.chess.evaluateDrawClaim(this.intendedMove);
+      if (intendedEv.valid) {
+        return {
+          valid: true,
+          mode: 'intended_move',
+          reason: intendedEv.reason,
+          label: intendedEv.label,
+          intendedMove: intendedEv.intendedMove,
+          resultingFen: intendedEv.resultingFen,
+          repetitionCount: intendedEv.repetitionCount,
+          halfMoves: intendedEv.halfMoves
+        };
+      }
+      return {
+        valid: false,
+        mode: 'intended_move',
+        reason: intendedEv.reason || 'invalid_intended_move_claim',
+        label: null,
+        intendedMove: intendedEv.intendedMove || this.intendedMove
+      };
+    }
+
+    // 4. Jika langkah pemain sendiri pada siklus giliran ini baru saja memenuhi syarat klaim sebelum komputer membalas,
+    // verifikasi ulang secara ketat terhadap riwayat posisi di Chess.js
+    if (this._pendingPlayerClaimableDraw) {
+      const pending = this._pendingPlayerClaimableDraw;
+      const currentFen = this.chess.fen();
+      const matchesExpectedState =
+        pending.afterComputerFen === null
+          ? currentFen === pending.playerMoveFen &&
+            this.chess._history.length === pending.historyIndexBeforeReply
+          : currentFen === pending.afterComputerFen &&
+            this.chess._history.length === pending.historyIndexBeforeReply + 1;
+
+      if (matchesExpectedState) {
+        if (
+          pending.reason === 'threefold_repetition' &&
+          this.chess.getPositionRepetitionCount(pending.playerMoveFen) >= 3
+        ) {
+          return {
+            valid: true,
+            mode: 'current_position',
+            reason: 'threefold_repetition',
+            label: 'Pengulangan Tiga Kali',
+            intendedMove: null
+          };
+        }
+
+        const entryAtReply = this.chess._history[pending.historyIndexBeforeReply];
+        if (
+          pending.reason === 'fifty_move_rule' &&
+          entryAtReply &&
+          entryAtReply.beforeFen === pending.playerMoveFen &&
+          entryAtReply.halfMoves >= 100
+        ) {
+          return {
+            valid: true,
+            mode: 'current_position',
+            reason: 'fifty_move_rule',
+            label: 'Aturan 50 Langkah',
+            intendedMove: null
+          };
+        }
+      }
+    }
+
+    return { valid: false, mode: null, reason: null, label: null, intendedMove: null };
+  }
+
+  /**
+   * Mengajukan Klaim Remis (Threefold Repetition atau Fifty-Move Rule)
+   * baik berdasarkan posisi yang sudah muncul maupun berdasarkan langkah yang direncanakan (`intendedMove`).
+   * - Gunakan langkah yang dipilih pengguna tanpa terlebih dahulu mengubah posisi permainan.
+   * - Jika valid: akhiri permainan dengan hasil Draw.
+   * - Jika salah / tidak valid: permainan tidak rusak dan tetap berjalan sesuai aturan standar.
+   */
+  async claimDraw(intendedMove = undefined) {
+    if (this._destroyed || this.isGameOver) {
+      return {
+        ok: false,
+        valid: false,
+        reason: 'game_already_over',
+        isGameOver: this.isGameOver
+      };
+    }
+
+    const verification = this.verifyDrawClaim(intendedMove);
+    if (!verification.valid) {
+      // Jangan merusak state permainan jika klaim salah
+      this.intendedMove = null;
+      this.feedback = {
+        type: 'warning',
+        message:
+          'Klaim Remis ditolak: posisi saat ini maupun langkah yang direncanakan belum memenuhi syarat Pengulangan Tiga Kali atau Aturan 50 Langkah. Permainan tetap berjalan.'
+      };
+      this.render();
+      this._emitStateChange();
+      return {
+        ok: false,
+        valid: false,
+        reason: verification.reason || 'invalid_draw_claim',
+        isGameOver: false
+      };
+    }
+
+    const activeGameId = this.gameId;
+    const savedIntendedMove =
+      intendedMove !== undefined ? intendedMove : this.intendedMove;
+
+    this.pendingPromotion = null;
+    this.selectedSquare = null;
+    this.legalMovesForSelected = [];
+    this.isEngineThinking = false;
+
+    if (this.engine) {
+      try {
+        await this.engine.stopSearch('player_claimed_draw');
+        this.engine.setGameInProgress(false);
+      } catch {
+        // Abaikan
+      }
+    }
+
+    if (this._destroyed || this.gameId !== activeGameId || this.isGameOver) {
+      return {
+        ok: false,
+        valid: false,
+        reason: 'cancelled_or_game_over',
+        isGameOver: this.isGameOver,
+        gameResult: this.gameResult
+      };
+    }
+
+    // Verifikasi ulang kondisi posisi / langkah yang direncanakan setelah penghentian engine
+    const recheck = this.verifyDrawClaim(savedIntendedMove);
+    if (!recheck.valid) {
+      this.intendedMove = null;
+      this.feedback = {
+        type: 'warning',
+        message:
+          'Klaim Remis ditolak: kondisi posisi tidak memenuhi syarat klaim remis. Permainan tetap berjalan.'
+      };
+      this.render();
+      this._emitStateChange();
+      return {
+        ok: false,
+        valid: false,
+        reason: recheck.reason || 'invalid_draw_claim',
+        isGameOver: false
+      };
+    }
+
+    this._pendingPlayerClaimableDraw = null;
+    this.intendedMove = null;
+
+    const isThreefold = recheck.reason === 'threefold_repetition';
+    const isIntended = recheck.mode === 'intended_move' && recheck.intendedMove;
+    const intendedSan = isIntended ? recheck.intendedMove.san : null;
+
+    this._finalizeGame({
+      result: 'draw',
+      termination: recheck.reason,
+      winnerColor: null,
+      claimMode: recheck.mode || 'current_position',
+      claimedIntendedMove: intendedSan,
+      title: isThreefold
+        ? 'Klaim Remis — Pengulangan Tiga Kali'
+        : 'Klaim Remis — Aturan 50 Langkah',
+      description: isThreefold
+        ? isIntended
+          ? `Permainan berakhir seri setelah Klaim Remis berdasarkan langkah yang direncanakan (${intendedSan}) yang membuat posisi identik muncul tiga kali.`
+          : 'Permainan berakhir seri setelah Klaim Remis yang sah karena posisi identik (giliran, susunan bidak, hak rokade, dan hak en passant legal) telah berulang tiga kali.'
+        : isIntended
+        ? `Permainan berakhir seri setelah Klaim Remis berdasarkan langkah yang direncanakan (${intendedSan}) yang mencapai 100 halfmove (Aturan 50 Langkah).`
+        : 'Permainan berakhir seri setelah Klaim Remis yang sah berdasarkan Aturan 50 Langkah tanpa langkah pion maupun penangkapan bidak.'
+    });
+
+    this.render();
+    this._emitStateChange();
+
+    return {
+      ok: true,
+      valid: true,
+      result: 'draw',
+      termination: recheck.reason,
+      claimMode: recheck.mode || 'current_position',
+      claimedIntendedMove: intendedSan,
+      isGameOver: true,
+      gameResult: this.gameResult
+    };
+  }
+
+  /**
+   * Memeriksa kondisi akhir permainan otomatis dari Chess.js dan menentukan hasil dari sudut pandang pemain.
+   * Catatan penting (TASK 7):
+   * - Threefold Repetition & Fifty-Move Rule TIDAK mengakhiri permainan secara otomatis (harus melalui Klaim Remis).
+   * - Fivefold Repetition & Seventy-Five-Move Rule mengakhiri permainan secara otomatis sebagai Draw (Remis Otomatis).
+   * - Apabila langkah ke-75 menghasilkan Checkmate, Checkmate diutamakan (dicek paling pertama).
+   */
+  _checkAndHandleGameEnd() {
+    if (this.isGameOver) return true;
+
+    // 1. Skakmat (Checkmate) — Diutamakan di atas seluruh aturan remis termasuk langkah ke-75
+    if (this.chess.isCheckmate()) {
+      const loserTurn = this.chess.turn();
+      const playerWon = loserTurn === this.computerTurnChar;
+      const winnerColor = loserTurn === WHITE ? 'black' : 'white';
+
+      this._finalizeGame({
+        result: playerWon ? 'win' : 'loss',
+        termination: 'checkmate',
+        winnerColor,
+        title: playerWon
+          ? 'Selamat! Anda Menang dengan Skakmat!'
+          : 'Skakmat — Komputer Menang',
+        description: playerWon
+          ? 'Anda berhasil melakukan skakmat terhadap Raja komputer.'
+          : 'Raja Anda terkena skakmat oleh komputer.'
+      });
+      return true;
+    }
+
+    // 2. Remis Otomatis karena Stalemate (Pat)
+    if (this.chess.isStalemate()) {
+      this._finalizeGame({
+        result: 'draw',
+        termination: 'stalemate',
+        winnerColor: null,
+        title: 'Remis Otomatis — Stalemate (Pat)',
+        description:
+          'Pihak yang sedang giliran melangkah tidak memiliki langkah legal dan Rajanya tidak sedang dalam keadaan skak.'
+      });
+      return true;
+    }
+
+    // 3. Remis Otomatis karena Pengulangan Posisi 5 Kali (Fivefold Repetition)
+    if (this.chess.isFivefoldRepetition()) {
+      this._finalizeGame({
+        result: 'draw',
+        termination: 'fivefold_repetition',
+        winnerColor: null,
+        title: 'Remis Otomatis — Pengulangan Lima Kali',
+        description:
+          'Posisi papan yang identik telah berulang sebanyak lima kali (Pengulangan Lima Kali) sehingga permainan berakhir dengan Remis Otomatis.'
+      });
+      return true;
+    }
+
+    // 4. Remis Otomatis karena Aturan 75 Langkah (Seventy-Five-Move Rule)
+    if (this.chess.isSeventyFiveMoveRule()) {
+      this._finalizeGame({
+        result: 'draw',
+        termination: 'seventy_five_move_rule',
+        winnerColor: null,
+        title: 'Remis Otomatis — Aturan 75 Langkah',
+        description:
+          'Telah berlangsung 75 langkah oleh masing-masing pemain tanpa langkah pion maupun penangkapan bidak (Aturan 75 Langkah) sehingga permainan berakhir dengan Remis Otomatis.'
+      });
+      return true;
+    }
+
+    // 5. Remis Otomatis karena Materi Tidak Cukup (Insufficient Material)
+    if (this.chess.isInsufficientMaterial()) {
+      this._finalizeGame({
+        result: 'draw',
+        termination: 'insufficient_material',
+        winnerColor: null,
+        title: 'Remis Otomatis — Materi Tidak Cukup',
+        description:
+          'Bidak yang tersisa di atas papan tidak mencukupi bagi kedua pihak untuk memaksakan skakmat.'
+      });
+      return true;
+    }
+
+    // 6. Kondisi Remis Otomatis lainnya dari Chess.js
+    if (this.chess.isAutomaticDraw()) {
+      this._finalizeGame({
+        result: 'draw',
+        termination: 'draw',
+        winnerColor: null,
+        title: 'Remis Otomatis',
+        description: 'Permainan berakhir dengan Remis Otomatis sesuai aturan catur standar.'
+      });
+      return true;
+    }
+
+    return false;
+  }
+
+  _finalizeGame({
+    result,
+    termination,
+    winnerColor = null,
+    claimMode = null,
+    claimedIntendedMove = null,
+    title,
+    description
+  }) {
+    if (this.isGameOver) return;
+
+    this.isGameOver = true;
+    this.isEngineThinking = false;
+    this.intendedMove = null;
+    this.finishedAt = new Date().toISOString();
+
+    if (this.engine) {
+      this.engine.setGameInProgress(false);
+    }
+
+    const pgn = typeof this.chess.pgn === 'function' ? this.chess.pgn() : '';
+
+    this.gameResult = {
+      id: this.gameId,
+      result, // 'win' | 'loss' | 'draw'
+      playerColor: this.playerColor,
+      difficulty: this.difficultyId,
+      startedAt: this.startedAt,
+      finishedAt: this.finishedAt,
+      termination,
+      winnerColor,
+      claimMode,
+      claimedIntendedMove,
+      title,
+      description,
+      pgn,
+      totalMoves: Math.ceil(this.chess.history().length / 2)
+    };
+
+    this.feedback = {
+      type: result === 'win' ? 'success' : result === 'loss' ? 'warning' : 'info',
+      message: `${title} — ${description}`
+    };
+
+    if (!this._hasRecordedEnd) {
+      this._hasRecordedEnd = true;
+      if (typeof this.callbacks.onGameEnd === 'function') {
+        this.callbacks.onGameEnd({ ...this.gameResult });
+      }
+    }
+  }
+
+  getGameStateSnapshot() {
+    const verboseHistory = this.chess.history({ verbose: true });
+    const capturedInfo = calculateCapturedPieces(verboseHistory);
+    const movePairs = buildMovePairs(verboseHistory);
+    const turn = this.chess.turn();
+    const inCheck = this.chess.inCheck();
+    const claimCheck = this.verifyDrawClaim();
+    const claimableIntendedMoves =
+      !this.isGameOver && !this.isEngineThinking && turn === this.playerTurnChar
+        ? this.chess.getClaimableIntendedMoves()
+        : [];
+
+    return {
+      gameId: this.gameId,
+      fen: this.chess.fen(),
+      pgn: typeof this.chess.pgn === 'function' ? this.chess.pgn() : '',
+      colorPreference: this.colorPreference,
+      playerColor: this.playerColor,
+      computerColor: this.computerColor,
+      difficultyId: this.difficultyId,
+      orientation: this.orientation,
+      turn: turn === WHITE ? 'white' : 'black',
+      isPlayerTurn: !this.isGameOver && !this.isEngineThinking && turn === this.playerTurnChar,
+      isEngineThinking: this.isEngineThinking,
+      inCheck,
+      canClaimDraw: claimCheck.valid,
+      claimableDrawMode: claimCheck.mode,
+      claimableDrawReason: claimCheck.reason,
+      claimableDrawLabel: claimCheck.label,
+      intendedMove: this.intendedMove ? { ...this.intendedMove } : null,
+      claimableIntendedMoves,
+      isGameOver: this.isGameOver,
+      gameResult: this.gameResult ? { ...this.gameResult } : null,
+      engineError: this.engineError,
+      movePairs,
+      totalPly: verboseHistory.length,
+      capturedInfo,
+      startedAt: this.startedAt,
+      finishedAt: this.finishedAt
+    };
+  }
+
+  _emitStateChange() {
+    if (typeof this.callbacks.onStateChange === 'function') {
+      this.callbacks.onStateChange(this.getGameStateSnapshot());
+    }
+  }
+
+  _handleSquareClick(square) {
+    if (this.isGameOver || this.isEngineThinking || this.pendingPromotion) return;
+
+    const clickedPiece = this.chess.get(square);
+    if (clickedPiece) {
+      const colorName = clickedPiece.color === WHITE ? 'Putih' : 'Hitam';
+      const pieceName = PIECE_NAMES_ID[clickedPiece.type] || clickedPiece.type;
+      this.inspectedSquareInfo = `Petak ${square}: ${pieceName} ${colorName}`;
+    } else {
+      this.inspectedSquareInfo = `Petak ${square}: Kosong`;
+    }
+
+    // Pastikan sedang giliran pemain
+    if (this.chess.turn() !== this.playerTurnChar) {
+      this.render();
+      return;
+    }
+
+    // Jika sudah ada bidak yang dipilih dan mengklik petak tujuan legal
+    if (this.selectedSquare) {
+      const candidateMoves = this.legalMovesForSelected.filter(m => m.to === square);
+      if (candidateMoves.length > 0) {
+        const isPromotion = candidateMoves.some(m => Boolean(m.promotion));
+        if (isPromotion) {
+          this.pendingPromotion = { from: this.selectedSquare, to: square };
+          this.render();
+          this._emitStateChange();
+          return;
+        }
+        this.playPlayerMove({ from: this.selectedSquare, to: square });
+        return;
+      }
+    }
+
+    // Pilih bidak milik pemain sendiri
+    if (clickedPiece && clickedPiece.color === this.playerTurnChar) {
+      if (this.selectedSquare === square) {
+        this.selectedSquare = null;
+        this.legalMovesForSelected = [];
+        this.intendedMove = null;
+      } else {
+        this.selectedSquare = square;
+        this.legalMovesForSelected = this.chess.moves({ square, verbose: true });
+        // Jika salah satu langkah legal dari petak yang dipilih memenuhi syarat Klaim Remis
+        // berdasarkan langkah yang direncanakan (Intended Move), tandai sebagai intendedMove tanpa mengubah posisi papan
+        const qualifyingIntended = this.legalMovesForSelected.find(
+          m => this.chess.evaluateDrawClaim(m).valid
+        );
+        this.intendedMove = qualifyingIntended || null;
+      }
+      this.render();
+      this._emitStateChange();
+      return;
+    }
+
+    this.selectedSquare = null;
+    this.legalMovesForSelected = [];
+    this.intendedMove = null;
+    this.render();
+    this._emitStateChange();
+  }
+
+  _handlePromotionSelect(promoPiece) {
+    if (!this.pendingPromotion) return;
+    const { from, to } = this.pendingPromotion;
+    this.pendingPromotion = null;
+    this.playPlayerMove({ from, to, promotion: promoPiece });
+  }
+
+  _cancelPromotion() {
+    if (!this.pendingPromotion) return;
+    this.pendingPromotion = null;
+    this.selectedSquare = null;
+    this.legalMovesForSelected = [];
+    this.render();
+    this._emitStateChange();
+  }
+
+  destroy() {
+    this._destroyed = true;
+    if (this.engine) {
+      try {
+        this.engine.stopSearch('board_destroyed');
+        this.engine.setGameInProgress(false);
+      } catch {
+        // Abaikan
+      }
+    }
+  }
+
+  render() {
+    if (!this.container || this._destroyed) return;
+
+    const turn = this.chess.turn();
+    const isPlayerTurn = !this.isGameOver && !this.isEngineThinking && turn === this.playerTurnChar;
+    const turnSideText = turn === WHITE ? 'Putih' : 'Hitam';
+    const turnText = this.isGameOver
+      ? 'Permainan Selesai'
+      : this.isEngineThinking
+      ? 'Komputer Sedang Berpikir...'
+      : isPlayerTurn
+      ? `Giliran Anda (${turnSideText})`
+      : `Giliran Komputer (${turnSideText})`;
+
+    const inCheck = this.chess.inCheck();
+    const isCheckmate = this.chess.isCheckmate();
+    const isStalemate = this.chess.isStalemate();
+
+    const rowIndices =
+      this.orientation === 'white' ? [0, 1, 2, 3, 4, 5, 6, 7] : [7, 6, 5, 4, 3, 2, 1, 0];
+    const colIndices =
+      this.orientation === 'white' ? [0, 1, 2, 3, 4, 5, 6, 7] : [7, 6, 5, 4, 3, 2, 1, 0];
+
+    const boardState = this.chess.board();
+    const legalTargetMap = new Map();
+    for (const m of this.legalMovesForSelected) {
+      legalTargetMap.set(m.to, m);
+    }
+
+    let squaresHtml = '';
+    for (let visualRowIdx = 0; visualRowIdx < 8; visualRowIdx++) {
+      const r = rowIndices[visualRowIdx];
+      for (let visualColIdx = 0; visualColIdx < 8; visualColIdx++) {
+        const c = colIndices[visualColIdx];
+        const sq = FILES[c] + RANKS[r];
+        const isLight = (r + c) % 2 === 0;
+        const piece = boardState[r][c];
+        const isSelected = this.selectedSquare === sq;
+        const isLastMove =
+          this.lastMove && (this.lastMove.from === sq || this.lastMove.to === sq);
+        const legalMove = legalTargetMap.get(sq);
+        const isKingInCheck =
+          inCheck && piece && piece.type === 'k' && piece.color === turn;
+
+        const classes = [
+          'chess-square',
+          isLight ? 'square-light' : 'square-dark',
+          isSelected ? 'square-selected' : '',
+          isLastMove ? 'square-last-move' : '',
+          isKingInCheck ? 'square-king-check' : '',
+          piece ? 'has-piece' : ''
+        ]
+          .filter(Boolean)
+          .join(' ');
+
+        const showRankLabel = visualColIdx === 0;
+        const showFileLabel = visualRowIdx === 7;
+
+        let legalIndicatorHtml = '';
+        if (legalMove) {
+          if (legalMove.captured) {
+            legalIndicatorHtml = `<span class="legal-capture-ring" aria-hidden="true"></span>`;
+          } else {
+            legalIndicatorHtml = `<span class="legal-move-dot" aria-hidden="true"></span>`;
+          }
+        }
+
+        const isDraggable = Boolean(
+          piece &&
+            piece.color === this.playerTurnChar &&
+            turn === this.playerTurnChar &&
+            !this.isEngineThinking &&
+            !this.pendingPromotion &&
+            !this.isGameOver
+        );
+
+        squaresHtml += `
+          <button
+            type="button"
+            class="${classes}"
+            data-square="${sq}"
+            draggable="${isDraggable ? 'true' : 'false'}"
+            aria-label="Petak ${sq}${
+          piece
+            ? ` berisi ${PIECE_NAMES_ID[piece.type]} ${
+                piece.color === WHITE ? 'Putih' : 'Hitam'
+              }`
+            : ''
+        }"
+          >
+            ${showRankLabel ? `<span class="coord-label coord-rank">${RANKS[r]}</span>` : ''}
+            ${showFileLabel ? `<span class="coord-label coord-file">${FILES[c]}</span>` : ''}
+            ${
+              piece
+                ? `<span class="piece-wrapper">${getPieceSvg(piece.color, piece.type)}</span>`
+                : ''
+            }
+            ${legalIndicatorHtml}
+          </button>
+        `;
+      }
+    }
+
+    let promotionModalHtml = '';
+    if (this.pendingPromotion) {
+      const promoColor = this.playerTurnChar;
+      promotionModalHtml = `
+        <div class="promotion-overlay" role="dialog" aria-label="Pilih bidak promosi pion" data-testid="play-promotion-dialog">
+          <div class="promotion-dialog">
+            <p class="promotion-title">Pilih Promosi Pion:</p>
+            <div class="promotion-options">
+              <button type="button" class="promo-btn" data-promo="q" title="Menteri (Queen)">
+                ${getPieceSvg(promoColor, 'q')}
+                <span>Menteri</span>
+              </button>
+              <button type="button" class="promo-btn" data-promo="r" title="Benteng (Rook)">
+                ${getPieceSvg(promoColor, 'r')}
+                <span>Benteng</span>
+              </button>
+              <button type="button" class="promo-btn" data-promo="b" title="Gajah (Bishop)">
+                ${getPieceSvg(promoColor, 'b')}
+                <span>Gajah</span>
+              </button>
+              <button type="button" class="promo-btn" data-promo="n" title="Kuda (Knight)">
+                ${getPieceSvg(promoColor, 'n')}
+                <span>Kuda</span>
+              </button>
+            </div>
+            <button type="button" class="btn btn-secondary btn-sm promo-cancel-btn" data-action="cancel-promotion">
+              Batal
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    const claimCheck = this.verifyDrawClaim();
+
+    let statusAlertBadge = '';
+    if (isCheckmate) {
+      statusAlertBadge = `<span class="board-state-badge badge-danger" data-testid="play-board-badge">Skakmat (Checkmate)!</span>`;
+    } else if (isStalemate) {
+      statusAlertBadge = `<span class="board-state-badge badge-warning" data-testid="play-board-badge">Remis Otomatis — Stalemate</span>`;
+    } else if (this.isGameOver && this.gameResult) {
+      const badgeClass =
+        this.gameResult.result === 'win'
+          ? 'badge-success'
+          : this.gameResult.result === 'loss'
+          ? 'badge-danger'
+          : 'badge-warning';
+      let label = 'Permainan Seri';
+      if (this.gameResult.result === 'win') {
+        label = 'Anda Menang';
+      } else if (this.gameResult.result === 'loss') {
+        label = 'Komputer Menang';
+      } else if (this.gameResult.termination === 'fivefold_repetition') {
+        label = 'Remis Otomatis — Pengulangan Lima Kali';
+      } else if (this.gameResult.termination === 'seventy_five_move_rule') {
+        label = 'Remis Otomatis — Aturan 75 Langkah';
+      } else if (
+        this.gameResult.termination === 'threefold_repetition' ||
+        this.gameResult.termination === 'fifty_move_rule'
+      ) {
+        label = 'Klaim Remis';
+      } else {
+        label = 'Remis Otomatis';
+      }
+      statusAlertBadge = `<span class="board-state-badge ${badgeClass}" data-testid="play-board-badge">${label}</span>`;
+    } else if (claimCheck.valid) {
+      statusAlertBadge = `<span class="board-state-badge badge-warning" data-testid="play-claimable-draw-badge">Klaim Remis (${claimCheck.label})</span>`;
+    } else if (inCheck) {
+      statusAlertBadge = `<span class="board-state-badge badge-danger" data-testid="play-board-badge">Skak (Check)!</span>`;
+    } else if (this.isEngineThinking) {
+      statusAlertBadge = `<span class="board-state-badge badge-step" data-testid="play-thinking-badge">Stockfish Berpikir...</span>`;
+    } else {
+      const moveNum = Math.floor(this.chess.history().length / 2) + 1;
+      statusAlertBadge = `<span class="board-state-badge badge-step" data-testid="play-board-badge">Langkah #${moveNum}</span>`;
+    }
+
+    const boardClaimDrawButtonHtml =
+      claimCheck.valid && !this.isGameOver
+        ? `<div class="board-claim-draw-bar" data-testid="board-claim-draw-bar">
+             <button
+               type="button"
+               class="btn btn-primary btn-sm"
+               data-action="board-claim-draw"
+               data-testid="board-claim-draw-btn"
+             >
+               Klaim Remis (${claimCheck.label})
+             </button>
+           </div>`
+        : '';
+
+    this.container.innerHTML = `
+      <div class="chessboard-widget play-chessboard-widget">
+        <div class="chessboard-topbar">
+          <div class="turn-indicator" data-turn="${turn}" data-testid="play-turn-indicator">
+            <span class="turn-dot ${turn === WHITE ? 'dot-white' : 'dot-black'}"></span>
+            <span class="turn-label">${turnText}</span>
+          </div>
+          <div class="board-status-badges">
+            ${statusAlertBadge}
+          </div>
+        </div>
+
+        <div class="chessboard-frame">
+          <div class="chessboard-grid" role="grid" aria-label="Papan Catur Melawan Komputer">
+            ${squaresHtml}
+          </div>
+          ${promotionModalHtml}
+        </div>
+
+        <div class="chessboard-coord-statusbar">
+          <span class="coord-inspector-text">${this.inspectedSquareInfo}</span>
+          <span class="move-history-pill">
+            Orientasi: ${this.orientation === 'white' ? 'Putih di Bawah' : 'Hitam di Bawah'}
+          </span>
+        </div>
+
+        <div class="chessboard-feedback feedback-${this.feedback.type}" role="status" data-testid="play-board-feedback">
+          <div class="feedback-content">
+            <strong>${
+              this.feedback.type === 'success'
+                ? 'Hasil:'
+                : this.feedback.type === 'warning'
+                ? 'Perhatian:'
+                : 'Status Permainan:'
+            }</strong>
+            <span>${this.feedback.message}</span>
+          </div>
+          ${boardClaimDrawButtonHtml}
+        </div>
+      </div>
+    `;
+
+    this._bindEvents();
+  }
+
+  _bindEvents() {
+    const squares = this.container.querySelectorAll('.chess-square');
+    squares.forEach(sqBtn => {
+      sqBtn.addEventListener('click', () => {
+        const sq = sqBtn.getAttribute('data-square');
+        this._handleSquareClick(sq);
+      });
+
+      sqBtn.addEventListener('dragstart', e => {
+        const sq = sqBtn.getAttribute('data-square');
+        const p = this.chess.get(sq);
+        if (
+          !p ||
+          p.color !== this.playerTurnChar ||
+          this.chess.turn() !== this.playerTurnChar ||
+          this.isEngineThinking ||
+          this.pendingPromotion ||
+          this.isGameOver
+        ) {
+          e.preventDefault();
+          return;
+        }
+        this._dragSourceSquare = sq;
+        this.selectedSquare = sq;
+        this.legalMovesForSelected = this.chess.moves({ square: sq, verbose: true });
+        if (e.dataTransfer) {
+          e.dataTransfer.setData('text/plain', sq);
+          e.dataTransfer.effectAllowed = 'move';
+        }
+      });
+
+      sqBtn.addEventListener('dragover', e => {
+        e.preventDefault();
+        if (e.dataTransfer) {
+          e.dataTransfer.dropEffect = 'move';
+        }
+      });
+
+      sqBtn.addEventListener('drop', e => {
+        e.preventDefault();
+        const targetSq = sqBtn.getAttribute('data-square');
+        const sourceSq =
+          this._dragSourceSquare ||
+          (e.dataTransfer ? e.dataTransfer.getData('text/plain') : null);
+        this._dragSourceSquare = null;
+
+        if (!sourceSq || !targetSq || sourceSq === targetSq) return;
+        this.selectedSquare = sourceSq;
+        this.legalMovesForSelected = this.chess.moves({ square: sourceSq, verbose: true });
+        this._handleSquareClick(targetSq);
+      });
+    });
+
+    const promoBtns = this.container.querySelectorAll('.promo-btn');
+    promoBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const promo = btn.getAttribute('data-promo');
+        this._handlePromotionSelect(promo);
+      });
+    });
+
+    const cancelPromoBtn = this.container.querySelector('[data-action="cancel-promotion"]');
+    if (cancelPromoBtn) {
+      cancelPromoBtn.addEventListener('click', () => this._cancelPromotion());
+    }
+
+    const boardClaimDrawBtn = this.container.querySelector('[data-action="board-claim-draw"]');
+    if (boardClaimDrawBtn) {
+      boardClaimDrawBtn.addEventListener('click', () => {
+        this.claimDraw();
+      });
+    }
+  }
+}
+
 export default InteractiveChessboard;

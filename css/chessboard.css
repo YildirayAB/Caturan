@@ -315,6 +315,11 @@
   height: 36px;
 }
 
+.promo-cancel-btn {
+  margin-top: 12px;
+  width: 100%;
+}
+
 /* Status Bar Koordinat & Riwayat Langkah */
 .chessboard-coord-statusbar {
   display: flex;

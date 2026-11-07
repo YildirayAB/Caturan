@@ -48,6 +48,21 @@ export function createInitialPuzzleProgressState() {
 }
 
 /**
+ * State awal progres bermain melawan komputer (MVP 3 — semua statistik dimulai dari 0)
+ */
+export function createInitialPlayProgressState() {
+  return {
+    totalGames: 0,
+    wins: 0,
+    losses: 0,
+    draws: 0,
+    lastPlayedAt: null,
+    recentGames: [],
+    gameEvents: []
+  };
+}
+
+/**
  * State awal yang jujur (semua statistik bernilai 0)
  */
 export function createInitialProgressState() {
@@ -60,6 +75,7 @@ export function createInitialProgressState() {
     activityDates: [], // Format 'YYYY-MM-DD' untuk perhitungan streak harian
     lessonCompletedAt: {}, // Map lessonId -> ISO timestamp
     puzzleProgress: createInitialPuzzleProgressState(),
+    playProgress: createInitialPlayProgressState(),
     updatedAt: null
   };
 }
@@ -328,6 +344,188 @@ export function mergePuzzleProgress(localPuzzleRaw, cloudPuzzleRaw, localRootUpd
   };
 }
 
+const VALID_PLAY_RESULTS = new Set(['win', 'loss', 'draw']);
+const VALID_PLAY_DIFFICULTIES = new Set(['beginner', 'intermediate', 'advanced']);
+const VALID_PLAY_TERMINATIONS = new Set([
+  'checkmate',
+  'stalemate',
+  'threefold_repetition',
+  'fifty_move_rule',
+  'fivefold_repetition',
+  'seventy_five_move_rule',
+  'insufficient_material',
+  'draw',
+  'resign'
+]);
+
+/**
+ * Sanitasi namespace playProgress (MVP 3 — Bermain Melawan Komputer)
+ * Hanya menyimpan game yang telah selesai secara valid dan deduplikasi berdasarkan ID unik.
+ */
+export function sanitizePlayProgress(rawPlay) {
+  const initial = createInitialPlayProgressState();
+  if (!rawPlay || typeof rawPlay !== 'object' || Array.isArray(rawPlay)) {
+    return initial;
+  }
+
+  const rawList = [
+    ...(Array.isArray(rawPlay.gameEvents) ? rawPlay.gameEvents : []),
+    ...(Array.isArray(rawPlay.recentGames) ? rawPlay.recentGames : [])
+  ];
+
+  const eventsById = new Map();
+  for (const rawEv of rawList) {
+    if (!rawEv || typeof rawEv !== 'object' || Array.isArray(rawEv)) continue;
+
+    const id =
+      typeof rawEv.id === 'string' && rawEv.id.trim().length > 0 ? rawEv.id.trim() : null;
+    const result =
+      typeof rawEv.result === 'string' && VALID_PLAY_RESULTS.has(rawEv.result.trim())
+        ? rawEv.result.trim()
+        : null;
+
+    if (!id || !result) continue;
+
+    const rawColor =
+      typeof rawEv.playerColor === 'string' ? rawEv.playerColor.trim().toLowerCase() : 'white';
+    const playerColor = rawColor === 'black' || rawColor === 'b' ? 'black' : 'white';
+
+    const rawDiff =
+      typeof rawEv.difficulty === 'string' ? rawEv.difficulty.trim().toLowerCase() : 'beginner';
+    const difficulty = VALID_PLAY_DIFFICULTIES.has(rawDiff) ? rawDiff : 'beginner';
+
+    const finishedAt = isValidIsoTimestamp(rawEv.finishedAt)
+      ? rawEv.finishedAt
+      : isValidIsoTimestamp(rawEv.startedAt)
+      ? rawEv.startedAt
+      : new Date(0).toISOString();
+
+    const startedAt = isValidIsoTimestamp(rawEv.startedAt) ? rawEv.startedAt : finishedAt;
+
+    const rawTerm =
+      typeof rawEv.termination === 'string' ? rawEv.termination.trim().toLowerCase() : 'draw';
+    const termination = VALID_PLAY_TERMINATIONS.has(rawTerm)
+      ? rawTerm
+      : result === 'draw'
+      ? 'draw'
+      : 'checkmate';
+
+    const pgn = typeof rawEv.pgn === 'string' ? rawEv.pgn.trim() : '';
+
+    const cleanEv = {
+      id,
+      result,
+      playerColor,
+      difficulty,
+      startedAt,
+      finishedAt,
+      termination,
+      pgn
+    };
+
+    if (!eventsById.has(id)) {
+      eventsById.set(id, cleanEv);
+    }
+  }
+
+  const gameEvents = Array.from(eventsById.values()).sort((a, b) => {
+    const tA = Date.parse(a.finishedAt);
+    const tB = Date.parse(b.finishedAt);
+    if (tA !== tB) return tA - tB;
+    return a.id.localeCompare(b.id);
+  });
+
+  let lastPlayedAt = isValidIsoTimestamp(rawPlay.lastPlayedAt) ? rawPlay.lastPlayedAt : null;
+  if (gameEvents.length > 0) {
+    const latestEventFinishedAt = gameEvents[gameEvents.length - 1].finishedAt;
+    if (
+      !lastPlayedAt ||
+      Date.parse(latestEventFinishedAt) > Date.parse(lastPlayedAt)
+    ) {
+      lastPlayedAt = latestEventFinishedAt;
+    }
+  }
+
+  // Hitung totalGames, wins, losses, draws secara deterministik dari daftar game unik (tidak pernah menjumlahkan mentah)
+  const totalGames = gameEvents.length;
+  const wins = gameEvents.filter(e => e.result === 'win').length;
+  const losses = gameEvents.filter(e => e.result === 'loss').length;
+  const draws = gameEvents.filter(e => e.result === 'draw').length;
+
+  return {
+    totalGames,
+    wins,
+    losses,
+    draws,
+    lastPlayedAt,
+    recentGames: [...gameEvents],
+    gameEvents
+  };
+}
+
+/**
+ * Memeriksa apakah playProgress memiliki riwayat permainan nyata
+ */
+export function hasMeaningfulPlayProgress(playProg) {
+  if (!playProg || typeof playProg !== 'object' || Array.isArray(playProg)) {
+    return false;
+  }
+  const clean = sanitizePlayProgress(playProg);
+  return clean.gameEvents.length > 0 || Boolean(clean.lastPlayedAt);
+}
+
+/**
+ * Menggabungkan (Merge) playProgress Local dan Cloud secara deterministik berdasarkan ID game unik
+ * Satu game tidak pernah dihitung dua kali.
+ */
+export function mergePlayProgress(localPlayRaw, cloudPlayRaw) {
+  const localPlay = sanitizePlayProgress(localPlayRaw);
+  const cloudPlay = sanitizePlayProgress(cloudPlayRaw);
+
+  const mergedEventsMap = new Map();
+  for (const ev of [...cloudPlay.gameEvents, ...localPlay.gameEvents]) {
+    if (!mergedEventsMap.has(ev.id)) {
+      mergedEventsMap.set(ev.id, { ...ev });
+    }
+  }
+
+  const gameEvents = Array.from(mergedEventsMap.values()).sort((a, b) => {
+    const tA = Date.parse(a.finishedAt);
+    const tB = Date.parse(b.finishedAt);
+    if (tA !== tB) return tA - tB;
+    return a.id.localeCompare(b.id);
+  });
+
+  const candidateTimes = [];
+  if (isValidIsoTimestamp(localPlay.lastPlayedAt)) {
+    candidateTimes.push(Date.parse(localPlay.lastPlayedAt));
+  }
+  if (isValidIsoTimestamp(cloudPlay.lastPlayedAt)) {
+    candidateTimes.push(Date.parse(cloudPlay.lastPlayedAt));
+  }
+  if (gameEvents.length > 0) {
+    candidateTimes.push(Date.parse(gameEvents[gameEvents.length - 1].finishedAt));
+  }
+
+  const lastPlayedAt =
+    candidateTimes.length > 0 ? new Date(Math.max(...candidateTimes)).toISOString() : null;
+
+  const totalGames = gameEvents.length;
+  const wins = gameEvents.filter(e => e.result === 'win').length;
+  const losses = gameEvents.filter(e => e.result === 'loss').length;
+  const draws = gameEvents.filter(e => e.result === 'draw').length;
+
+  return {
+    totalGames,
+    wins,
+    losses,
+    draws,
+    lastPlayedAt,
+    recentGames: [...gameEvents],
+    gameEvents
+  };
+}
+
 /**
  * Sanitasi objek progres agar tahan terhadap data LocalStorage atau JSONB yang rusak/korup
  * Mendukung backward compatibility penuh dari schemaVersion 1 ke schemaVersion 2.
@@ -386,6 +584,7 @@ export function sanitizeProgressState(parsed, { recalculateXp = false } = {}) {
     recalculateXp || completedLessonIds.length > 0 ? deterministicXp : rawTotalXp;
 
   const puzzleProgress = sanitizePuzzleProgress(parsed.puzzleProgress);
+  const playProgress = sanitizePlayProgress(parsed.playProgress);
 
   return {
     schemaVersion: 2,
@@ -399,12 +598,13 @@ export function sanitizeProgressState(parsed, { recalculateXp = false } = {}) {
     activityDates: cleanDatesArray(parsed.activityDates),
     lessonCompletedAt: cleanCompletedAt,
     puzzleProgress,
+    playProgress,
     updatedAt: isValidIsoTimestamp(parsed.updatedAt) ? parsed.updatedAt : null
   };
 }
 
 /**
- * Memeriksa apakah state progres memiliki aktivitas/data belajar atau puzzle nyata (bukan state kosong awal)
+ * Memeriksa apakah state progres memiliki aktivitas/data belajar, puzzle, atau bermain nyata (bukan state kosong awal)
  */
 export function hasMeaningfulProgress(state) {
   if (!state || typeof state !== 'object' || Array.isArray(state)) {
@@ -418,7 +618,8 @@ export function hasMeaningfulProgress(state) {
     Boolean(sanitized.lastOpenedLessonId) ||
     Object.keys(sanitized.lessonCompletedAt).length > 0 ||
     sanitized.totalXp > 0 ||
-    hasMeaningfulPuzzleProgress(sanitized.puzzleProgress)
+    hasMeaningfulPuzzleProgress(sanitized.puzzleProgress) ||
+    hasMeaningfulPlayProgress(sanitized.playProgress)
   );
 }
 
@@ -511,13 +712,29 @@ export function mergeProgressStates(localRaw, cloudRaw) {
     cloud.updatedAt
   );
 
+  // 7. Merge namespace playProgress secara deterministik & idempoten (MVP 3)
+  const playProgress = mergePlayProgress(local.playProgress, cloud.playProgress);
+
   const localPuzzleTime = isValidIsoTimestamp(local.puzzleProgress?.updatedAt)
     ? Date.parse(local.puzzleProgress.updatedAt)
     : -1;
   const cloudPuzzleTime = isValidIsoTimestamp(cloud.puzzleProgress?.updatedAt)
     ? Date.parse(cloud.puzzleProgress.updatedAt)
     : -1;
-  const maxTime = Math.max(localTime, cloudTime, localPuzzleTime, cloudPuzzleTime);
+  const localPlayTime = isValidIsoTimestamp(local.playProgress?.lastPlayedAt)
+    ? Date.parse(local.playProgress.lastPlayedAt)
+    : -1;
+  const cloudPlayTime = isValidIsoTimestamp(cloud.playProgress?.lastPlayedAt)
+    ? Date.parse(cloud.playProgress.lastPlayedAt)
+    : -1;
+  const maxTime = Math.max(
+    localTime,
+    cloudTime,
+    localPuzzleTime,
+    cloudPuzzleTime,
+    localPlayTime,
+    cloudPlayTime
+  );
 
   let latestUpdatedAt = null;
   if (maxTime >= 0) {
@@ -526,7 +743,7 @@ export function mergeProgressStates(localRaw, cloudRaw) {
     latestUpdatedAt = new Date().toISOString();
   }
 
-  // 7. Hitung ulang totalXp secara deterministik dari completedLessonIds
+  // 8. Hitung ulang totalXp secara deterministik dari completedLessonIds
   const totalXp = calculateXpFromCompletedLessons(completedLessonIds);
 
   return {
@@ -538,6 +755,7 @@ export function mergeProgressStates(localRaw, cloudRaw) {
     activityDates,
     lessonCompletedAt,
     puzzleProgress,
+    playProgress,
     updatedAt: latestUpdatedAt
   };
 }
@@ -565,6 +783,9 @@ export function areProgressStatesEqual(stateA, stateB) {
       JSON.stringify(b.puzzleProgress.attemptEvents) &&
     JSON.stringify(a.puzzleProgress.dailyPuzzleDates) ===
       JSON.stringify(b.puzzleProgress.dailyPuzzleDates) &&
+    a.playProgress.lastPlayedAt === b.playProgress.lastPlayedAt &&
+    JSON.stringify(a.playProgress.gameEvents) ===
+      JSON.stringify(b.playProgress.gameEvents) &&
     a.updatedAt === b.updatedAt
   );
 }

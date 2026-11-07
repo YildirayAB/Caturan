@@ -23,6 +23,11 @@ import {
   renderPuzzlePlayView,
   destroyActivePuzzleBoard
 } from './components/puzzlePlayView.js';
+import { renderPlayView } from './components/playView.js';
+import {
+  renderPlayGameView,
+  destroyActivePlayBoard
+} from './components/playGameView.js';
 import {
   renderLessonDetailView,
   updateLessonCompletionUI,
@@ -31,6 +36,7 @@ import {
 import { UI_ICONS } from './components/icons.js';
 
 const MOBILE_BREAKPOINT = 860;
+const ACTIVE_PLAY_SESSION_KEY = 'caturan_mvp3_active_game';
 
 export class CaturanApp {
   constructor({ requireAuth = true } = {}) {
@@ -52,6 +58,13 @@ export class CaturanApp {
       difficulty: 'all'
     };
     this.puzzleSessionPlayedIds = [];
+
+    // State Bermain Melawan Komputer (MVP 3)
+    this.playSettings = {
+      colorPreference: 'white', // 'white' | 'black' | 'random'
+      difficulty: 'beginner' // 'beginner' | 'intermediate' | 'advanced'
+    };
+    this.unfinishedPlayNotice = null;
 
     // State Sidebar:
     // - Desktop: membaca preferensi dari LocalStorage (default terbuka = false)
@@ -149,13 +162,20 @@ export class CaturanApp {
     // 10. Dengarkan perubahan progres hasil merge dari cloud
     this._unsubProgress = progressService.subscribe(() => {
       if (!this.requireAuth || this.isAuthenticated) {
-        if (this.currentRoute === 'lesson-detail' || this.currentRoute === 'puzzle-play') {
+        if (
+          this.currentRoute === 'lesson-detail' ||
+          this.currentRoute === 'puzzle-play' ||
+          this.currentRoute === 'play-game'
+        ) {
           this._refreshChromeUI();
         } else {
           this.renderAll();
         }
       }
     });
+
+    // Periksa apakah terdapat sesi permainan melawan komputer yang terputus karena refresh halaman
+    this._checkInterruptedPlaySession();
 
     this.renderThemeButton();
 
@@ -188,6 +208,8 @@ export class CaturanApp {
       progressService.handleUserSignedOut();
       destroyActiveLessonBoard();
       destroyActivePuzzleBoard();
+      destroyActivePlayBoard({ terminateEngine: true });
+      this._clearActivePlaySession();
       this.closeMobileSidebar();
       this.renderAuthGate();
       return;
@@ -215,6 +237,8 @@ export class CaturanApp {
   renderAuthGate(errorMsg = null, infoMsg = null) {
     destroyActiveLessonBoard();
     destroyActivePuzzleBoard();
+    destroyActivePlayBoard({ terminateEngine: true });
+    this._clearActivePlaySession();
 
     if (this.appShell && this.appShell.classList) {
       this.appShell.classList.add('is-unauthenticated');
@@ -359,6 +383,18 @@ export class CaturanApp {
         this.openPuzzle(puzzleId, null, false);
         return;
       }
+    } else if (hash === 'play-game') {
+      // Jika halaman direfresh saat berada di #play-game, arahkan ke #play dengan bersih
+      // tanpa mengklaim game selesai apabila sesi sebelumnya belum berakhir
+      if (isInitial && this.unfinishedPlayNotice) {
+        this.navigate('play', true);
+      } else {
+        this.startPlayGame(this.playSettings, false);
+      }
+      return;
+    } else if (hash === 'play') {
+      this.navigate('play', false);
+      return;
     } else if (hash === 'puzzle') {
       this.navigate('puzzle', false);
       return;
@@ -454,6 +490,13 @@ export class CaturanApp {
   navigate(route, updateHash = true) {
     destroyActiveLessonBoard();
     destroyActivePuzzleBoard();
+    destroyActivePlayBoard({ terminateEngine: route !== 'play-game' });
+    if (route !== 'play-game') {
+      this._clearActivePlaySession();
+    }
+    if (route !== 'play') {
+      this.unfinishedPlayNotice = null;
+    }
     this.closeMobileSidebar();
     this.currentRoute = route;
     this.completionFeedback = null;
@@ -474,6 +517,9 @@ export class CaturanApp {
 
     destroyActiveLessonBoard();
     destroyActivePuzzleBoard();
+    destroyActivePlayBoard({ terminateEngine: true });
+    this._clearActivePlaySession();
+    this.unfinishedPlayNotice = null;
     this.closeMobileSidebar();
 
     // Catat materi ini sebagai materi terakhir yang dibuka pengguna
@@ -565,6 +611,9 @@ export class CaturanApp {
 
     destroyActiveLessonBoard();
     destroyActivePuzzleBoard();
+    destroyActivePlayBoard({ terminateEngine: true });
+    this._clearActivePlaySession();
+    this.unfinishedPlayNotice = null;
     this.closeMobileSidebar();
 
     if (practiceContext) {
@@ -652,6 +701,101 @@ export class CaturanApp {
       mode: this.puzzlePracticeContext?.mode || 'mixed',
       isDaily: this.puzzlePracticeContext?.mode === 'daily'
     });
+    this._refreshChromeUI();
+  }
+
+  // =========================================================================
+  // MVP 3 — KONTROLER BERMAIN MELAWAN KOMPUTER (STOCKFISH)
+  // =========================================================================
+
+  _checkInterruptedPlaySession() {
+    if (typeof window === 'undefined' || !window.sessionStorage) return;
+    try {
+      const raw = window.sessionStorage.getItem(ACTIVE_PLAY_SESSION_KEY);
+      if (raw) {
+        window.sessionStorage.removeItem(ACTIVE_PLAY_SESSION_KEY);
+        this.unfinishedPlayNotice =
+          'Pertandingan sebelumnya belum selesai saat halaman dimuat ulang dan tidak dihitung sebagai pertandingan selesai.';
+      }
+    } catch {
+      // Abaikan jika sessionStorage diblokir
+    }
+  }
+
+  _markActivePlaySession(snapshot) {
+    if (typeof window === 'undefined' || !window.sessionStorage || !snapshot) return;
+    try {
+      window.sessionStorage.setItem(
+        ACTIVE_PLAY_SESSION_KEY,
+        JSON.stringify({
+          gameId: snapshot.gameId,
+          startedAt: snapshot.startedAt,
+          difficulty: snapshot.difficultyId,
+          playerColor: snapshot.playerColor
+        })
+      );
+    } catch {
+      // Abaikan
+    }
+  }
+
+  _clearActivePlaySession() {
+    if (typeof window === 'undefined' || !window.sessionStorage) return;
+    try {
+      window.sessionStorage.removeItem(ACTIVE_PLAY_SESSION_KEY);
+    } catch {
+      // Abaikan
+    }
+  }
+
+  updatePlaySettings(newSettings = {}) {
+    this.playSettings = {
+      colorPreference: ['white', 'black', 'random'].includes(newSettings.colorPreference)
+        ? newSettings.colorPreference
+        : this.playSettings.colorPreference,
+      difficulty: ['beginner', 'intermediate', 'advanced'].includes(newSettings.difficulty)
+        ? newSettings.difficulty
+        : this.playSettings.difficulty
+    };
+    if (this.currentRoute === 'play') {
+      this.renderAll();
+    }
+  }
+
+  startPlayGame(settings = this.playSettings, updateHash = true) {
+    destroyActiveLessonBoard();
+    destroyActivePuzzleBoard();
+    destroyActivePlayBoard({ terminateEngine: false });
+    this.closeMobileSidebar();
+
+    if (settings) {
+      this.playSettings = {
+        colorPreference: ['white', 'black', 'random'].includes(settings.colorPreference)
+          ? settings.colorPreference
+          : this.playSettings.colorPreference,
+        difficulty: ['beginner', 'intermediate', 'advanced'].includes(settings.difficulty)
+          ? settings.difficulty
+          : this.playSettings.difficulty
+      };
+    }
+
+    this.unfinishedPlayNotice = null;
+    this.currentRoute = 'play-game';
+
+    if (updateHash && window.history && typeof window.history.replaceState === 'function') {
+      window.history.replaceState(null, '', '#play-game');
+    }
+
+    this.renderAll();
+    if (typeof window.scrollTo === 'function') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }
+
+  handlePlayGameEnded(gameResult) {
+    this._clearActivePlaySession();
+    if (!gameResult || !gameResult.id) return;
+    progressService.recordPlayGameFinished(gameResult);
     this._refreshChromeUI();
   }
 
@@ -766,6 +910,28 @@ export class CaturanApp {
         onHintUsed: payload => this.handlePuzzleHintUsed(payload),
         onWrongMove: payload => this.handlePuzzleWrongMove(payload),
         onPuzzleSolved: payload => this.handlePuzzleSolved(payload)
+      });
+    } else if (this.currentRoute === 'play') {
+      renderPlayView(this.mainContainer, {
+        playSummary: summary.playSummary || progressService.getPlaySummary(),
+        selectedSettings: this.playSettings,
+        unfinishedNotice: this.unfinishedPlayNotice,
+        onUpdateSettings: newSettings => this.updatePlaySettings(newSettings),
+        onStartGame: chosenSettings => this.startPlayGame(chosenSettings)
+      });
+    } else if (this.currentRoute === 'play-game') {
+      renderPlayGameView(this.mainContainer, {
+        settings: this.playSettings,
+        userEmail: this.currentUser?.email || null,
+        onBackToPlayDashboard: () => this.navigate('play'),
+        onUpdateSettings: newSettings => {
+          this.playSettings = {
+            colorPreference: newSettings.colorPreference || this.playSettings.colorPreference,
+            difficulty: newSettings.difficulty || this.playSettings.difficulty
+          };
+        },
+        onGameStarted: snapshot => this._markActivePlaySession(snapshot),
+        onGameEnd: gameResult => this.handlePlayGameEnded(gameResult)
       });
     }
   }
