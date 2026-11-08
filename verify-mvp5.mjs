@@ -1651,6 +1651,90 @@ await runTest('27. Verifikasi multi-viewport mobile (320px, 360px, 390px, 430px,
 });
 
 // ---------------------------------------------------------------------------
+// SKENARIO 28: Perbaikan Header Mobile 3 Baris & Notifikasi Utuh pada Viewport 320px, 360px, 390px, 430px, dan 768px
+// ---------------------------------------------------------------------------
+await runTest('28. [Revisi PR MVP 5.1] Header 3 baris (Kembali + MVP 5.1, Judul Full Width 28-34px, Deskripsi) & Notifikasi Utuh pada 320px, 360px, 390px, 430px, dan 768px', () => {
+  const targetViewports = [320, 360, 390, 430, 768];
+
+  for (const vp of targetViewports) {
+    globalThis.window.innerWidth = vp;
+    const mount = document.createElement('div');
+    const state = createInitialAnalysisSessionState();
+    renderAnalysisView(mount, state);
+
+    // 1. Verifikasi struktur 3 baris pada Header Mobile / Tablet Portrait
+    const topbar = mount.querySelector('[data-testid="analysis-mobile-import-topbar"]');
+    assert.ok(topbar, `Header mobile wajib ada pada viewport ${vp}px`);
+    assert.equal(topbar.classList.contains('hidden'), false, `Header mobile wajib aktif pada layar import ${vp}px`);
+
+    const row1 = topbar.querySelector('[data-testid="analysis-mobile-topbar-row"]');
+    const backBtn = row1?.querySelector('[data-testid="analysis-mobile-import-back-btn"]');
+    const mvpBadge = row1?.querySelector('[data-testid="analysis-mobile-mvp-badge"]');
+    assert.ok(row1 && backBtn && mvpBadge, `Baris 1 wajib berisi tombol Kembali di kiri & badge MVP 5.1 di kanan pada ${vp}px`);
+    assert.equal(mvpBadge.textContent.trim(), 'MVP 5.1');
+
+    const titleEl = topbar.querySelector('[data-testid="analysis-mobile-import-title"]');
+    const descEl = topbar.querySelector('[data-testid="analysis-mobile-import-desc"]');
+    assert.ok(titleEl && descEl, `Baris 2 (judul) dan Baris 3 (deskripsi) wajib ada pada ${vp}px`);
+    assert.equal(titleEl.textContent.trim(), 'Chess Analysis Studio');
+    assert.equal(descEl.textContent.trim(), 'Import dan review permainan catur Anda');
+
+    // Pastikan urutan elemen langsung di dalam header adalah: Baris 1 (row), Baris 2 (h1), Baris 3 (p)
+    assert.equal(topbar.children.length, 3, `Header mobile harus tersusun tepat menjadi 3 baris elemen langsung pada ${vp}px`);
+    assert.equal(topbar.children[0], row1, 'Anak ke-1 header adalah baris tombol Kembali & badge MVP 5.1');
+    assert.equal(topbar.children[1], titleEl, 'Anak ke-2 header adalah judul Chess Analysis Studio lebar penuh');
+    assert.equal(topbar.children[2], descEl, 'Anak ke-3 header adalah deskripsi singkat lebar penuh');
+
+    // 2. Verifikasi Notifikasi menampilkan ikon, pesan utuh (tidak kosong), dan tombol tutup sejajar
+    const alertBanner = mount.querySelector('[data-testid="pgn-error-alert"]');
+    assert.ok(alertBanner, `Banner notifikasi wajib ada pada ${vp}px`);
+    assert.equal(alertBanner.classList.contains('hidden'), false, `Notifikasi awal pada ${vp}px harus tampil secara utuh (tidak sekadar disembunyikan)`);
+
+    const alertTitle = mount.querySelector('[data-testid="pgn-error-title"]').textContent.trim();
+    const alertMsg = mount.querySelector('[data-testid="pgn-error-message"]').textContent.trim();
+    assert.ok(alertTitle.length > 0, `Judul notifikasi tidak boleh kosong pada ${vp}px`);
+    assert.ok(alertMsg.length > 20, `Pesan notifikasi harus tampil secara utuh pada ${vp}px (aktual: "${alertMsg}")`);
+    assert.equal(alertBanner.children.length, 3, 'Struktur notifikasi harus terdiri dari 3 elemen sejajar: ikon, body pesan, dan tombol tutup');
+
+    // Klik tombol tutup X -> notifikasi tertutup
+    mount.querySelector('[data-testid="pgn-error-dismiss-btn"]').click();
+    assert.equal(
+      mount.querySelector('[data-testid="pgn-error-alert"]').classList.contains('hidden'),
+      true,
+      `Tombol tutup X harus menyembunyikan notifikasi saat ditekan pada ${vp}px`
+    );
+
+    // Jika terjadi error validasi PGN (misal submit kosong), notifikasi kembali tampil dengan pesan error utuh
+    mount.querySelector('[data-testid="analysis-mobile-validate-cta"]').click();
+    const errorBannerAfterSubmit = mount.querySelector('[data-testid="pgn-error-alert"]');
+    assert.equal(errorBannerAfterSubmit.classList.contains('hidden'), false);
+    assert.equal(errorBannerAfterSubmit.classList.contains('is-error'), true);
+    assert.ok(
+      mount.querySelector('[data-testid="pgn-error-message"]').textContent.toLowerCase().includes('kosong'),
+      `Pesan error validasi harus tampil utuh pada ${vp}px`
+    );
+  }
+
+  // 3. Verifikasi CSS: bebas dari variabel yatim (--danger-bg / --danger-border / var(--danger)) dan memiliki font 28-34px
+  const componentsCss = fs.readFileSync(path.join(ROOT, 'css/components.css'), 'utf8');
+  assert.equal(
+    /var\(--danger(?:-bg|-border)?\)/.test(componentsCss),
+    false,
+    'Tidak boleh ada variabel CSS yatim --danger / --danger-bg / --danger-border di components.css'
+  );
+  assert.ok(
+    /\.analysis-studio-page\s+\.hidden[\s\S]*?display:\s*none\s*!important/i.test(componentsCss),
+    '.analysis-studio-page .hidden harus memiliki display: none !important'
+  );
+  assert.ok(
+    /clamp\(1\.75rem,\s*5\.2vw,\s*2\.125rem\)/i.test(componentsCss),
+    'Judul mobile wajib menggunakan ukuran font responsif 28px-34px (clamp(1.75rem, 5.2vw, 2.125rem))'
+  );
+
+  globalThis.window.innerWidth = 1366;
+});
+
+// ---------------------------------------------------------------------------
 // Ringkasan Akhir
 // ---------------------------------------------------------------------------
 console.log('\n====================================================================');

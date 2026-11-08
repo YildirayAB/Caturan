@@ -96,6 +96,7 @@ export function createInitialAnalysisSessionState() {
     isValidating: false,
     validationCount: 0,
     showInputPanelInPreview: false,
+    isImportNoticeDismissed: false,
     copyStatusMessage: ''
   };
 }
@@ -113,6 +114,10 @@ export function renderAnalysisView(container, sessionState, callbacks = {}) {
   const state = sessionState || createInitialAnalysisSessionState();
   const hasValidGame = Boolean(state.parsedGame && state.parsedGame.valid);
   const isMobile = isMobileAnalysisViewport();
+  const isMobileOrTabletPortrait =
+    typeof window !== 'undefined' && typeof window.innerWidth === 'number'
+      ? window.innerWidth <= 768
+      : isMobile;
 
   // Pastikan state.mobileScreen konsisten: jika belum ada game valid, wajib di screen 'import'
   if (!hasValidGame) {
@@ -133,18 +138,28 @@ export function renderAnalysisView(container, sessionState, callbacks = {}) {
     ? hasValidGame && activeMobileScreen === 'review'
     : hasValidGame;
 
+  const hasError = Boolean(state.validationError);
+  const showMobileGuideNotice =
+    isMobileOrTabletPortrait &&
+    activeMobileScreen === 'import' &&
+    !hasValidGame &&
+    !state.isImportNoticeDismissed;
+  const showNotificationBanner =
+    (hasError && (activeMobileScreen === 'import' || !isMobile)) || showMobileGuideNotice;
+  const bannerStateClass = hasError ? 'is-error' : 'is-notice';
+
   container.innerHTML = `
     <div
       class="analysis-studio-page mobile-screen-${activeMobileScreen}"
       data-testid="analysis-studio-page"
       data-mobile-screen="${activeMobileScreen}"
     >
-      <!-- MOBILE SCREEN 1 TOPBAR (Hanya tampil di <= 600px saat berada di Screen Import) -->
+      <!-- MOBILE & TABLET PORTRAIT TOPBAR (Susunan 3 Baris: 1. Kembali + MVP 5.1, 2. Judul Full Width, 3. Deskripsi Full Width) -->
       <header
         class="analysis-mobile-only analysis-mobile-import-topbar ${activeMobileScreen === 'import' ? '' : 'hidden'}"
         data-testid="analysis-mobile-import-topbar"
       >
-        <div class="analysis-mobile-topbar-row">
+        <div class="analysis-mobile-topbar-row" data-testid="analysis-mobile-topbar-row">
           <button
             type="button"
             class="btn btn-secondary btn-sm analysis-touch-btn analysis-mobile-back-btn"
@@ -155,14 +170,12 @@ export function renderAnalysisView(container, sessionState, callbacks = {}) {
             ${UI_ICONS.arrowLeft}
             <span>Kembali</span>
           </button>
-          <span class="badge badge-orange">MVP 5.1</span>
+          <span class="badge badge-accent badge-orange" data-testid="analysis-mobile-mvp-badge">MVP 5.1</span>
         </div>
-        <div class="analysis-mobile-import-heading">
-          <h1 class="analysis-mobile-title" data-testid="analysis-mobile-import-title">Chess Analysis Studio</h1>
-          <p class="analysis-mobile-subtitle" data-testid="analysis-mobile-import-desc">
-            Import dan review permainan catur Anda
-          </p>
-        </div>
+        <h1 class="analysis-mobile-title" data-testid="analysis-mobile-import-title">Chess Analysis Studio</h1>
+        <p class="analysis-mobile-subtitle" data-testid="analysis-mobile-import-desc">
+          Import dan review permainan catur Anda
+        </p>
       </header>
 
       <!-- MOBILE SCREEN 2 TOPBAR (Hanya tampil di <= 600px saat berada di Screen Game Review) -->
@@ -246,9 +259,9 @@ export function renderAnalysisView(container, sessionState, callbacks = {}) {
         }
       </header>
 
-      <!-- ERROR BANNER (Digunakan pada Desktop maupun Mobile Screen 1) -->
+      <!-- NOTIFICATION & ERROR BANNER (Ikon di kiri, pesan utuh di tengah, tombol tutup di kanan) -->
       <div
-        class="analysis-error-banner ${state.validationError && activeMobileScreen === 'import' ? '' : state.validationError && !isMobile ? '' : 'hidden'}"
+        class="analysis-error-banner ${bannerStateClass} ${showNotificationBanner ? '' : 'hidden'}"
         role="alert"
         aria-live="assertive"
         data-testid="pgn-error-alert"
@@ -260,10 +273,10 @@ export function renderAnalysisView(container, sessionState, callbacks = {}) {
         </div>
         <button
           type="button"
-          class="btn btn-ghost btn-sm analysis-touch-btn"
+          class="btn btn-ghost btn-sm analysis-touch-btn analysis-error-close-btn"
           data-action="analysis-dismiss-error"
           data-testid="pgn-error-dismiss-btn"
-          aria-label="Tutup pesan error"
+          aria-label="Tutup pesan notifikasi"
         >
           ${UI_ICONS.close}
         </button>
@@ -692,10 +705,10 @@ export function renderAnalysisView(container, sessionState, callbacks = {}) {
     textareaEl.value = state.rawPgnText || '';
   }
 
-  // Isi pesan error bila ada (menggunakan textContent agar 100% aman dari XSS)
+  // Isi pesan notifikasi / error secara utuh (menggunakan textContent agar 100% aman dari XSS)
+  const errTitleEl = container.querySelector('[data-testid="pgn-error-title"]');
+  const errMsgEl = container.querySelector('[data-testid="pgn-error-message"]');
   if (state.validationError) {
-    const errTitleEl = container.querySelector('[data-testid="pgn-error-title"]');
-    const errMsgEl = container.querySelector('[data-testid="pgn-error-message"]');
     if (errTitleEl) {
       errTitleEl.textContent = safeDisplayValue(
         state.validationError.errorTitle,
@@ -707,6 +720,14 @@ export function renderAnalysisView(container, sessionState, callbacks = {}) {
         state.validationError.errorMessage,
         'PGN tidak valid. Periksa kembali format notasi dan legalitas langkah catur.'
       );
+    }
+  } else {
+    if (errTitleEl) {
+      errTitleEl.textContent = 'Panduan Format PGN (Maks. 2 MB)';
+    }
+    if (errMsgEl) {
+      errMsgEl.textContent =
+        'Unggah satu file .pgn atau tempelkan urutan notasi langkah SAN yang legal untuk mulai me-review permainan.';
     }
   }
 
@@ -1398,11 +1419,12 @@ function _bindAnalysisViewEvents(container, state, callbacks) {
     });
   }
 
-  // Dismiss error alert
+  // Dismiss error / notification alert
   const dismissErrBtn = container.querySelector('[data-action="analysis-dismiss-error"]');
   if (dismissErrBtn) {
     dismissErrBtn.addEventListener('click', () => {
       state.validationError = null;
+      state.isImportNoticeDismissed = true;
       renderAnalysisView(container, state, callbacks);
     });
   }

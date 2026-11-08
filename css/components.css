@@ -4113,6 +4113,35 @@
   box-sizing: border-box;
 }
 
+.analysis-studio-page .hidden,
+.analysis-error-banner.hidden {
+  display: none !important;
+}
+
+.badge-orange {
+  background-color: var(--accent-soft);
+  color: var(--accent-main);
+  border: 1px solid var(--accent-border);
+}
+
+.badge-green {
+  background-color: var(--status-success-bg);
+  color: var(--status-success-text);
+  border: 1px solid var(--status-success-border);
+}
+
+.btn-ghost {
+  background-color: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+}
+
+.btn-ghost:hover:not(:disabled) {
+  background-color: var(--bg-subtle);
+  color: var(--text-main);
+  border-color: var(--border-strong);
+}
+
 .analysis-touch-btn {
   min-height: 44px;
   padding: 10px 16px;
@@ -4124,22 +4153,24 @@
 }
 
 .analysis-danger-btn {
-  color: var(--danger);
-  border-color: var(--danger-border);
+  color: var(--status-danger-text);
+  border-color: var(--status-danger-border);
 }
 
 .analysis-danger-btn:hover {
-  background-color: var(--danger-bg);
+  background-color: var(--status-danger-bg);
 }
 
-/* Error Alert Box */
+/* Notification & Error Alert Box (Ikon di kiri, pesan utuh di tengah, tombol tutup di kanan sejajar) */
 .analysis-error-banner {
   display: flex;
-  align-items: flex-start;
-  gap: 14px;
-  padding: 16px 18px;
-  background-color: var(--danger-bg);
-  border: 1px solid var(--danger-border);
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  background-color: var(--status-danger-bg);
+  border: 1px solid var(--status-danger-border);
   border-radius: var(--radius-md);
   color: var(--text-main);
   width: 100%;
@@ -4148,10 +4179,28 @@
   box-sizing: border-box;
 }
 
+.analysis-error-banner.is-notice {
+  background-color: var(--status-warning-bg);
+  border-color: var(--status-warning-border);
+}
+
+.analysis-error-banner.is-error {
+  background-color: var(--status-danger-bg);
+  border-color: var(--status-danger-border);
+}
+
 .analysis-error-icon {
-  color: var(--danger);
+  color: var(--status-danger-text);
   flex-shrink: 0;
-  margin-top: 2px;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.analysis-error-banner.is-notice .analysis-error-icon {
+  color: var(--status-warning-text);
 }
 
 .analysis-error-body {
@@ -4159,22 +4208,51 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  justify-content: center;
+  gap: 3px;
 }
 
 .analysis-error-title {
-  font-size: 0.96rem;
+  font-size: 0.92rem;
   font-weight: 800;
-  color: var(--danger);
-  overflow-wrap: anywhere;
+  line-height: 1.35;
+  color: var(--status-danger-text);
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+.analysis-error-banner.is-notice .analysis-error-title {
+  color: var(--status-warning-text);
 }
 
 .analysis-error-message {
-  font-size: 0.88rem;
+  font-size: 0.85rem;
   color: var(--text-main);
-  line-height: 1.5;
+  line-height: 1.45;
   margin: 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+.analysis-error-close-btn {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+}
+
+.analysis-error-close-btn:hover {
+  background-color: var(--bg-subtle);
+  border-color: var(--border-strong);
 }
 
 /* Input Grid (Upload PGN File & Paste PGN) */
@@ -4745,6 +4823,110 @@
 }
 
 /* =========================================================================
+   HEADER & NOTIFIKASI MOBILE + TABLET PORTRAIT (<= 768px)
+   Susunan 3 Baris:
+   1. Baris pertama: tombol Kembali di kiri & badge MVP 5.1 di kanan
+   2. Baris kedua: judul Chess Analysis Studio lebar penuh (28px-34px)
+   3. Baris ketiga: deskripsi singkat lebar penuh
+   ========================================================================= */
+@media (max-width: 768px) {
+  .analysis-studio-page[data-mobile-screen="import"] .analysis-mobile-import-topbar:not(.hidden) {
+    display: flex !important;
+  }
+
+  .analysis-studio-page[data-mobile-screen="import"] .analysis-desktop-header {
+    display: none !important;
+  }
+
+  .analysis-mobile-import-topbar {
+    display: flex;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    justify-content: flex-start;
+    gap: 14px;
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-card);
+    padding: 18px 20px;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  /* Baris Pertama: Tombol Kembali di kiri & Badge MVP 5.1 di kanan */
+  .analysis-mobile-topbar-row {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .analysis-mobile-back-btn,
+  .analysis-mobile-topbar-back-btn {
+    min-height: 44px;
+    padding: 8px 14px;
+    flex-shrink: 0;
+  }
+
+  .analysis-mobile-topbar-row .badge {
+    flex-shrink: 0;
+    margin-left: auto;
+    padding: 6px 12px;
+    font-size: 0.78rem;
+    font-weight: 800;
+  }
+
+  /* Baris Kedua: Judul Chess Analysis Studio menggunakan lebar penuh (28-34px) */
+  .analysis-mobile-title,
+  .analysis-mobile-import-title {
+    width: 100%;
+    max-width: 100%;
+    font-size: clamp(1.75rem, 5.2vw, 2.125rem);
+    font-weight: 800;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+    color: var(--text-main);
+    margin: 0;
+    word-break: normal;
+    overflow-wrap: break-word;
+  }
+
+  /* Baris Ketiga: Deskripsi singkat menggunakan lebar penuh */
+  .analysis-mobile-subtitle,
+  .analysis-mobile-import-subtitle {
+    width: 100%;
+    max-width: 100%;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    color: var(--text-secondary);
+    margin: 0;
+  }
+
+  /* Notifikasi Mobile & Tablet Portrait: Ikon, pesan utuh, dan tombol tutup sejajar */
+  .analysis-error-banner {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 16px;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  .analysis-error-body {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+}
+
+/* =========================================================================
    MVP 5.1 — MOBILE PGN IMPORT & FULL-SCREEN GAME REVIEW (<= 600px)
    ========================================================================= */
 @media (max-width: 600px) {
@@ -4782,43 +4964,10 @@
      MOBILE SCREEN 1: PGN IMPORT
      ----------------------------------------------------------------------- */
   .analysis-mobile-import-topbar {
-    align-items: flex-start;
-    gap: 10px;
-    background-color: var(--bg-surface);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius-md);
-    padding: 12px 14px;
-    width: 100%;
-    box-sizing: border-box;
-  }
-
-  .analysis-mobile-topbar-back-btn {
-    min-height: 44px;
-    padding: 8px 12px;
-    flex-shrink: 0;
-  }
-
-  .analysis-mobile-import-title-group {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-    flex: 1;
-  }
-
-  .analysis-mobile-import-title {
-    font-size: 1.08rem;
-    font-weight: 800;
-    color: var(--text-main);
-    margin: 0;
-    line-height: 1.25;
-  }
-
-  .analysis-mobile-import-subtitle {
-    font-size: 0.8rem;
-    color: var(--text-secondary);
-    margin: 0;
-    line-height: 1.4;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px;
+    padding: 16px 18px;
   }
 
   .analysis-input-section {
