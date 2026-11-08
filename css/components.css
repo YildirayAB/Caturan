@@ -4049,3 +4049,1339 @@
     grid-template-columns: 1fr;
   }
 }
+
+
+/* =========================================================================
+   MVP 5.1 — CHESS ANALYSIS STUDIO (PGN IMPORT, VALIDATION & REPLAY PREVIEW)
+   Warna solid 100% tanpa gradasi untuk Dark Mode (#101C30) & Light Mode (#F8F5EF)
+   ========================================================================= */
+
+.analysis-studio-page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.analysis-studio-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-color);
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.analysis-studio-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  flex: 1 1 280px;
+}
+
+.analysis-studio-kicker {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.analysis-header-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.analysis-valid-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 6px 14px;
+  font-size: 0.85rem;
+  font-weight: 800;
+  box-sizing: border-box;
+}
+
+.analysis-studio-page .hidden,
+.analysis-error-banner.hidden {
+  display: none !important;
+}
+
+.badge-orange {
+  background-color: var(--accent-soft);
+  color: var(--accent-main);
+  border: 1px solid var(--accent-border);
+}
+
+.badge-green {
+  background-color: var(--status-success-bg);
+  color: var(--status-success-text);
+  border: 1px solid var(--status-success-border);
+}
+
+.btn-ghost {
+  background-color: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+}
+
+.btn-ghost:hover:not(:disabled) {
+  background-color: var(--bg-subtle);
+  color: var(--text-main);
+  border-color: var(--border-strong);
+}
+
+.analysis-touch-btn {
+  min-height: 44px;
+  padding: 10px 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-sizing: border-box;
+}
+
+.analysis-danger-btn {
+  color: var(--status-danger-text);
+  border-color: var(--status-danger-border);
+}
+
+.analysis-danger-btn:hover {
+  background-color: var(--status-danger-bg);
+}
+
+/* Notification & Error Alert Box (Ikon di kiri, pesan utuh di tengah, tombol tutup di kanan sejajar) */
+.analysis-error-banner {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  background-color: var(--status-danger-bg);
+  border: 1px solid var(--status-danger-border);
+  border-radius: var(--radius-md);
+  color: var(--text-main);
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.analysis-error-banner.is-notice {
+  background-color: var(--status-warning-bg);
+  border-color: var(--status-warning-border);
+}
+
+.analysis-error-banner.is-error {
+  background-color: var(--status-danger-bg);
+  border-color: var(--status-danger-border);
+}
+
+.analysis-error-icon {
+  color: var(--status-danger-text);
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.analysis-error-banner.is-notice .analysis-error-icon {
+  color: var(--status-warning-text);
+}
+
+.analysis-error-body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+}
+
+.analysis-error-title {
+  font-size: 0.92rem;
+  font-weight: 800;
+  line-height: 1.35;
+  color: var(--status-danger-text);
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+.analysis-error-banner.is-notice .analysis-error-title {
+  color: var(--status-warning-text);
+}
+
+.analysis-error-message {
+  font-size: 0.85rem;
+  color: var(--text-main);
+  line-height: 1.45;
+  margin: 0;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+.analysis-error-close-btn {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+}
+
+.analysis-error-close-btn:hover {
+  background-color: var(--bg-subtle);
+  border-color: var(--border-strong);
+}
+
+/* Input Grid (Upload PGN File & Paste PGN) */
+.analysis-input-section {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.analysis-input-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  align-items: stretch;
+  width: 100%;
+  min-width: 0;
+}
+
+.analysis-input-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.analysis-card-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.analysis-card-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: var(--radius-sm);
+  background-color: var(--accent-soft);
+  color: var(--accent-main);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.analysis-upload-zone {
+  position: relative;
+  border: 2px dashed var(--border-strong);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-subtle);
+  padding: 24px 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 12px;
+  flex: 1 1 auto;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.analysis-file-input-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
+.analysis-upload-illustration {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  color: var(--accent-main);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.analysis-upload-prompt {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin: 0;
+  max-width: 420px;
+}
+
+.analysis-upload-trigger-row {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.analysis-upload-hint {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.analysis-selected-file-box {
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.analysis-file-meta-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.analysis-file-icon {
+  color: var(--accent-main);
+  flex-shrink: 0;
+}
+
+.analysis-file-text-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.analysis-file-name {
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: var(--text-main);
+  overflow-wrap: anywhere;
+}
+
+.analysis-file-size {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.analysis-file-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Paste PGN Card */
+.analysis-paste-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.analysis-textarea-label {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.analysis-textarea {
+  width: 100%;
+  min-height: 180px;
+  padding: 12px 14px;
+  font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+  font-size: 0.84rem;
+  line-height: 1.55;
+  color: var(--text-main);
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  resize: vertical;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.analysis-textarea:focus {
+  border-color: var(--accent-main);
+}
+
+.analysis-paste-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+/* Preview Section (Metadata + Replay Workspace) */
+.analysis-preview-section {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.analysis-metadata-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.analysis-metadata-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.analysis-metadata-title-wrap {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.analysis-metadata-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+}
+
+.analysis-meta-item {
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.analysis-meta-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.analysis-meta-value {
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: var(--text-main);
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+}
+
+.analysis-fen-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+}
+
+.analysis-fen-box {
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.analysis-fen-code {
+  font-family: monospace;
+  font-size: 0.78rem;
+  color: var(--text-main);
+  overflow-wrap: anywhere;
+  word-break: break-all;
+  line-height: 1.4;
+}
+
+/* Interactive Workspace (Board + Moves Panel) */
+.analysis-workspace-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(300px, 0.85fr);
+  gap: 22px;
+  align-items: start;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.analysis-board-column {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.analysis-player-strip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  min-height: 44px;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.analysis-player-color-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.analysis-player-color-dot.dot-white {
+  background-color: #FFFFFF;
+  border: 2px solid #17243A;
+}
+
+.analysis-player-color-dot.dot-black {
+  background-color: #17243A;
+  border: 2px solid #94A3B8;
+}
+
+.analysis-player-name {
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: var(--text-main);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.analysis-player-side-tag {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+/* Moves Panel */
+.analysis-moves-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.analysis-moves-panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.analysis-move-list-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 360px;
+  min-height: 180px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 8px;
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  box-sizing: border-box;
+}
+
+.analysis-start-ply-btn {
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  text-align: left;
+  font-family: inherit;
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.analysis-start-ply-btn.active {
+  background-color: var(--accent-main);
+  color: #FFFFFF;
+  border-color: var(--accent-main);
+}
+
+.analysis-move-row {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) minmax(0, 1fr);
+  gap: 6px;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+}
+
+.analysis-move-num {
+  font-family: monospace;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  padding-left: 6px;
+}
+
+.analysis-ply-btn {
+  min-height: 44px;
+  width: 100%;
+  min-width: 0;
+  padding: 6px 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-family: monospace;
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--text-main);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.analysis-ply-btn:hover {
+  border-color: var(--accent-main);
+}
+
+.analysis-ply-btn.active {
+  background-color: var(--accent-main);
+  color: #FFFFFF;
+  border-color: var(--accent-main);
+}
+
+.analysis-ply-san {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.analysis-ply-comment-indicator {
+  font-size: 0.75rem;
+  flex-shrink: 0;
+}
+
+.analysis-move-placeholder {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  color: var(--text-muted);
+  font-family: monospace;
+}
+
+.analysis-annotation-box,
+.analysis-current-fen-bar {
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.analysis-annotation-text {
+  font-size: 0.85rem;
+  color: var(--text-main);
+  line-height: 1.5;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.analysis-normalized-pgn-details {
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+}
+
+.analysis-normalized-pgn-summary {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  cursor: pointer;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+}
+
+.analysis-normalized-pgn-pre {
+  margin: 8px 0 0 0;
+  padding: 10px;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  font-family: monospace;
+  font-size: 0.78rem;
+  color: var(--text-main);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+/* Default Desktop/Tablet (> 600px): sembunyikan elemen khusus mobile */
+.analysis-mobile-only {
+  display: none !important;
+}
+
+/* Responsive Breakpoints untuk Analysis Studio */
+@media (max-width: 1100px) {
+  .analysis-workspace-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .analysis-metadata-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .analysis-input-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .analysis-fen-summary-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* =========================================================================
+   HEADER & NOTIFIKASI MOBILE + TABLET PORTRAIT (<= 768px)
+   Susunan 3 Baris:
+   1. Baris pertama: tombol Kembali di kiri & badge MVP 5.1 di kanan
+   2. Baris kedua: judul Chess Analysis Studio lebar penuh (28px-34px)
+   3. Baris ketiga: deskripsi singkat lebar penuh
+   ========================================================================= */
+@media (max-width: 768px) {
+  .analysis-studio-page[data-mobile-screen="import"] .analysis-mobile-import-topbar:not(.hidden) {
+    display: flex !important;
+  }
+
+  .analysis-studio-page[data-mobile-screen="import"] .analysis-desktop-header {
+    display: none !important;
+  }
+
+  .analysis-mobile-import-topbar {
+    display: flex;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    justify-content: flex-start;
+    gap: 14px;
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-card);
+    padding: 18px 20px;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  /* Baris Pertama: Tombol Kembali di kiri & Badge MVP 5.1 di kanan */
+  .analysis-mobile-topbar-row {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .analysis-mobile-back-btn,
+  .analysis-mobile-topbar-back-btn {
+    min-height: 44px;
+    padding: 8px 14px;
+    flex-shrink: 0;
+  }
+
+  .analysis-mobile-topbar-row .badge {
+    flex-shrink: 0;
+    margin-left: auto;
+    padding: 6px 12px;
+    font-size: 0.78rem;
+    font-weight: 800;
+  }
+
+  /* Baris Kedua: Judul Chess Analysis Studio menggunakan lebar penuh (28-34px) */
+  .analysis-mobile-title,
+  .analysis-mobile-import-title {
+    width: 100%;
+    max-width: 100%;
+    font-size: clamp(1.75rem, 5.2vw, 2.125rem);
+    font-weight: 800;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+    color: var(--text-main);
+    margin: 0;
+    word-break: normal;
+    overflow-wrap: break-word;
+  }
+
+  /* Baris Ketiga: Deskripsi singkat menggunakan lebar penuh */
+  .analysis-mobile-subtitle,
+  .analysis-mobile-import-subtitle {
+    width: 100%;
+    max-width: 100%;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    color: var(--text-secondary);
+    margin: 0;
+  }
+
+  /* Notifikasi Mobile & Tablet Portrait: Ikon, pesan utuh, dan tombol tutup sejajar */
+  .analysis-error-banner {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 16px;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  .analysis-error-body {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+}
+
+/* =========================================================================
+   MVP 5.1 — MOBILE PGN IMPORT & FULL-SCREEN GAME REVIEW (<= 600px)
+   ========================================================================= */
+@media (max-width: 600px) {
+  .analysis-mobile-only:not(.hidden) {
+    display: flex !important;
+  }
+
+  /* Sembunyikan elemen khusus desktop pada mobile */
+  .analysis-desktop-header,
+  .analysis-desktop-metadata-card,
+  .analysis-desktop-moves-panel,
+  .analysis-desktop-only-btn,
+  .analysis-desktop-submit-btn {
+    display: none !important;
+  }
+
+  /* Dua screen terpisah: jangan tampilkan import dan review sekaligus di mobile */
+  .analysis-studio-page[data-mobile-screen="import"] .analysis-preview-section {
+    display: none !important;
+  }
+
+  .analysis-studio-page[data-mobile-screen="review"] .analysis-input-section {
+    display: none !important;
+  }
+
+  .analysis-studio-page {
+    gap: 12px;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: hidden;
+  }
+
+  /* -----------------------------------------------------------------------
+     MOBILE SCREEN 1: PGN IMPORT
+     ----------------------------------------------------------------------- */
+  .analysis-mobile-import-topbar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px;
+    padding: 16px 18px;
+  }
+
+  .analysis-input-section {
+    gap: 12px;
+  }
+
+  .analysis-input-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .analysis-input-card {
+    padding: 14px;
+    gap: 12px;
+  }
+
+  .analysis-upload-dropzone {
+    padding: 14px 12px;
+    gap: 8px;
+  }
+
+  .analysis-upload-trigger-row {
+    width: 100%;
+  }
+
+  .analysis-upload-trigger-row .btn,
+  .analysis-file-actions .btn {
+    width: 100%;
+    min-height: 44px;
+    justify-content: center;
+  }
+
+  .analysis-file-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .analysis-textarea {
+    min-height: 170px;
+    font-size: 16px;
+    line-height: 1.45;
+    padding: 12px;
+  }
+
+  .analysis-paste-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .analysis-paste-actions .btn {
+    width: 100%;
+    min-height: 44px;
+    justify-content: center;
+  }
+
+  .analysis-mobile-cta-bar {
+    width: 100%;
+    padding-top: 2px;
+    padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+    box-sizing: border-box;
+  }
+
+  .analysis-mobile-validate-cta {
+    width: 100%;
+    min-height: 48px;
+    padding: 12px 16px;
+    font-size: 0.95rem;
+    font-weight: 800;
+    justify-content: center;
+  }
+
+  /* -----------------------------------------------------------------------
+     MOBILE SCREEN 2: FULL-SCREEN GAME REVIEW
+     ----------------------------------------------------------------------- */
+  .analysis-preview-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+    box-sizing: border-box;
+  }
+
+  .analysis-mobile-review-topbar {
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 8px 10px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .analysis-mobile-review-title {
+    font-size: 0.98rem;
+    font-weight: 800;
+    color: var(--text-main);
+    margin: 0;
+    text-align: center;
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .analysis-mobile-topbar-option-btn {
+    min-height: 44px;
+    padding: 8px 10px;
+    flex-shrink: 0;
+  }
+
+  /* B. Game Information Panel Ringkas */
+  .analysis-mobile-game-info {
+    flex-direction: column;
+    gap: 6px;
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 10px 12px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .analysis-mobile-game-info-top,
+  .analysis-mobile-players-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .analysis-mobile-players-matchup {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .analysis-mobile-player-line,
+  .analysis-mobile-player {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .analysis-mobile-side-label {
+    font-size: 0.74rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+  }
+
+  .analysis-mobile-player-val,
+  .analysis-mobile-player-name {
+    font-size: 0.84rem;
+    font-weight: 800;
+    color: var(--text-main);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+  }
+
+  .analysis-mobile-result-pill {
+    flex-shrink: 0;
+    background-color: var(--bg-subtle);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: 2px 8px;
+    font-family: monospace;
+    font-size: 0.78rem;
+    font-weight: 800;
+    color: var(--accent-main);
+  }
+
+  .analysis-mobile-event-line,
+  .analysis-mobile-meta-context {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+  }
+
+  .analysis-mobile-valid-pill,
+  .analysis-mobile-valid-badge {
+    padding: 2px 8px;
+    font-size: 0.7rem;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  /* C. Interactive Chessboard Panel on Mobile */
+  .analysis-workspace-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .analysis-board-panel,
+  .analysis-board-column {
+    padding: 4px 0;
+    gap: 8px;
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  /* D. Move Navigation Strip (Horizontal Scroll Internal) */
+  .analysis-mobile-move-strip {
+    align-items: center;
+    gap: 6px;
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 6px;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  .analysis-mobile-strip-nav-btn,
+  .analysis-mobile-strip-step-btn {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--bg-subtle);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    color: var(--text-main);
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .analysis-mobile-strip-nav-btn:disabled,
+  .analysis-mobile-strip-step-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  .analysis-mobile-strip-scroll {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    white-space: nowrap;
+    flex: 1;
+    min-width: 0;
+    padding: 2px 4px;
+    scrollbar-width: thin;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .analysis-mobile-san-pair {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+
+  .analysis-mobile-san-num,
+  .analysis-mobile-move-turn-num {
+    font-family: monospace;
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    padding-left: 4px;
+    flex-shrink: 0;
+  }
+
+  .analysis-mobile-san-pill {
+    min-height: 44px;
+    padding: 6px 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-family: monospace;
+    font-size: 0.84rem;
+    font-weight: 700;
+    color: var(--text-main);
+    background-color: var(--bg-subtle);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    flex-shrink: 0;
+    white-space: nowrap;
+    box-sizing: border-box;
+  }
+
+  .analysis-mobile-san-pill.active {
+    background-color: var(--accent-main);
+    color: #FFFFFF;
+    border-color: var(--accent-main);
+  }
+
+  .analysis-mobile-strip-empty {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    padding: 0 8px;
+  }
+
+  /* Komentar PGN pada Mobile Review */
+  .analysis-mobile-comment-bar {
+    flex-direction: column;
+    gap: 2px;
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: 8px 10px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .analysis-mobile-comment-label {
+    font-size: 0.7rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    color: var(--accent-main);
+  }
+
+  .analysis-mobile-comment-text {
+    font-size: 0.8rem;
+    color: var(--text-main);
+    margin: 0;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+  }
+
+  /* E. Bottom Review Toolbar */
+  .analysis-mobile-bottom-toolbar {
+    display: grid !important;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 6px;
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 8px 8px calc(8px + env(safe-area-inset-bottom, 0px)) 8px;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  .analysis-mobile-toolbar-btn {
+    min-height: 48px;
+    min-width: 0;
+    width: 100%;
+    padding: 6px 4px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    background-color: var(--bg-subtle);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    color: var(--text-main);
+    cursor: pointer;
+    font-size: 0.68rem;
+    font-weight: 700;
+    box-sizing: border-box;
+  }
+
+  .analysis-mobile-toolbar-primary,
+  .analysis-mobile-toolbar-btn-primary {
+    background-color: var(--accent-main);
+    border-color: var(--accent-main);
+    color: #FFFFFF;
+  }
+
+  .analysis-mobile-toolbar-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  .analysis-mobile-toolbar-label {
+    font-size: 0.66rem;
+    font-weight: 700;
+    line-height: 1.1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 360px) {
+  .analysis-file-actions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .analysis-mobile-toolbar-label {
+    font-size: 0.6rem;
+  }
+}
