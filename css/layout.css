@@ -917,6 +917,168 @@ body.drawer-open {
     padding: 4px 6px;
     min-height: 30px;
     font-size: 0.69rem;
+  }
+}
+
+/* ============================================================================
+ * MVP 5.4 — Mobile Global Header Layout Fix (Anti-Overlap & Two-Row Mobile Bar)
+ * ============================================================================ */
+.topbar-app-name {
+  flex-shrink: 0;
+}
+
+.board-prefs-topbar-wrapper {
+  flex-shrink: 0;
+}
+
+@media (max-width: 860px) {
+  .app-topbar {
+    flex-wrap: wrap;
+    row-gap: 8px;
+    column-gap: 10px;
+    height: auto;
+  }
+
+  .topbar-left {
+    flex: 0 0 auto;
+    min-width: 0;
+    gap: 10px;
+  }
+
+  .topbar-right {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-width: 0;
+    margin-left: auto;
+  }
+
+  .topbar-quick-stats {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .mobile-menu-trigger,
+  .theme-toggle-btn,
+  .board-prefs-trigger-btn {
+    min-width: 44px;
+    min-height: 44px;
+    flex-shrink: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .app-topbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 8px;
+    column-gap: 10px;
+    padding: 8px 14px;
+    height: auto;
+    align-items: center;
+  }
+
+  .topbar-left {
+    width: 100%;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 10px;
+  }
+
+  .topbar-app-name {
+    font-size: 1.02rem;
+    font-weight: 800;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  .topbar-right {
+    width: 100%;
+    min-width: 0;
+    margin-left: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .topbar-quick-stats {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .board-prefs-topbar-wrapper {
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+
+  .quick-stat-pill {
+    padding: 6px 10px;
+    min-height: 36px;
+    font-size: 0.78rem;
+    flex-shrink: 0;
+  }
+
+  .mobile-menu-trigger,
+  .theme-toggle-btn,
+  .board-prefs-trigger-btn {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+}
+
+@media (max-width: 380px) {
+  .app-topbar {
+    padding: 8px 12px;
+    row-gap: 6px;
+  }
+
+  .topbar-right,
+  .topbar-quick-stats {
+    gap: 6px;
+  }
+
+  .topbar-app-name {
+    font-size: 0.96rem;
+    flex-shrink: 0;
+  }
+
+  .quick-stat-pill {
+    padding: 5px 8px;
+    min-height: 34px;
+    font-size: 0.74rem;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+}
+
+@media (max-width: 350px) {
+  .topbar-app-name {
+    font-size: 0.92rem;
+    flex-shrink: 0;
+  }
+
+  .quick-stat-pill {
+    padding: 4px 7px;
+    min-height: 32px;
+    font-size: 0.71rem;
     gap: 3px;
   }
 

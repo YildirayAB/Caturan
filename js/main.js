@@ -307,6 +307,7 @@ export class CaturanApp {
     destroyActivePuzzleBoard();
     destroyActivePlayBoard({ terminateEngine: true });
     this._destroyActiveOpeningBoard();
+    destroyActiveAnalysisBoard();
     this._clearActivePlaySession();
 
     if (this.appShell && this.appShell.classList) {
@@ -666,6 +667,7 @@ export class CaturanApp {
     destroyActivePuzzleBoard();
     destroyActivePlayBoard({ terminateEngine: true });
     this._destroyActiveOpeningBoard();
+    destroyActiveAnalysisBoard();
     this._clearActivePlaySession();
     this.unfinishedPlayNotice = null;
     this.closeMobileSidebar();
@@ -761,6 +763,7 @@ export class CaturanApp {
     destroyActivePuzzleBoard();
     destroyActivePlayBoard({ terminateEngine: true });
     this._destroyActiveOpeningBoard();
+    destroyActiveAnalysisBoard();
     this._clearActivePlaySession();
     this.unfinishedPlayNotice = null;
     this.closeMobileSidebar();
@@ -916,6 +919,7 @@ export class CaturanApp {
     destroyActivePuzzleBoard();
     destroyActivePlayBoard({ terminateEngine: false });
     this._destroyActiveOpeningBoard();
+    destroyActiveAnalysisBoard();
     this.closeMobileSidebar();
 
     if (settings) {
@@ -958,6 +962,7 @@ export class CaturanApp {
     destroyActivePuzzleBoard();
     destroyActivePlayBoard({ terminateEngine: true });
     this._destroyActiveOpeningBoard();
+    destroyActiveAnalysisBoard();
     this._clearActivePlaySession();
     this.unfinishedPlayNotice = null;
     this.closeMobileSidebar();
@@ -992,6 +997,7 @@ export class CaturanApp {
     destroyActivePuzzleBoard();
     destroyActivePlayBoard({ terminateEngine: true });
     this._destroyActiveOpeningBoard();
+    destroyActiveAnalysisBoard();
     this._clearActivePlaySession();
     this.unfinishedPlayNotice = null;
     this.closeMobileSidebar();
@@ -1019,6 +1025,7 @@ export class CaturanApp {
     destroyActivePuzzleBoard();
     destroyActivePlayBoard({ terminateEngine: true });
     this._destroyActiveOpeningBoard();
+    destroyActiveAnalysisBoard();
     this._clearActivePlaySession();
     this.unfinishedPlayNotice = null;
     this.closeMobileSidebar();

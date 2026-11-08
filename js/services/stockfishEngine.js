@@ -137,7 +137,16 @@ async function createNodeStockfishWorkerAdapter() {
   const initStockfish = requireFn('stockfish');
 
   if (!cachedNodeEngineInstance) {
-    cachedNodeEngineInstance = await Promise.resolve(initStockfish('lite-single'));
+    if (globalThis.__caturanSharedNodeStockfishEngine) {
+      cachedNodeEngineInstance = globalThis.__caturanSharedNodeStockfishEngine;
+    } else {
+      const savedFetch = globalThis.fetch;
+      cachedNodeEngineInstance = await Promise.resolve(initStockfish('lite-single'));
+      if (savedFetch && !globalThis.fetch) {
+        globalThis.fetch = savedFetch;
+      }
+      globalThis.__caturanSharedNodeStockfishEngine = cachedNodeEngineInstance;
+    }
   }
   const engine = cachedNodeEngineInstance;
 
