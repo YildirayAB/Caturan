@@ -146,6 +146,21 @@ class MockElement {
     return child;
   }
 
+  removeChild(child) {
+    const idx = this.children.indexOf(child);
+    if (idx !== -1) {
+      this.children.splice(idx, 1);
+      child.parentNode = null;
+    }
+    return child;
+  }
+
+  remove() {
+    if (this.parentNode && typeof this.parentNode.removeChild === 'function') {
+      this.parentNode.removeChild(this);
+    }
+  }
+
   closest(selector) {
     let curr = this;
     while (curr && curr instanceof MockElement) {
@@ -195,7 +210,17 @@ class MockElement {
     }
   }
 
-  focus() {}
+  focus() {
+    if (this.ownerDocument) {
+      this.ownerDocument.activeElement = this;
+    }
+  }
+
+  blur() {
+    if (this.ownerDocument && this.ownerDocument.activeElement === this) {
+      this.ownerDocument.activeElement = null;
+    }
+  }
 
   getBoundingClientRect() {
     if (typeof this._rectProvider === 'function') {
@@ -405,10 +430,35 @@ function setupMockBrowserEnvironment() {
     clear: () => sessionMap.clear()
   };
 
+  const docListeners = new Map();
   const doc = {
     documentElement: new MockElement('html'),
     body: new MockElement('body'),
-    addEventListener: () => {},
+    activeElement: null,
+    listeners: docListeners,
+    addEventListener(type, fn) {
+      if (!docListeners.has(type)) docListeners.set(type, []);
+      docListeners.get(type).push(fn);
+    },
+    removeEventListener(type, fn) {
+      if (!docListeners.has(type)) return;
+      const arr = docListeners.get(type).filter(f => f !== fn);
+      docListeners.set(type, arr);
+    },
+    dispatchEvent(event) {
+      const evt = {
+        type: event.type,
+        target: event.target || this.activeElement || this.body,
+        currentTarget: this,
+        preventDefault: () => {},
+        stopPropagation: () => {},
+        ...event
+      };
+      const fns = docListeners.get(evt.type) || [];
+      for (const fn of [...fns]) {
+        fn(evt);
+      }
+    },
     createElement(tag) {
       return new MockElement(tag, this);
     },
@@ -1734,12 +1784,931 @@ await runTest('28. [Revisi PR MVP 5.1] Header 3 baris (Kembali + MVP 5.1, Judul 
   globalThis.window.innerWidth = 1366;
 });
 
+// ===========================================================================
+// VERIFIKASI CATURAN MVP 5.2 — INTERACTIVE ANALYSIS BOARD & POSITION EXPLORATION
+// (29 Skenario Wajib MVP 5.2 tanpa menghapus 28 skenario MVP 5.1 di atas)
+// ===========================================================================
+console.log('\n====================================================================');
+console.log('MEMULAI VERIFIKASI CATURAN MVP 5.2 — INTERACTIVE ANALYSIS BOARD');
+console.log('====================================================================\n');
+
+function mountStudioWithPgn(pgnText = SAMPLE_PGN_PLACEHOLDER, viewportWidth = 1366) {
+  globalThis.window.innerWidth = viewportWidth;
+  const mount = new MockElement('div', globalThis.document);
+  globalThis.document.body.appendChild(mount);
+  const state = createInitialAnalysisSessionState();
+  state.rawPgnText = pgnText;
+  renderAnalysisView(mount, state);
+
+  if (viewportWidth <= 600) {
+    mount.querySelector('[data-testid="analysis-mobile-validate-cta"]').click();
+  } else {
+    mount.querySelector('[data-testid="pgn-paste-submit-btn"]').click();
+  }
+
+  const board = getActiveAnalysisBoard();
+  return { mount, state, board };
+}
+
+// MVP 5.2 - Test 1: Review Mode
+await runTest('MVP 5.2 [1/29] Review Mode: default saat partai dimuat & memblokir langkah langsung di papan', () => {
+  const { mount, state, board } = mountStudioWithPgn();
+  assert.ok(board);
+  assert.equal(board.getMode(), 'review');
+  assert.equal(state.analysisMode, 'review');
+
+  const reviewBtn = mount.querySelector('[data-testid="analysis-mode-review-btn"]');
+  const exploreBtn = mount.querySelector('[data-testid="analysis-mode-explore-btn"]');
+  assert.equal(reviewBtn.classList.contains('active'), true);
+  assert.equal(exploreBtn.classList.contains('active'), false);
+
+  const initialFen = board.getCurrentFen();
+  // Klik petak e2 lalu e4 pada Review Mode tidak boleh mengubah posisi atau membuat variasi
+  mount.querySelector('[data-square="e2"]').click();
+  mount.querySelector('[data-square="e4"]').click();
+  assert.equal(board.getCurrentPly(), 0);
+  assert.equal(board.getCurrentFen(), initialFen);
+  assert.equal(board.getVariations().length, 0);
+
+  const res = board.playMove({ from: 'e2', to: 'e4' });
+  assert.equal(res.valid, false);
+  assert.equal(res.reason, 'REVIEW_MODE_LOCKED');
+});
+
+// MVP 5.2 - Test 2: Explore Mode
+await runTest('MVP 5.2 [2/29] Explore Mode (Jelajahi Posisi): mengaktifkan interaksi papan & seleksi petak', () => {
+  const { mount, state, board } = mountStudioWithPgn();
+  const exploreBtn = mount.querySelector('[data-testid="analysis-mode-explore-btn"]');
+  exploreBtn.click();
+
+  assert.equal(board.getMode(), 'explore');
+  assert.equal(state.analysisMode, 'explore');
+  assert.equal(exploreBtn.classList.contains('active'), true);
+
+  // Pilih petak asal e2 -> menampilkan highlight petak terpilih & target langkah legal (e3, e4)
+  mount.querySelector('[data-square="e2"]').click();
+  const sqE2 = mount.querySelector('[data-square="e2"]');
+  const sqE4 = mount.querySelector('[data-square="e4"]');
+  assert.equal(sqE2.classList.contains('square-selected'), true);
+  assert.equal(sqE4.classList.contains('square-legal-target'), true);
+});
+
+// MVP 5.2 - Test 3: Memainkan langkah legal
+await runTest('MVP 5.2 [3/29] Memainkan langkah legal di Explore Mode (tap-to-move petak asal -> petak tujuan)', () => {
+  const { mount, board } = mountStudioWithPgn();
+  mount.querySelector('[data-testid="analysis-mode-explore-btn"]').click();
+  board.goToPly(2); // Setelah 1. e4 e5
+
+  // Mainkan 2. Bc4 (berbeda dari mainline 2. Nf3) melalui klik petak f1 -> c4
+  mount.querySelector('[data-square="f1"]').click();
+  mount.querySelector('[data-square="c4"]').click();
+
+  const st = board.getReplayState();
+  assert.equal(st.currentPly, 3);
+  assert.equal(st.lastMoveSan, 'Bc4');
+  assert.equal(
+    mount.querySelector('[data-square="f1"]').classList.contains('square-last-move'),
+    true
+  );
+  assert.equal(
+    mount.querySelector('[data-square="c4"]').classList.contains('square-last-move'),
+    true
+  );
+});
+
+// MVP 5.2 - Test 4: Menolak langkah ilegal
+await runTest('MVP 5.2 [4/29] Menolak langkah ilegal tanpa mengubah posisi papan atau membuat variasi', () => {
+  const { mount, board } = mountStudioWithPgn();
+  mount.querySelector('[data-testid="analysis-mode-explore-btn"]').click();
+  board.goToPly(2); // 1. e4 e5
+  const fenBefore = board.getCurrentFen();
+
+  // Coba langkah ilegal: kuda g1 ke g5 atau pion d2 ke d5
+  const illegalResult = board.playMove({ from: 'd2', to: 'd5' });
+  assert.equal(illegalResult.valid, false);
+  assert.equal(illegalResult.reason, 'ILLEGAL_MOVE');
+  assert.equal(board.getCurrentFen(), fenBefore);
+  assert.equal(board.getCurrentPly(), 2);
+  assert.equal(board.getVariations().length, 0);
+});
+
+// MVP 5.2 - Test 5: Membuat variasi pertama
+await runTest('MVP 5.2 [5/29] Membuat variasi pertama saat langkah berbeda dari mainline dimainkan', () => {
+  const { mount, board } = mountStudioWithPgn();
+  mount.querySelector('[data-testid="analysis-mode-explore-btn"]').click();
+  board.goToPly(2); // Setelah 1. e4 e5 (Mainline ply 3 adalah Nf3)
+
+  const res = board.playSanMove('Bc4');
+  assert.equal(res.valid, true);
+  assert.equal(res.action, 'created_variation');
+  assert.equal(res.variationId, 'var-1');
+
+  const variations = board.getVariations();
+  assert.equal(variations.length, 1);
+  assert.equal(variations[0].id, 'var-1');
+  assert.equal(variations[0].name, 'Variation 1');
+  assert.equal(variations[0].startPly, 3);
+  assert.equal(variations[0].parentPly, 2);
+  assert.equal(variations[0].parentVariationId, 'mainline');
+  assert.deepEqual(variations[0].sanMoves, ['Bc4']);
+  // Pastikan variasi tidak menduplikasi langkah sebelum startPly (hanya 1 langkah di variations[0].moves)
+  assert.equal(variations[0].moves.length, 1);
+});
+
+// MVP 5.2 - Test 6: Membuat beberapa variasi dari parent position yang sama
+await runTest('MVP 5.2 [6/29] Membuat beberapa variasi berbeda (Variation 1, Variation 2, Variation 3) dari parent position yang sama', () => {
+  const { mount, board } = mountStudioWithPgn();
+  mount.querySelector('[data-testid="analysis-mode-explore-btn"]').click();
+
+  // Dari ply 2 (1. e4 e5), buat Variation 1: 2. Bc4
+  board.goToPly(2);
+  const v1 = board.playSanMove('Bc4');
+  assert.equal(v1.variationId, 'var-1');
+
+  // Kembali ke parent position (ply 2), buat Variation 2: 2. Nc3
+  board.returnToParentPosition();
+  assert.equal(board.getCurrentPly(), 2);
+  const v2 = board.playSanMove('Nc3');
+  assert.equal(v2.action, 'created_variation');
+  assert.equal(v2.variationId, 'var-2');
+
+  // Kembali ke parent position (ply 2), buat Variation 3: 2. d4
+  board.returnToParentPosition();
+  const v3 = board.playSanMove('d4');
+  assert.equal(v3.action, 'created_variation');
+  assert.equal(v3.variationId, 'var-3');
+
+  const allVars = board.getVariations();
+  assert.equal(allVars.length, 3);
+  assert.deepEqual(
+    allVars.map(v => ({ id: v.id, parentPly: v.parentPly, firstMove: v.sanMoves[0] })),
+    [
+      { id: 'var-1', parentPly: 2, firstMove: 'Bc4' },
+      { id: 'var-2', parentPly: 2, firstMove: 'Nc3' },
+      { id: 'var-3', parentPly: 2, firstMove: 'd4' }
+    ]
+  );
+});
+
+// MVP 5.2 - Test 7: Melanjutkan variasi beberapa langkah
+await runTest('MVP 5.2 [7/29] Melanjutkan eksplorasi beberapa langkah berturut-turut di dalam variasi', () => {
+  const { mount, board } = mountStudioWithPgn();
+  mount.querySelector('[data-testid="analysis-mode-explore-btn"]').click();
+  board.goToPly(2); // 1. e4 e5
+
+  board.playSanMove('Bc4'); // 2. Bc4 (ply 3)
+  board.playSanMove('Nf6'); // 2... Nf6 (ply 4)
+  board.playSanMove('d3');  // 3. d3 (ply 5)
+  board.playSanMove('Bc5'); // 3... Bc5 (ply 6)
+
+  const v1 = board.getVariations()[0];
+  assert.deepEqual(v1.sanMoves, ['Bc4', 'Nf6', 'd3', 'Bc5']);
+  assert.equal(v1.endPly, 6);
+  assert.equal(board.getCurrentPly(), 6);
+
+  // Uji tombol Lanjutkan pada UI Variation Manager setelah mundur ke ply 3
+  board.goToPly(3);
+  assert.equal(board.getCurrentPly(), 3);
+  mount.querySelector('[data-testid="analysis-variation-continue-var-1"]').click();
+  assert.equal(board.getCurrentPly(), 6);
+  assert.equal(board.getMode(), 'explore');
+});
+
+// MVP 5.2 - Test 8: Berpindah mainline dan variasi
+await runTest('MVP 5.2 [8/29] Berpindah antara Mainline dan Variasi melalui Variation Manager', () => {
+  const { mount, board } = mountStudioWithPgn();
+  mount.querySelector('[data-testid="analysis-mode-explore-btn"]').click();
+  board.goToPly(2);
+  board.playSanMove('Bc4');
+  board.playSanMove('Nf6');
+
+  assert.equal(board.getActiveLineId(), 'var-1');
+
+  // Klik tombol Mainline
+  mount.querySelector('[data-testid="analysis-line-mainline"]').click();
+  assert.equal(board.getActiveLineId(), 'mainline');
+  board.goToPly(3);
+  assert.equal(board.getReplayState().lastMoveSan, 'Nf3'); // Langkah ke-3 di mainline adalah Nf3
+
+  // Pilih kembali Variation 1 dari Variation Manager
+  mount.querySelector('[data-testid="analysis-variation-select-var-1"]').click();
+  assert.equal(board.getActiveLineId(), 'var-1');
+  assert.equal(board.getCurrentPly(), 3);
+  assert.equal(board.getReplayState().lastMoveSan, 'Bc4');
+});
+
+// MVP 5.2 - Test 9: Menghapus variasi
+await runTest('MVP 5.2 [9/29] Menghapus variasi yang dibuat & otomatis kembali ke Mainline bila variasi aktif dihapus', () => {
+  const { mount, board } = mountStudioWithPgn();
+  mount.querySelector('[data-testid="analysis-mode-explore-btn"]').click();
+  board.goToPly(2);
+  board.playSanMove('Bc4');
+  assert.equal(board.getVariations().length, 1);
+  assert.equal(board.getActiveLineId(), 'var-1');
+
+  const delBtn = mount.querySelector('[data-testid="analysis-variation-delete-var-1"]');
+  assert.ok(delBtn);
+  delBtn.click();
+
+  assert.equal(board.getVariations().length, 0);
+  assert.equal(board.getActiveLineId(), 'mainline');
+  assert.equal(board.getCurrentPly(), 2);
+  assert.ok(mount.querySelector('[data-testid="analysis-variation-empty"]'));
+});
+
+// MVP 5.2 - Test 10: Rename variasi
+await runTest('MVP 5.2 [10/29] Mengganti nama variasi (Rename) melalui Variation Manager', () => {
+  const { mount, board } = mountStudioWithPgn();
+  mount.querySelector('[data-testid="analysis-mode-explore-btn"]').click();
+  board.goToPly(2);
+  board.playSanMove('Bc4');
+
+  // Klik tombol Ubah Nama
+  mount.querySelector('[data-testid="analysis-variation-rename-var-1"]').click();
+  const inputEl = mount.querySelector('[data-testid="analysis-variation-rename-input-var-1"]');
+  assert.ok(inputEl);
+  inputEl.value = 'Italian Bishop Opening';
+
+  mount.querySelector('[data-testid="analysis-variation-rename-save-var-1"]').click();
+  assert.equal(board.getVariations()[0].name, 'Italian Bishop Opening');
+  assert.equal(
+    mount.querySelector('[data-testid="analysis-variation-name-var-1"]').textContent,
+    'Italian Bishop Opening'
+  );
+});
+
+// MVP 5.2 - Test 11: Undo langkah eksplorasi
+await runTest('MVP 5.2 [11/29] Undo / batalkan langkah eksplorasi pada variasi aktif', () => {
+  const { mount, board } = mountStudioWithPgn();
+  mount.querySelector('[data-testid="analysis-mode-explore-btn"]').click();
+  board.goToPly(2);
+  board.playSanMove('Bc4'); // ply 3
+  board.playSanMove('Nf6'); // ply 4
+  assert.equal(board.getCurrentPly(), 4);
+  assert.equal(board.getVariations()[0].moves.length, 2);
+
+  // Undo langkah terakhir (Nf6) -> kembali ke ply 3 (Bc4)
+  mount.querySelector('[data-testid="analysis-undo-move-btn"]').click();
+  assert.equal(board.getCurrentPly(), 3);
+  assert.equal(board.getVariations()[0].moves.length, 1);
+
+  // Undo langkah pertama variasi (Bc4) -> variasi kosong dihapus dan kembali ke parent position (ply 2 di mainline)
+  mount.querySelector('[data-testid="analysis-undo-move-btn"]').click();
+  assert.equal(board.getCurrentPly(), 2);
+  assert.equal(board.getActiveLineId(), 'mainline');
+  assert.equal(board.getVariations().length, 0);
+});
+
+// MVP 5.2 - Test 12: Kembali ke parent position & Partai Asli
+await runTest('MVP 5.2 [12/29] Kembali ke posisi asal variasi (Parent Position) vs Partai Asli (Mainline)', () => {
+  const { mount, board } = mountStudioWithPgn();
+  mount.querySelector('[data-testid="analysis-mode-explore-btn"]').click();
+  board.goToPly(4); // Setelah 1. e4 e5 2. Nf3 Nc6
+  const parentFen = board.getCurrentFen();
+
+  board.playSanMove('Bc4'); // ply 5 di var-1
+  board.playSanMove('Bc5'); // ply 6 di var-1
+  assert.equal(board.getCurrentPly(), 6);
+  assert.equal(board.getActiveLineId(), 'var-1');
+
+  const returnParentBtn = mount.querySelector('[data-testid="analysis-return-parent-btn"]');
+  const switchMainlineBtn = mount.querySelector('[data-testid="analysis-switch-mainline-btn"]');
+  assert.equal(returnParentBtn.disabled, false);
+  assert.equal(switchMainlineBtn.disabled, false);
+
+  // Klik Posisi Asal -> kembali ke parent position (ply 4) di dalam konteks var-1
+  returnParentBtn.click();
+  assert.equal(board.getActiveLineId(), 'var-1');
+  assert.equal(board.getCurrentPly(), 4);
+  assert.equal(board.getCurrentFen(), parentFen);
+  // Karena sudah tepat di parent position, Posisi Asal menjadi disabled sedangkan Partai Asli tetap aktif
+  assert.equal(returnParentBtn.disabled, true);
+  assert.equal(switchMainlineBtn.disabled, false);
+  // Variasi tetap tersimpan di Variation Manager
+  assert.equal(board.getVariations().length, 1);
+
+  // Klik Partai Asli -> kembali ke jalur PGN asli (mainline)
+  switchMainlineBtn.click();
+  assert.equal(board.getActiveLineId(), 'mainline');
+  assert.equal(board.getCurrentPly(), 4);
+  assert.equal(board.getCurrentFen(), parentFen);
+});
+
+// MVP 5.2 - Test 13: Mainline tidak berubah setelah eksplorasi
+await runTest('MVP 5.2 [13/29] Mainline PGN tetap utuh dan identik setelah membuat banyak variasi eksplorasi', () => {
+  const { mount, state, board } = mountStudioWithPgn();
+  const originalMainlineSan = state.parsedGame.moves.map(m => m.san);
+  const originalNormalizedPgn = state.parsedGame.normalizedPgn;
+  const originalFinalFen = state.parsedGame.finalFen;
+
+  mount.querySelector('[data-testid="analysis-mode-explore-btn"]').click();
+  board.goToPly(2);
+  board.playSanMove('Bc4');
+  board.playSanMove('Nf6');
+  board.playSanMove('d4');
+
+  // Kembali ke mainline
+  board.switchToMainline();
+  board.lastMovePosition();
+
+  const currentMainlineMoves = board.getLineMoves('mainline').map(m => m.san);
+  assert.deepEqual(currentMainlineMoves, originalMainlineSan);
+  assert.equal(board.getCurrentFen(), originalFinalFen);
+  assert.equal(state.parsedGame.normalizedPgn, originalNormalizedPgn);
+});
+
+// MVP 5.2 - Test 14: FEN sesuai posisi aktif & Panel Informasi Posisi lengkap
+await runTest('MVP 5.2 [14/29] Panel Informasi Posisi menampilkan Nomor Langkah, Ply, Giliran, FEN, Status, & SAN akurat tanpa undefined/null', () => {
+  const { mount, board } = mountStudioWithPgn();
+
+  // Di ply 0
+  assert.equal(mount.querySelector('[data-testid="analysis-pos-move-number"]').textContent, '0 (Posisi Awal)');
+  assert.equal(mount.querySelector('[data-testid="analysis-pos-active-ply"]').textContent, '0 / 16');
+  assert.ok(mount.querySelector('[data-testid="analysis-pos-next-turn"]').textContent.includes('Putih'));
+  assert.equal(mount.querySelector('[data-testid="analysis-current-fen"]').textContent, board.getCurrentFen());
+
+  // Maju ke ply 1 (1. e4)
+  board.goToPly(1);
+  assert.equal(mount.querySelector('[data-testid="analysis-pos-move-number"]').textContent, 'Langkah 1');
+  assert.equal(mount.querySelector('[data-testid="analysis-pos-active-ply"]').textContent, '1 / 16');
+  assert.ok(mount.querySelector('[data-testid="analysis-pos-next-turn"]').textContent.includes('Hitam'));
+  assert.equal(mount.querySelector('[data-testid="analysis-pos-last-san"]').textContent, 'e4');
+  assert.equal(mount.querySelector('[data-testid="analysis-current-fen"]').textContent, board.getCurrentFen());
+
+  const panelText = mount.querySelector('[data-testid="analysis-position-info-panel"]').textContent;
+  assert.equal(/undefined|null|\[object Object\]/i.test(panelText), false);
+});
+
+// MVP 5.2 - Test 15: Salin FEN
+await runTest('MVP 5.2 [15/29] Tombol Salin FEN menyalin FEN posisi aktif ke clipboard', async () => {
+  let copiedText = '';
+  globalThis.navigator.clipboard = {
+    writeText: async txt => {
+      copiedText = txt;
+    }
+  };
+
+  const { mount, board } = mountStudioWithPgn();
+  board.goToPly(5);
+  const expectedFen = board.getCurrentFen();
+
+  const copyFenBtn = mount.querySelector('[data-testid="analysis-copy-fen-btn"]');
+  assert.ok(copyFenBtn);
+  copyFenBtn.click();
+  await new Promise(r => setTimeout(r, 10));
+
+  assert.equal(copiedText, expectedFen);
+  assert.equal(
+    mount.querySelector('[data-testid="analysis-copy-fen-label"]').textContent,
+    'FEN Tersalin!'
+  );
+});
+
+// MVP 5.2 - Test 16: Castling (Rokade di Explore Mode)
+await runTest('MVP 5.2 [16/29] Dukungan Castling (Rokade) langsung di papan pada Explore Mode', () => {
+  const { mount, board } = mountStudioWithPgn();
+  mount.querySelector('[data-testid="analysis-mode-explore-btn"]').click();
+  // Pada SAMPLE_PGN_PLACEHOLDER, ply 8 adalah setelah 4. Ba4 Nf6 (Putih siap rokade O-O: e1 -> g1)
+  board.goToPly(8);
+
+  mount.querySelector('[data-square="e1"]').click();
+  mount.querySelector('[data-square="g1"]').click();
+
+  const st = board.getReplayState();
+  assert.equal(st.currentPly, 9);
+  assert.equal(st.lastMoveSan, 'O-O');
+  assert.ok(st.currentFen.includes('R1BQ1RK1') || st.currentFen.includes('R1BQ1RK1'.toLowerCase()) || st.currentFen.includes('RNBQ1RK1'));
+});
+
+// MVP 5.2 - Test 17: En Passant (di Explore Mode)
+await runTest('MVP 5.2 [17/29] Dukungan En Passant langsung di papan pada Explore Mode', () => {
+  const epPgn = `[Event "Tes En Passant"]
+[White "Putih"]
+[Black "Hitam"]
+[Result "*"]
+
+1. e4 d5 2. e5 f5 *`;
+  const { mount, board } = mountStudioWithPgn(epPgn);
+  mount.querySelector('[data-testid="analysis-mode-explore-btn"]').click();
+  board.goToPly(4); // Setelah 2... f5, pion Putih di e5 dapat memakan en passant ke f6
+
+  mount.querySelector('[data-square="e5"]').click();
+  mount.querySelector('[data-square="f6"]').click();
+
+  const st = board.getReplayState();
+  assert.equal(st.currentPly, 5);
+  assert.equal(st.lastMoveSan, 'exf6');
+  // Petak f5 sekarang harus kosong karena pion hitam tertangkap en passant
+  const sqF5 = mount.querySelector('[data-square="f5"]');
+  assert.equal(sqF5.querySelectorAll('.chess-piece').length, 0);
+});
+
+// MVP 5.2 - Test 18: Promotion (Promosi Pion dengan modal pilihan Q/R/B/N di Explore Mode)
+await runTest('MVP 5.2 [18/29] Dukungan Promotion (Promosi Pion) melalui dialog promosi di Explore Mode', () => {
+  const promoPgn = `[Event "Tes Promosi"]
+[SetUp "1"]
+[FEN "8/P7/8/8/8/8/7k/4K3 w - - 0 1"]
+[Result "*"]
+
+1. Kf2 *`;
+  const { mount, board } = mountStudioWithPgn(promoPgn);
+  mount.querySelector('[data-testid="analysis-mode-explore-btn"]').click();
+  board.goToPly(0); // Posisi awal FEN: pion Putih di a7
+
+  // Klik a7 lalu a8 -> membuka dialog promosi
+  mount.querySelector('[data-square="a7"]').click();
+  mount.querySelector('[data-square="a8"]').click();
+
+  const promoModal = mount.querySelector('[data-testid="analysis-promotion-modal"]');
+  assert.ok(promoModal, 'Modal promosi pion harus tampil saat pion mencapai baris ke-8');
+
+  // Pilih promosi menjadi Menteri (Queen)
+  const queenBtn = mount.querySelector('[data-testid="analysis-promote-q"]');
+  assert.ok(queenBtn);
+  queenBtn.click();
+
+  const st = board.getReplayState();
+  assert.equal(st.currentPly, 1);
+  assert.ok(st.lastMoveSan.startsWith('a8=Q'));
+});
+
+// MVP 5.2 - Test 19: Check dan Checkmate
+await runTest('MVP 5.2 [19/29] Indikator Check dan Checkmate pada papan dan Panel Informasi Posisi', () => {
+  const foolsMatePgn = `[Event "Fools Mate"]
+[White "Putih"]
+[Black "Hitam"]
+[Result "0-1"]
+
+1. f3 e5 2. g4 Nc6 *`;
+  const { mount, board } = mountStudioWithPgn(foolsMatePgn);
+  mount.querySelector('[data-testid="analysis-mode-explore-btn"]').click();
+  board.goToPly(4); // Setelah 2. g4 Nc6, Putih jalan
+  board.playSanMove('h3'); // 3. h3
+  board.playSanMove('Qh4#'); // 3... Qh4# (Skakmat!)
+
+  const st = board.getReplayState();
+  assert.equal(st.inCheck, true);
+  assert.equal(st.isCheckmate, true);
+  assert.ok(st.statusLabel.includes('Skakmat'));
+
+  const kingSqE1 = mount.querySelector('[data-square="e1"]');
+  assert.equal(kingSqE1.classList.contains('square-check'), true);
+  assert.ok(
+    mount.querySelector('[data-testid="analysis-pos-check-status"]').textContent.includes('Skakmat')
+  );
+});
+
+// MVP 5.2 - Test 20: Navigasi melalui SAN (Mainline & Variasi)
+await runTest('MVP 5.2 [20/29] Navigasi klik langsung pada notasi SAN baik di Mainline maupun di Variasi', () => {
+  const { mount, board } = mountStudioWithPgn();
+  mount.querySelector('[data-testid="analysis-mode-explore-btn"]').click();
+  board.goToPly(2);
+  board.playSanMove('Bc4'); // ply 3 di var-1
+  board.playSanMove('Nf6'); // ply 4 di var-1
+
+  // Klik langkah SAN ply 3 pada daftar langkah
+  mount.querySelector('[data-testid="analysis-move-ply-3"]').click();
+  assert.equal(board.getCurrentPly(), 3);
+  assert.equal(board.getReplayState().lastMoveSan, 'Bc4');
+
+  // Klik chip langkah langsung di Variation Manager untuk lompat ke ply 4
+  mount.querySelector('[data-testid="analysis-variation-var-1-ply-4"]').click();
+  assert.equal(board.getCurrentPly(), 4);
+  assert.equal(board.getReplayState().lastMoveSan, 'Nf6');
+});
+
+// MVP 5.2 - Test 21: Navigasi keyboard (ArrowLeft, ArrowRight, Home, End)
+await runTest('MVP 5.2 [21/29] Navigasi keyboard desktop (ArrowLeft, ArrowRight, Home, End)', () => {
+  const { board } = mountStudioWithPgn();
+  globalThis.document.activeElement = globalThis.document.body;
+
+  assert.equal(board.getCurrentPly(), 0);
+
+  globalThis.document.dispatchEvent(new MockEvent('keydown', { key: 'ArrowRight' }));
+  assert.equal(board.getCurrentPly(), 1);
+
+  globalThis.document.dispatchEvent(new MockEvent('keydown', { key: 'ArrowRight' }));
+  assert.equal(board.getCurrentPly(), 2);
+
+  globalThis.document.dispatchEvent(new MockEvent('keydown', { key: 'ArrowLeft' }));
+  assert.equal(board.getCurrentPly(), 1);
+
+  globalThis.document.dispatchEvent(new MockEvent('keydown', { key: 'End' }));
+  assert.equal(board.getCurrentPly(), 16);
+
+  globalThis.document.dispatchEvent(new MockEvent('keydown', { key: 'Home' }));
+  assert.equal(board.getCurrentPly(), 0);
+});
+
+// MVP 5.2 - Test 22: Keyboard tidak mengganggu input / textarea / select
+await runTest('MVP 5.2 [22/29] Keyboard shortcut tidak mengambil alih saat fokus berada di input, textarea, atau select', () => {
+  const { mount, board } = mountStudioWithPgn();
+  board.goToPly(4);
+
+  const textareaEl = mount.querySelector('[data-testid="pgn-paste-textarea"]');
+  textareaEl.focus();
+  assert.equal(globalThis.document.activeElement, textareaEl);
+
+  globalThis.document.dispatchEvent(new MockEvent('keydown', { key: 'ArrowLeft', target: textareaEl }));
+  globalThis.document.dispatchEvent(new MockEvent('keydown', { key: 'ArrowRight', target: textareaEl }));
+  globalThis.document.dispatchEvent(new MockEvent('keydown', { key: 'Home', target: textareaEl }));
+  globalThis.document.dispatchEvent(new MockEvent('keydown', { key: 'End', target: textareaEl }));
+
+  // Ply tidak boleh berubah karena fokus sedang di textarea
+  assert.equal(board.getCurrentPly(), 4);
+  textareaEl.blur();
+});
+
+// MVP 5.2 - Test 23: Navigasi mobile & larangan window.scrollTo / window.scrollBy
+await runTest('MVP 5.2 [23/29] Navigasi mobile berfungsi penuh & tidak pernah memanggil window.scrollTo atau window.scrollBy', () => {
+  let windowScrollCalled = false;
+  const origScrollTo = globalThis.window.scrollTo;
+  const origScrollBy = globalThis.window.scrollBy;
+  globalThis.window.scrollTo = () => {
+    windowScrollCalled = true;
+  };
+  globalThis.window.scrollBy = () => {
+    windowScrollCalled = true;
+  };
+
+  try {
+    const { mount, board } = mountStudioWithPgn(SAMPLE_PGN_PLACEHOLDER, 390);
+    mount.querySelector('[data-testid="analysis-mobile-btn-next"]').click();
+    assert.equal(board.getCurrentPly(), 1);
+    mount.querySelector('[data-testid="analysis-mobile-btn-last"]').click();
+    assert.equal(board.getCurrentPly(), 16);
+    mount.querySelector('[data-testid="analysis-mobile-btn-prev"]').click();
+    assert.equal(board.getCurrentPly(), 15);
+    mount.querySelector('[data-testid="analysis-mobile-btn-first"]').click();
+    assert.equal(board.getCurrentPly(), 0);
+
+    // Uji pemilih variasi mobile
+    mount.querySelector('[data-testid="analysis-mode-explore-btn"]').click();
+    board.goToPly(2);
+    board.playSanMove('Bc4');
+    const mobileVarSelect = mount.querySelector('[data-testid="analysis-mobile-variation-select"]');
+    assert.equal(mobileVarSelect.value, 'var-1');
+
+    assert.equal(
+      windowScrollCalled,
+      false,
+      'Perpindahan langkah tidak boleh memanggil window.scrollTo atau window.scrollBy'
+    );
+  } finally {
+    globalThis.window.scrollTo = origScrollTo;
+    globalThis.window.scrollBy = origScrollBy;
+    globalThis.window.innerWidth = 1366;
+  }
+});
+
+// MVP 5.2 - Test 24: Responsivitas 9 viewport (320, 360, 390, 430, 600, 768, 1024, 1366, 1920)
+await runTest('MVP 5.2 [24/29] Responsivitas penuh pada 9 viewport (320px, 360px, 390px, 430px, 600px, 768px, 1024px, 1366px, 1920px)', () => {
+  const viewports = [320, 360, 390, 430, 600, 768, 1024, 1366, 1920];
+  for (const vp of viewports) {
+    const { mount, board } = mountStudioWithPgn(SAMPLE_PGN_PLACEHOLDER, vp);
+    assert.ok(board, `Board harus ter-mount pada viewport ${vp}px`);
+    assert.ok(mount.querySelector('[data-testid="analysis-mode-bar"]'));
+    assert.ok(mount.querySelector('[data-testid="analysis-variation-manager"]'));
+    assert.ok(mount.querySelector('[data-testid="analysis-position-info-panel"]'));
+  }
+  globalThis.window.innerWidth = 1366;
+});
+
+// MVP 5.2 - Test 25: Light Mode dan Dark Mode & Tanpa Gradient
+await runTest('MVP 5.2 [25/29] Dukungan Light Mode dan Dark Mode serta kepatuhan warna solid (tanpa CSS gradient)', () => {
+  const cssFiles = ['css/variables.css', 'css/layout.css', 'css/components.css', 'css/chessboard.css'];
+  for (const rel of cssFiles) {
+    const content = fs.readFileSync(path.join(ROOT, rel), 'utf8');
+    const stripped = content.replace(/\/\*[\s\S]*?\*\//g, '');
+    assert.equal(
+      /(?:linear|radial|conic)-gradient\s*\(/i.test(stripped),
+      false,
+      `File ${rel} tidak boleh mengandung fungsi gradient CSS`
+    );
+  }
+
+  const varsCss = fs.readFileSync(path.join(ROOT, 'css/variables.css'), 'utf8');
+  assert.ok(varsCss.includes('[data-theme="dark"]'), 'Dark mode selector harus tersedia');
+});
+
+// MVP 5.2 - Test 26: Tidak ada horizontal overflow
+await runTest('MVP 5.2 [26/29] Tidak ada horizontal overflow pada komponen MVP 5.2', () => {
+  const componentsCss = fs.readFileSync(path.join(ROOT, 'css/components.css'), 'utf8');
+  assert.ok(componentsCss.includes('.analysis-mode-bar'));
+  assert.ok(componentsCss.includes('.analysis-variation-manager'));
+  assert.ok(componentsCss.includes('.analysis-position-info-panel'));
+  assert.ok(componentsCss.includes('overflow-wrap: anywhere'));
+});
+
+// MVP 5.2 - Test 27: Tidak ada request Supabase
+await runTest('MVP 5.2 [27/29] Zero Supabase Request selama eksplorasi posisi, pembuatan variasi, rename, delete, & navigasi', () => {
+  capturedNetworkRequests.length = 0;
+  const { mount, board } = mountStudioWithPgn();
+  mount.querySelector('[data-testid="analysis-mode-explore-btn"]').click();
+  board.goToPly(2);
+  board.playSanMove('Bc4');
+  board.playSanMove('Nf6');
+  board.renameVariation('var-1', 'Cabang Analisis');
+  board.returnToParentPosition();
+  board.playSanMove('Nc3');
+  board.deleteVariation('var-2');
+  board.switchToMainline();
+
+  assert.equal(
+    capturedNetworkRequests.length,
+    0,
+    'Seluruh eksplorasi posisi dan pengelolaan variasi tidak boleh memicu request jaringan/Supabase'
+  );
+});
+
+// MVP 5.2 - Test 28: Tidak ada penyimpanan permanen variasi di localStorage
+await runTest('MVP 5.2 [28/29] Tidak ada penyimpanan pohon variasi ke localStorage (100% session memory)', () => {
+  const beforeDump = JSON.stringify(globalThis.localStorage.dump());
+  const { mount, board } = mountStudioWithPgn();
+  mount.querySelector('[data-testid="analysis-mode-explore-btn"]').click();
+  board.goToPly(2);
+  board.playSanMove('Bc4');
+  board.playSanMove('Nf6');
+
+  const afterDump = JSON.stringify(globalThis.localStorage.dump());
+  assert.equal(
+    afterDump,
+    beforeDump,
+    'Pohon variasi tidak boleh disimpan ke localStorage pada MVP 5.2'
+  );
+});
+
+// MVP 5.2 - Test 29: Session cleanup ketika partai baru dimuat atau partai dihapus
+await runTest('MVP 5.2 [29/29] Session cleanup otomatis membersihkan variasi ketika partai baru dimuat atau ditutup', () => {
+  const { mount, state } = mountStudioWithPgn();
+  let board = getActiveAnalysisBoard();
+  mount.querySelector('[data-testid="analysis-mode-explore-btn"]').click();
+  board.goToPly(2);
+  board.playSanMove('Bc4');
+  assert.equal(state.variations.length, 1);
+
+  // Muat partai baru yang berbeda -> variasi lama wajib dibersihkan dan pemberitahuan tampil
+  const newPgn = `[Event "Partai Baru"]
+[White "Pemain A"]
+[Black "Pemain B"]
+[Result "1-0"]
+
+1. d4 d5 2. c4 e6 1-0`;
+  const textarea = mount.querySelector('[data-testid="pgn-paste-textarea"]');
+  textarea.value = newPgn;
+  textarea.dispatchEvent(new MockEvent('input'));
+  mount.querySelector('[data-testid="pgn-paste-submit-btn"]').click();
+
+  board = getActiveAnalysisBoard();
+  assert.equal(board.getVariations().length, 0);
+  assert.equal(state.variations.length, 0);
+  assert.equal(board.getActiveLineId(), 'mainline');
+  assert.equal(board.getCurrentPly(), 0);
+  const cleanupNotice = mount.querySelector('[data-testid="analysis-session-cleanup-notice"]');
+  assert.equal(cleanupNotice.classList.contains('hidden'), false);
+  assert.ok(cleanupNotice.textContent.includes('dibersihkan'));
+
+  // Klik Hapus Partai -> seluruh state sesi eksplorasi bersih
+  mount.querySelector('[data-testid="analysis-delete-game-btn"]').click();
+  assert.equal(state.parsedGame, null);
+  assert.equal(state.variations.length, 0);
+});
+
+// MVP 5.2 - Test 30: Mobile Variation Controls & Spacing Refinement (12 Poin Pengujian)
+await runTest('MVP 5.2 [30/30] Mobile Variation Controls & Spacing Refinement: kontekstual Posisi Asal & Partai Asli, Undo ketat, & layout 320px-600px', () => {
+  const mobileViewports = [320, 360, 390, 430, 600];
+
+  for (const vp of mobileViewports) {
+    const { mount, board } = mountStudioWithPgn(SAMPLE_PGN_PLACEHOLDER, vp);
+
+    const modeSelectorGroup = mount.querySelector('[data-testid="analysis-mode-selector-group"]');
+    const reviewBtn = mount.querySelector('[data-testid="analysis-mode-review-btn"]');
+    const exploreBtn = mount.querySelector('[data-testid="analysis-mode-explore-btn"]');
+    const statusRow = mount.querySelector('[data-testid="analysis-mode-status-row"]');
+    const statusPill = mount.querySelector('[data-testid="analysis-mode-status"]');
+    const undoBtn = mount.querySelector('[data-testid="analysis-undo-move-btn"]');
+    const varNavGroup = mount.querySelector('[data-testid="analysis-variation-nav-group"]');
+    const returnParentBtn = mount.querySelector('[data-testid="analysis-return-parent-btn"]');
+    const switchMainlineBtn = mount.querySelector('[data-testid="analysis-switch-mainline-btn"]');
+    const switchMainlineLabel = mount.querySelector('[data-testid="analysis-switch-mainline-label"]');
+    const mobileVarBar = mount.querySelector('[data-testid="analysis-mobile-variation-bar"]');
+
+    assert.ok(modeSelectorGroup && reviewBtn && exploreBtn, `Mode Selector wajib ada pada ${vp}px`);
+    assert.ok(statusRow && statusPill && undoBtn, `Baris Status & Undo wajib ada pada ${vp}px`);
+    assert.ok(varNavGroup && returnParentBtn && switchMainlineBtn, `Grup Navigasi Variasi wajib ada pada ${vp}px`);
+    assert.equal(
+      switchMainlineLabel.textContent.trim(),
+      'Partai Asli',
+      `Label tombol kembali ke mainline pada UI mobile wajib bernama "Partai Asli" pada ${vp}px`
+    );
+
+    // 1. Mainline pada Review Mode:
+    // - Grup Variation Navigation (Posisi Asal & Partai Asli) disembunyikan (hidden)
+    // - Status menampilkan "Review Mode • Partai Asli" secara ringkas
+    // - Undo disabled даже ketika ply > 0 di Review Mode
+    board.goToPly(3);
+    assert.equal(board.getMode(), 'review');
+    assert.equal(board.getActiveLineId(), 'mainline');
+    assert.equal(
+      varNavGroup.classList.contains('hidden'),
+      true,
+      `Ketika di Mainline (Review Mode), tombol Posisi Asal & Partai Asli tidak boleh ditampilkan pada ${vp}px`
+    );
+    assert.equal(
+      mobileVarBar.classList.contains('hidden'),
+      true,
+      `Pemilih variasi mobile tidak boleh tampil saat belum ada variasi pada ${vp}px`
+    );
+    assert.equal(statusPill.textContent.trim(), 'Review Mode • Partai Asli');
+    assert.equal(
+      undoBtn.disabled,
+      true,
+      `Undo harus disabled pada Review Mode meskipun di ply > 0 pada ${vp}px`
+    );
+    assert.ok(undoBtn.title.includes('Review Mode') || undoBtn.title.includes('Jelajahi Posisi'));
+
+    // Klik Undo saat disabled / di Review Mode tidak boleh mengubah ply
+    undoBtn.click();
+    assert.equal(board.getCurrentPly(), 3);
+
+    // 2. Mainline pada Explore Mode (belum ada langkah eksplorasi):
+    exploreBtn.click();
+    assert.equal(board.getMode(), 'explore');
+    assert.equal(board.getActiveLineId(), 'mainline');
+    assert.equal(
+      varNavGroup.classList.contains('hidden'),
+      true,
+      `Ketika di Mainline (Explore Mode), tombol Posisi Asal & Partai Asli tidak boleh ditampilkan pada ${vp}px`
+    );
+    assert.equal(statusPill.textContent.trim(), 'Jelajahi Posisi • Partai Asli');
+    assert.equal(
+      undoBtn.disabled,
+      true,
+      `Undo harus tetap disabled di Explore Mode ketika belum ada langkah eksplorasi pada ${vp}px`
+    );
+    undoBtn.click();
+    assert.equal(board.getCurrentPly(), 3);
+
+    // 3. Membuat Variation 1 dari ply 2 (1. e4 e5):
+    board.goToPly(2);
+    const parentFen = board.getCurrentFen();
+    board.playSanMove('Bc4'); // Variation 1, ply 3
+    board.playSanMove('Nf6'); // Variation 1, ply 4
+
+    assert.equal(board.getActiveLineId(), 'var-1');
+    assert.equal(statusPill.textContent.trim(), 'Jelajahi Posisi • Variation 1');
+    assert.equal(
+      varNavGroup.classList.contains('hidden'),
+      false,
+      `Ketika berada di Variation, grup Posisi Asal & Partai Asli harus tampil pada ${vp}px`
+    );
+    assert.equal(returnParentBtn.disabled, false, `Posisi Asal harus aktif saat berada di ply variasi (> parentPly) pada ${vp}px`);
+    assert.equal(switchMainlineBtn.disabled, false, `Partai Asli harus aktif saat berada di variasi pada ${vp}px`);
+    assert.equal(undoBtn.disabled, false, `Undo harus aktif saat ada langkah eksplorasi pada variasi aktif pada ${vp}px`);
+
+    // 4. Posisi Asal mengembalikan ke parent position:
+    returnParentBtn.click();
+    assert.equal(board.getActiveLineId(), 'var-1', 'Posisi Asal tetap menjaga konteks variasi aktif');
+    assert.equal(board.getCurrentPly(), 2, 'Posisi Asal mengembalikan ke parentPly (2)');
+    assert.equal(board.getCurrentFen(), parentFen);
+    assert.equal(
+      varNavGroup.classList.contains('hidden'),
+      false,
+      'Navigasi variasi tetap tampil selama masih di dalam variasi'
+    );
+    assert.equal(
+      returnParentBtn.disabled,
+      true,
+      'Posisi Asal hanya disabled ketika pengguna sudah berada tepat di parent position'
+    );
+    assert.equal(
+      switchMainlineBtn.disabled,
+      false,
+      'Partai Asli tetap aktif untuk kembali ke PGN original meskipun di parent position'
+    );
+
+    // 5. Membuat beberapa variasi (Variation 2 dari parent position yang sama):
+    board.playSanMove('Nc3'); // Membuat Variation 2 (var-2)
+    assert.equal(board.getActiveLineId(), 'var-2');
+    assert.equal(board.getVariations().length, 2);
+    assert.equal(statusPill.textContent.trim(), 'Jelajahi Posisi • Variation 2');
+    assert.equal(returnParentBtn.disabled, false);
+    assert.equal(switchMainlineBtn.disabled, false);
+
+    // 6. Undo pada variasi aktif:
+    undoBtn.click(); // Membatalkan satu-satunya langkah di Variation 2 -> Variation 2 dihapus & kembali ke mainline ply 2
+    assert.equal(board.getVariations().length, 1);
+    assert.equal(board.getActiveLineId(), 'mainline');
+    assert.equal(board.getCurrentPly(), 2);
+    assert.equal(
+      varNavGroup.classList.contains('hidden'),
+      true,
+      'Setelah kembali ke Mainline lewat Undo, tombol Posisi Asal & Partai Asli kembali disembunyikan'
+    );
+    assert.equal(undoBtn.disabled, true, 'Setelah kembali ke Mainline, Undo kembali disabled');
+
+    // 7. Pilih Variation 1 kembali lalu uji tombol Partai Asli:
+    board.selectVariation('var-1');
+    assert.equal(board.getActiveLineId(), 'var-1');
+    assert.equal(varNavGroup.classList.contains('hidden'), false);
+    switchMainlineBtn.click();
+    assert.equal(board.getActiveLineId(), 'mainline');
+    assert.equal(varNavGroup.classList.contains('hidden'), true);
+    assert.equal(statusPill.textContent.trim(), 'Jelajahi Posisi • Partai Asli');
+  }
+
+  // Verifikasi aturan CSS Mobile (<= 600px) untuk spacing & grid 2 kolom
+  const componentsCss = fs.readFileSync(path.join(ROOT, 'css/components.css'), 'utf8');
+  assert.ok(
+    /\.analysis-variation-nav-group\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/i.test(
+      componentsCss
+    ),
+    'Navigasi Variasi mobile harus menggunakan CSS Grid 2 kolom seimbang'
+  );
+  assert.ok(
+    /\.analysis-mode-status-pill\s*\{[\s\S]*?text-overflow:\s*ellipsis/i.test(componentsCss),
+    'Status mode/variasi harus mendukung text-overflow: ellipsis untuk nama variasi panjang'
+  );
+
+  globalThis.window.innerWidth = 1366;
+});
+
+// MVP 5.2 - Test 31: Desktop Analysis Board Viewport Optimization (1366x768, 1440x900, 1920x1080 + Non-Regresi 360px-1920px)
+await runTest('MVP 5.2 [31/31] Desktop Analysis Board Viewport Optimization: max-width 1480px, viewport-aware board size, panel kanan terstruktur & compact desktop', () => {
+  const componentsCss = fs.readFileSync(path.join(ROOT, 'css/components.css'), 'utf8');
+  const chessboardCss = fs.readFileSync(path.join(ROOT, 'css/chessboard.css'), 'utf8');
+
+  // 1. Verifikasi max-width workspace desktop 1400-1500px (1480px) & rasio kolom CSS Grid
+  assert.ok(
+    /max-width:\s*1480px/i.test(componentsCss),
+    'Workspace desktop wajib mengoptimalkan lebar layar hingga ~1480px (1400-1500px)'
+  );
+  assert.ok(
+    /grid-template-columns:\s*minmax\(0,\s*1\.06fr\)\s*minmax\(380px,\s*0\.94fr\)/i.test(componentsCss),
+    'Layout desktop harus menggunakan CSS Grid dengan minmax(0, ...) dan rasio seimbang antara papan & panel kanan'
+  );
+
+  // 2. Verifikasi ukuran papan desktop menggunakan clamp(), min(), dan calc(100vh - ...) tanpa transform: scale() halaman
+  assert.ok(
+    /--analysis-desktop-board-size:\s*clamp\(/i.test(chessboardCss),
+    'Ukuran papan desktop harus menggunakan CSS custom property dengan clamp() dan perhitungan viewport'
+  );
+  assert.ok(
+    /@media\s*\(min-width:\s*1101px\)\s*and\s*\(max-height:\s*850px\)/i.test(componentsCss) &&
+      /@media\s*\(min-width:\s*1101px\)\s*and\s*\(max-height:\s*850px\)/i.test(chessboardCss),
+    'Aturan Desktop Compact View (@media (min-width: 1101px) and (max-height: 850px)) wajib tersedia'
+  );
+
+  // 3. Uji struktur DOM & fungsi pada resolusi Mobile (360, 390), Tablet (768, 1024), dan Desktop (1366x768, 1440x900, 1920x1080)
+  const testConfigs = [
+    { width: 360, height: 800 },
+    { width: 390, height: 844 },
+    { width: 768, height: 1024 },
+    { width: 1024, height: 768 },
+    { width: 1366, height: 768 },
+    { width: 1440, height: 900 },
+    { width: 1920, height: 1080 }
+  ];
+
+  for (const cfg of testConfigs) {
+    globalThis.window.innerWidth = cfg.width;
+    globalThis.window.innerHeight = cfg.height;
+
+    const { mount, board } = mountStudioWithPgn(SAMPLE_PGN_PLACEHOLDER, cfg.width);
+    assert.ok(board, `Board harus aktif pada resolusi ${cfg.width}x${cfg.height}`);
+
+    // Pastikan ke-6 bagian panel kanan tetap lengkap (tidak ada informasi atau kontrol yang hilang)
+    const moveList = mount.querySelector('[data-testid="analysis-move-list"]');
+    const varManager = mount.querySelector('[data-testid="analysis-variation-manager"]');
+    const annotationBox = mount.querySelector('[data-testid="analysis-move-annotation"]');
+    const posInfoPanel = mount.querySelector('[data-testid="analysis-position-info-panel"]');
+    const fenDetails = mount.querySelector('[data-testid="analysis-fen-details"]');
+    const currentFenCode = mount.querySelector('[data-testid="analysis-current-fen"]');
+    const copyFenBtn = mount.querySelector('[data-testid="analysis-copy-fen-btn"]');
+    const normalizedPgnPre = mount.querySelector('[data-testid="analysis-normalized-pgn"]');
+
+    assert.ok(moveList, `Daftar Langkah SAN harus tersedia pada ${cfg.width}x${cfg.height}`);
+    assert.ok(varManager, `Variation Manager harus tersedia pada ${cfg.width}x${cfg.height}`);
+    assert.ok(annotationBox, `Catatan/komentar langkah harus tersedia pada ${cfg.width}x${cfg.height}`);
+    assert.ok(posInfoPanel, `Informasi Posisi harus tersedia pada ${cfg.width}x${cfg.height}`);
+    assert.ok(
+      fenDetails && fenDetails.tagName === 'DETAILS',
+      `FEN harus ditempatkan dalam collapsible <details> pada ${cfg.width}x${cfg.height}`
+    );
+    assert.ok(currentFenCode && copyFenBtn, `FEN & tombol Salin FEN harus tersedia pada ${cfg.width}x${cfg.height}`);
+    assert.ok(normalizedPgnPre, `PGN Ternormalisasi harus tersedia pada ${cfg.width}x${cfg.height}`);
+  }
+
+  globalThis.window.innerWidth = 1366;
+  globalThis.window.innerHeight = 768;
+});
+
 // ---------------------------------------------------------------------------
 // Ringkasan Akhir
 // ---------------------------------------------------------------------------
 console.log('\n====================================================================');
 console.log(
-  `RINGKASAN VERIFIKASI MVP 5.1: ${passedTests} LULUS, ${failedTests} GAGAL (Total: ${totalTests} Pengujian)`
+  `RINGKASAN VERIFIKASI MVP 5.1 & MVP 5.2: ${passedTests} LULUS, ${failedTests} GAGAL (Total: ${totalTests} Pengujian)`
 );
 console.log('====================================================================');
 

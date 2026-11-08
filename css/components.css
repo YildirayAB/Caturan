@@ -5385,3 +5385,809 @@
     font-size: 0.6rem;
   }
 }
+
+/* ============================================================================
+ * MVP 5.2 — Interactive Analysis Board, Explore Mode, Variation Manager & Position Info
+ * ============================================================================ */
+
+.analysis-mode-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.analysis-mode-toggle-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px;
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+
+.analysis-mode-btn {
+  min-height: 44px;
+  min-width: 112px;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  background-color: transparent;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.analysis-mode-btn.active {
+  background-color: var(--accent-main);
+  color: #FFFFFF;
+  border-color: var(--accent-main);
+}
+
+.analysis-mode-quick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.analysis-mode-status-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.analysis-variation-nav-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.analysis-mode-status-pill {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  padding: 6px 10px;
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 260px;
+  box-sizing: border-box;
+}
+
+.analysis-explore-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 8px 12px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  border-radius: var(--radius-sm);
+  box-sizing: border-box;
+}
+
+.analysis-explore-action-btn svg {
+  flex-shrink: 0;
+}
+
+.analysis-explore-action-btn:disabled {
+  opacity: 0.42;
+  color: var(--text-muted);
+  background-color: var(--bg-subtle);
+  border-color: var(--border-color);
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* Variation Manager */
+.analysis-variation-manager {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.analysis-variation-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.analysis-variation-title-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.analysis-variation-title {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: var(--text-main);
+}
+
+.analysis-mainline-pill-btn {
+  min-height: 44px;
+  padding: 6px 12px;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.analysis-mainline-pill-btn.active {
+  background-color: var(--accent-main);
+  border-color: var(--accent-main);
+  color: #FFFFFF;
+}
+
+.analysis-session-memory-notice,
+.analysis-session-cleanup-notice {
+  margin: 0;
+  padding: 6px 10px;
+  font-size: 0.76rem;
+  line-height: 1.35;
+  color: var(--text-muted);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+}
+
+.analysis-variation-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.analysis-variation-empty {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.analysis-variation-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  box-sizing: border-box;
+}
+
+.analysis-variation-item.active {
+  border-color: var(--accent-main);
+}
+
+.analysis-variation-item-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.analysis-variation-select-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-height: 44px;
+  padding: 4px 8px;
+  background-color: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text-main);
+  cursor: pointer;
+  text-align: left;
+}
+
+.analysis-variation-select-btn.active {
+  color: var(--accent-main);
+}
+
+.analysis-variation-name {
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.analysis-variation-meta {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.analysis-variation-item-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.analysis-var-action-btn {
+  min-height: 44px;
+  padding: 4px 8px;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.analysis-variation-rename-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.analysis-variation-rename-input {
+  flex: 1 1 140px;
+  min-height: 44px;
+  padding: 6px 10px;
+  font-size: 0.84rem;
+  color: var(--text-main);
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  box-sizing: border-box;
+}
+
+.analysis-variation-san-sequence {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.analysis-variation-move-chip {
+  min-height: 36px;
+  padding: 4px 8px;
+  font-family: monospace;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--text-main);
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.analysis-variation-move-chip.active {
+  background-color: var(--accent-main);
+  border-color: var(--accent-main);
+  color: #FFFFFF;
+}
+
+.analysis-ply-btn.is-variation-move {
+  border-style: dashed;
+}
+
+/* Position Information Panel */
+.analysis-position-info-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.analysis-position-info-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.analysis-position-info-header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.analysis-position-line-tag {
+  font-size: 0.74rem;
+  font-weight: 800;
+  color: var(--accent-main);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 2px 8px;
+}
+
+.analysis-position-info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.analysis-pos-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  min-width: 0;
+}
+
+.analysis-pos-item-wide {
+  grid-column: 1 / -1;
+}
+
+.analysis-pos-value {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-main);
+  overflow-wrap: anywhere;
+}
+
+.analysis-current-fen-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.analysis-copy-fen-btn {
+  min-height: 44px;
+  padding: 6px 10px;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.analysis-fen-details {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.analysis-fen-summary {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  cursor: pointer;
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+}
+
+.analysis-fen-details[open] .analysis-current-fen-bar {
+  margin-top: 6px;
+}
+
+/* ============================================================================
+ * MVP 5.2 — Desktop Analysis Board Viewport Optimization (>= 1101px)
+ * Mengoptimalkan lebar workspace (1400-1500px), proporsi kolom kiri/kanan,
+ * dan kepadatan panel kanan agar nyaman pada zoom browser 100%.
+ * ============================================================================ */
+@media (min-width: 1101px) {
+  .app-main:has(.analysis-studio-page),
+  .app-shell.sidebar-collapsed .app-main:has(.analysis-studio-page) {
+    max-width: 1480px;
+    padding: 16px 22px 22px 22px;
+  }
+
+  .analysis-studio-page {
+    gap: 14px;
+  }
+
+  .analysis-preview-section {
+    gap: 14px;
+  }
+
+  .analysis-desktop-metadata-card {
+    padding: 14px 18px;
+    gap: 10px;
+  }
+
+  .analysis-metadata-grid {
+    gap: 8px;
+  }
+
+  .analysis-meta-item {
+    padding: 8px 10px;
+    gap: 2px;
+  }
+
+  .analysis-workspace-grid {
+    grid-template-columns: minmax(0, 1.06fr) minmax(380px, 0.94fr);
+    gap: 18px;
+    align-items: start;
+  }
+
+  .analysis-board-column {
+    gap: 7px;
+  }
+
+  .analysis-mode-bar {
+    padding: 6px 10px;
+    gap: 8px;
+  }
+
+  .analysis-mode-btn {
+    min-height: 36px;
+    padding: 5px 12px;
+    font-size: 0.8rem;
+  }
+
+  .analysis-explore-action-btn {
+    min-height: 36px;
+    padding: 5px 10px;
+    font-size: 0.76rem;
+  }
+
+  .analysis-player-strip {
+    min-height: 38px;
+    padding: 7px 12px;
+  }
+
+  /* Panel Analisis Kanan: terstruktur & proporsional mengikuti tinggi viewport */
+  .analysis-moves-panel {
+    padding: 14px 16px;
+    gap: 10px;
+  }
+
+  .analysis-moves-panel-header .card-title {
+    font-size: 1.02rem;
+  }
+
+  .analysis-moves-panel-header .card-subtitle {
+    font-size: 0.78rem;
+    margin-top: 2px;
+  }
+
+  .analysis-move-list-scroll {
+    min-height: 150px;
+    max-height: clamp(165px, calc(100vh - 500px), 320px);
+    padding: 6px;
+    gap: 4px;
+  }
+
+  .analysis-start-ply-btn {
+    min-height: 34px;
+    padding: 5px 10px;
+    font-size: 0.8rem;
+  }
+
+  .analysis-move-row {
+    grid-template-columns: 38px minmax(0, 1fr) minmax(0, 1fr);
+    gap: 5px;
+  }
+
+  .analysis-ply-btn,
+  .analysis-move-placeholder {
+    min-height: 34px;
+    padding: 4px 8px;
+    font-size: 0.82rem;
+  }
+
+  .analysis-variation-manager {
+    padding: 8px 10px;
+    gap: 6px;
+  }
+
+  .analysis-variation-title {
+    font-size: 0.85rem;
+  }
+
+  .analysis-mainline-pill-btn {
+    min-height: 34px;
+    padding: 4px 10px;
+    font-size: 0.75rem;
+  }
+
+  .analysis-variation-list {
+    max-height: 120px;
+    gap: 6px;
+  }
+
+  .analysis-variation-empty {
+    font-size: 0.75rem;
+    line-height: 1.35;
+  }
+
+  .analysis-annotation-box {
+    padding: 7px 10px;
+    gap: 2px;
+  }
+
+  .analysis-annotation-text {
+    font-size: 0.8rem;
+    line-height: 1.35;
+  }
+
+  .analysis-position-info-panel {
+    padding: 8px 10px;
+    gap: 6px;
+  }
+
+  .analysis-copy-fen-btn {
+    min-height: 32px;
+    padding: 4px 8px;
+    font-size: 0.74rem;
+  }
+
+  /* Susun 5 informasi posisi ke dalam 3 kolom (2 baris ringkas) pada desktop */
+  .analysis-position-info-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 5px;
+  }
+
+  .analysis-pos-item {
+    padding: 5px 8px;
+    gap: 1px;
+  }
+
+  .analysis-pos-item-status {
+    grid-column: span 2;
+  }
+
+  .analysis-pos-item-wide {
+    grid-column: span 1;
+  }
+
+  .analysis-pos-value {
+    font-size: 0.78rem;
+  }
+
+  .analysis-fen-details,
+  .analysis-normalized-pgn-details {
+    padding: 5px 10px;
+  }
+
+  .analysis-fen-summary,
+  .analysis-normalized-pgn-summary {
+    min-height: 28px;
+    font-size: 0.78rem;
+  }
+}
+
+/* ============================================================================
+ * MVP 5.2 — Desktop Compact View (min-width: 1101px and max-height: 850px)
+ * Khusus laptop 1366x768 dsb. agar papan & panel kanan muat nyaman di zoom 100%
+ * ============================================================================ */
+@media (min-width: 1101px) and (max-height: 850px) {
+  .app-main:has(.analysis-studio-page),
+  .app-shell.sidebar-collapsed .app-main:has(.analysis-studio-page) {
+    padding: 12px 18px 16px 18px;
+  }
+
+  .analysis-studio-page,
+  .analysis-preview-section {
+    gap: 10px;
+  }
+
+  .analysis-desktop-metadata-card {
+    padding: 10px 14px;
+    gap: 8px;
+  }
+
+  .analysis-workspace-grid {
+    gap: 14px;
+  }
+
+  .analysis-board-column {
+    gap: 5px;
+  }
+
+  .analysis-mode-bar {
+    padding: 5px 8px;
+  }
+
+  .analysis-mode-btn,
+  .analysis-explore-action-btn {
+    min-height: 34px;
+    padding: 4px 10px;
+  }
+
+  .analysis-player-strip {
+    min-height: 34px;
+    padding: 5px 10px;
+  }
+
+  .analysis-moves-panel {
+    padding: 10px 12px;
+    gap: 8px;
+  }
+
+  .analysis-move-list-scroll {
+    min-height: 130px;
+    max-height: clamp(135px, calc(100vh - 485px), 205px);
+    padding: 5px;
+  }
+
+  .analysis-start-ply-btn,
+  .analysis-ply-btn,
+  .analysis-move-placeholder {
+    min-height: 32px;
+    padding: 3px 7px;
+    font-size: 0.79rem;
+  }
+
+  .analysis-variation-manager {
+    padding: 6px 8px;
+    gap: 4px;
+  }
+
+  .analysis-variation-list {
+    max-height: 96px;
+  }
+
+  .analysis-annotation-box {
+    padding: 6px 8px;
+  }
+
+  .analysis-position-info-panel {
+    padding: 6px 8px;
+    gap: 5px;
+  }
+
+  .analysis-pos-item {
+    padding: 4px 6px;
+  }
+
+  .analysis-fen-details,
+  .analysis-normalized-pgn-details {
+    padding: 4px 8px;
+  }
+
+  .analysis-fen-summary,
+  .analysis-normalized-pgn-summary {
+    min-height: 24px;
+    font-size: 0.75rem;
+  }
+}
+
+@media (max-width: 600px) {
+  .analysis-mode-bar {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    padding: 14px;
+    gap: 12px;
+  }
+
+  .analysis-mode-toggle-group {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    padding: 4px;
+    box-sizing: border-box;
+  }
+
+  .analysis-mode-btn {
+    min-width: 0;
+    width: 100%;
+    min-height: 44px;
+    padding: 8px 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+  }
+
+  .analysis-mode-quick-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .analysis-mode-status-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .analysis-mode-status-pill {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: none;
+    min-height: 44px;
+    padding: 10px 12px;
+    line-height: 22px;
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    box-sizing: border-box;
+  }
+
+  .analysis-undo-btn {
+    flex: 0 0 auto;
+    min-height: 44px;
+    padding: 8px 12px;
+    white-space: nowrap;
+  }
+
+  .analysis-variation-nav-group {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .analysis-var-nav-btn {
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+    padding: 8px 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    box-sizing: border-box;
+  }
+
+  .analysis-mobile-variation-bar:not(.hidden) {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 14px;
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .analysis-mobile-variation-label {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    flex-shrink: 0;
+  }
+
+  .analysis-mobile-variation-select {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 44px;
+    padding: 6px 10px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--text-main);
+    background-color: var(--bg-subtle);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    box-sizing: border-box;
+  }
+}
