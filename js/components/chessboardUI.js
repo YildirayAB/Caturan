@@ -4297,6 +4297,7 @@ export class AnalysisReplayBoard {
     this.pendingPromotion = null; // { from, to }
     this._dragSourceSquare = null;
     this.lastMove = null;
+    this.recommendedMove = null; // { from, to, san, uci, promotion, fen }
     this.feedback = null; // { type: 'info' | 'warning' | 'success', message: string }
     this.inspectedSquareInfo =
       this.mode === 'explore'
@@ -4309,6 +4310,11 @@ export class AnalysisReplayBoard {
     }
 
     this._syncChessToCurrentPly();
+    if (options.recommendedMove && options.recommendedMove.from && options.recommendedMove.to) {
+      if (!options.recommendedMove.fen || options.recommendedMove.fen === this.chess.fen()) {
+        this.setRecommendedMove(options.recommendedMove, { render: false });
+      }
+    }
     this.render();
   }
 
@@ -4501,10 +4507,63 @@ export class AnalysisReplayBoard {
     this.selectedSquare = null;
     this.legalMovesForSelected = [];
     this.pendingPromotion = null;
+    this.recommendedMove = null;
 
     const posInfo = this._getPositionAtPly(this.activeLineId, this.currentPly);
     this.chess.load(posInfo.fen);
     this.lastMove = posInfo.lastMove ? { ...posInfo.lastMove } : null;
+  }
+
+  /**
+   * Menampilkan penanda visual rekomendasi langkah terbaik dari Stockfish
+   * tanpa menjalankan langkah pada papan dan tanpa memicu suara/animasi langkah.
+   */
+  setRecommendedMove(moveInfo, { render = true } = {}) {
+    if (!moveInfo || typeof moveInfo !== 'object' || !moveInfo.from || !moveInfo.to) {
+      return this.clearRecommendedMove({ render });
+    }
+
+    const from = String(moveInfo.from).trim().toLowerCase();
+    const to = String(moveInfo.to).trim().toLowerCase();
+    if (!/^[a-h][1-8]$/.test(from) || !/^[a-h][1-8]$/.test(to)) {
+      return this.clearRecommendedMove({ render });
+    }
+
+    this.recommendedMove = {
+      from,
+      to,
+      san: moveInfo.san ? String(moveInfo.san) : `${from}${to}`,
+      uci: moveInfo.uci
+        ? String(moveInfo.uci)
+        : `${from}${to}${moveInfo.promotion ? String(moveInfo.promotion).toLowerCase() : ''}`,
+      promotion: moveInfo.promotion ? String(moveInfo.promotion).toLowerCase() : null,
+      fen: moveInfo.fen || this.chess.fen()
+    };
+
+    // Pastikan tidak memicu efek suara atau animasi gerak bidak
+    this._pendingMoveExperience = null;
+
+    if (render) {
+      this.render();
+    }
+    return this.getRecommendedMove();
+  }
+
+  /**
+   * Menghapus penanda visual rekomendasi langkah terbaik dari papan.
+   */
+  clearRecommendedMove({ render = true } = {}) {
+    const hadMove = Boolean(this.recommendedMove);
+    this.recommendedMove = null;
+    this._pendingMoveExperience = null;
+    if (hadMove && render) {
+      this.render();
+    }
+    return null;
+  }
+
+  getRecommendedMove() {
+    return this.recommendedMove ? { ...this.recommendedMove } : null;
   }
 
   getMode() {
@@ -4627,6 +4686,7 @@ export class AnalysisReplayBoard {
       activeMove,
       lastMoveSan: activeMove ? activeMove.san : null,
       lastMove: this.lastMove ? { ...this.lastMove } : null,
+      recommendedMove: this.getRecommendedMove(),
       selectedSquare: this.selectedSquare,
       legalMovesForSelected: [...this.legalMovesForSelected],
       pendingPromotion: this.pendingPromotion ? { ...this.pendingPromotion } : null,
@@ -4995,6 +5055,7 @@ export class AnalysisReplayBoard {
     this.selectedSquare = null;
     this.legalMovesForSelected = [];
     this.pendingPromotion = null;
+    this.recommendedMove = null;
     this.totalPlies = this._getLineTotalPlies(this.activeLineId);
 
     const sideLabel = moveNode.color === 'w' ? 'Putih' : 'Hitam';
@@ -5504,6 +5565,13 @@ export class AnalysisReplayBoard {
           this.lastMove && (this.lastMove.from === sq || this.lastMove.to === sq);
         const isLastFrom = Boolean(this.lastMove && this.lastMove.from === sq);
         const isLastTo = Boolean(this.lastMove && this.lastMove.to === sq);
+        const isBestMoveFrom = Boolean(
+          this.recommendedMove && this.recommendedMove.from === sq
+        );
+        const isBestMoveTo = Boolean(
+          this.recommendedMove && this.recommendedMove.to === sq
+        );
+        const isBestMoveSquare = isBestMoveFrom || isBestMoveTo;
         const isKingInCheck =
           inCheck && piece && piece.type === 'k' && piece.color === turn;
 
@@ -5518,6 +5586,9 @@ export class AnalysisReplayBoard {
           isLastMove ? 'square-last-move' : '',
           isLastFrom ? 'square-last-from' : '',
           isLastTo ? 'square-last-to' : '',
+          isBestMoveSquare ? 'square-best-move' : '',
+          isBestMoveFrom ? 'square-best-move-from' : '',
+          isBestMoveTo ? 'square-best-move-to' : '',
           isKingInCheck ? 'square-king-check square-check' : '',
           piece ? 'has-piece' : ''
         ]
@@ -5533,6 +5604,13 @@ export class AnalysisReplayBoard {
           }
         }
 
+        let bestMoveIndicatorHtml = '';
+        if (isBestMoveFrom) {
+          bestMoveIndicatorHtml = `<span class="best-move-origin-ring" data-testid="analysis-best-move-origin" aria-hidden="true"></span>`;
+        } else if (isBestMoveTo) {
+          bestMoveIndicatorHtml = `<span class="best-move-target-ring" data-testid="analysis-best-move-target" aria-hidden="true"></span>`;
+        }
+
         const isDraggable = Boolean(
           this.mode === 'explore' &&
             piece &&
@@ -5546,6 +5624,8 @@ export class AnalysisReplayBoard {
             class="${classes}"
             data-square="${sq}"
             ${legalMove ? 'data-legal-target="true"' : ''}
+            ${isBestMoveFrom ? 'data-best-move="from"' : ''}
+            ${isBestMoveTo ? 'data-best-move="to"' : ''}
             draggable="${isDraggable ? 'true' : 'false'}"
             aria-label="Petak ${sq}${
           piece
@@ -5563,7 +5643,74 @@ export class AnalysisReplayBoard {
                 : ''
             }
             ${legalIndicatorHtml}
+            ${bestMoveIndicatorHtml}
           </button>
+        `;
+      }
+    }
+
+    let bestMoveOverlayHtml = '';
+    if (this.recommendedMove && this.recommendedMove.from && this.recommendedMove.to) {
+      const fromFile = FILES.indexOf(this.recommendedMove.from[0]);
+      const fromRank = RANKS.indexOf(this.recommendedMove.from[1]);
+      const toFile = FILES.indexOf(this.recommendedMove.to[0]);
+      const toRank = RANKS.indexOf(this.recommendedMove.to[1]);
+
+      if (fromFile >= 0 && fromRank >= 0 && toFile >= 0 && toRank >= 0) {
+        const vFromCol = this.orientation === 'white' ? fromFile : 7 - fromFile;
+        const vFromRow = this.orientation === 'white' ? fromRank : 7 - fromRank;
+        const vToCol = this.orientation === 'white' ? toFile : 7 - toFile;
+        const vToRow = this.orientation === 'white' ? toRank : 7 - toRank;
+
+        const x1 = vFromCol * 100 + 50;
+        const y1 = vFromRow * 100 + 50;
+        const x2 = vToCol * 100 + 50;
+        const y2 = vToRow * 100 + 50;
+
+        const dx = x2 - x1;
+        const dy = y2 - y1;
+        const dist = Math.hypot(dx, dy) || 1;
+        const shortenEnd = 24;
+        const shortenStart = 14;
+        const sx = Math.round((x1 + (dx / dist) * shortenStart) * 10) / 10;
+        const sy = Math.round((y1 + (dy / dist) * shortenStart) * 10) / 10;
+        const ex = Math.round((x2 - (dx / dist) * shortenEnd) * 10) / 10;
+        const ey = Math.round((y2 - (dy / dist) * shortenEnd) * 10) / 10;
+
+        bestMoveOverlayHtml = `
+          <svg
+            class="chessboard-best-move-overlay"
+            data-testid="analysis-best-move-arrow"
+            data-from="${this.recommendedMove.from}"
+            data-to="${this.recommendedMove.to}"
+            viewBox="0 0 800 800"
+            aria-hidden="true"
+          >
+            <defs>
+              <marker
+                id="analysis-best-move-arrowhead"
+                markerWidth="4.5"
+                markerHeight="4.5"
+                refX="2.6"
+                refY="2.25"
+                orient="auto"
+              >
+                <polygon points="0 0, 4.5 2.25, 0 4.5" fill="#E98232" />
+              </marker>
+            </defs>
+            <circle cx="${x1}" cy="${y1}" r="16" fill="#E98232" fill-opacity="0.35" stroke="#E98232" stroke-width="4" />
+            <line
+              x1="${sx}"
+              y1="${sy}"
+              x2="${ex}"
+              y2="${ey}"
+              stroke="#E98232"
+              stroke-width="14"
+              stroke-linecap="round"
+               stroke-opacity="0.88"
+              marker-end="url(#analysis-best-move-arrowhead)"
+            />
+          </svg>
         `;
       }
     }
@@ -5631,6 +5778,7 @@ export class AnalysisReplayBoard {
           <div class="chessboard-grid" role="grid" aria-label="Papan Catur Replay Analisis PGN">
             ${squaresHtml}
           </div>
+          ${bestMoveOverlayHtml}
           ${promotionModalHtml}
         </div>
 

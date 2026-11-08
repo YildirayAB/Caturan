@@ -27,6 +27,11 @@ import {
   formatFileSize,
   formatPgnResultLabel
 } from '../services/pgnService.js';
+import {
+  chessAnalysisEngine,
+  ANALYSIS_ENGINE_STATES,
+  ANALYSIS_ENGINE_STATE_LABELS
+} from '../services/chessAnalysisEngineService.js';
 
 export const MOBILE_ANALYSIS_BREAKPOINT = 600;
 
@@ -41,8 +46,41 @@ export const SAMPLE_PGN_PLACEHOLDER = `[Event "Partai Latihan Caturan"]
 1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O Be7 6. Re1 b5 7. Bb3 d6 8. c3 O-O 1-0`;
 
 let activeReplayBoardInstance = null;
+let activeAnalysisEngineInstance = null;
+let activeEngineStatusUnsubscribe = null;
 
-export function destroyActiveAnalysisBoard() {
+export function destroyActiveAnalysisBoard({ terminateEngine = true } = {}) {
+  if (typeof activeEngineStatusUnsubscribe === 'function') {
+    try {
+      activeEngineStatusUnsubscribe();
+    } catch {
+      // Abaikan jika sudah di-unsubscribe
+    }
+  }
+  activeEngineStatusUnsubscribe = null;
+
+  if (terminateEngine) {
+    if (
+      activeAnalysisEngineInstance &&
+      typeof activeAnalysisEngineInstance.terminate === 'function'
+    ) {
+      activeAnalysisEngineInstance.terminate();
+    }
+    if (
+      chessAnalysisEngine &&
+      chessAnalysisEngine !== activeAnalysisEngineInstance &&
+      typeof chessAnalysisEngine.terminate === 'function'
+    ) {
+      chessAnalysisEngine.terminate();
+    }
+    activeAnalysisEngineInstance = null;
+  } else if (
+    activeAnalysisEngineInstance &&
+    typeof activeAnalysisEngineInstance.stopAnalysis === 'function'
+  ) {
+    activeAnalysisEngineInstance.stopAnalysis('view_rerender');
+  }
+
   if (activeReplayBoardInstance && typeof activeReplayBoardInstance.destroy === 'function') {
     activeReplayBoardInstance.destroy();
   }
@@ -51,6 +89,10 @@ export function destroyActiveAnalysisBoard() {
 
 export function getActiveAnalysisBoard() {
   return activeReplayBoardInstance;
+}
+
+export function getActiveAnalysisEngine() {
+  return activeAnalysisEngineInstance || chessAnalysisEngine;
 }
 
 export function isMobileAnalysisViewport() {
@@ -105,7 +147,15 @@ export function createInitialAnalysisSessionState() {
     copyStatusMessage: '',
     copyFenStatusMessage: '',
     lastCopiedFen: '',
-    sessionCleanupNotice: ''
+    sessionCleanupNotice: '',
+    engineStatus: ANALYSIS_ENGINE_STATES.IDLE,
+    engineStatusLabel: ANALYSIS_ENGINE_STATE_LABELS[ANALYSIS_ENGINE_STATES.READY],
+    analysisResult: null,
+    analysisStale: false,
+    analysisStaleMessage: '',
+    analysisError: null,
+    lastKnownBoardFen: null,
+    lastAnalyzedFen: null
   };
 }
 
@@ -124,6 +174,14 @@ export function resetAnalysisExplorationState(state, { preserveCleanupNotice = f
   state.copyStatusMessage = '';
   state.copyFenStatusMessage = '';
   state.lastCopiedFen = '';
+  state.engineStatus = ANALYSIS_ENGINE_STATES.IDLE;
+  state.engineStatusLabel = ANALYSIS_ENGINE_STATE_LABELS[ANALYSIS_ENGINE_STATES.READY];
+  state.analysisResult = null;
+  state.analysisStale = false;
+  state.analysisStaleMessage = '';
+  state.analysisError = null;
+  state.lastKnownBoardFen = null;
+  state.lastAnalyzedFen = null;
   if (!preserveCleanupNotice) {
     state.sessionCleanupNotice = '';
   }
@@ -800,8 +858,131 @@ export function renderAnalysisView(container, sessionState, callbacks = {}) {
             </nav>
           </div>
 
-          <!-- DESKTOP & MOBILE AUXILIARY PANEL: MOVES, VARIATION MANAGER & POSITION INFORMATION -->
-          <aside class="card analysis-moves-panel analysis-desktop-moves-panel" aria-label="Riwayat Langkah SAN, Variasi, dan Informasi Posisi">
+          <!-- DESKTOP & MOBILE AUXILIARY PANEL: STOCKFISH ANALYSIS, MOVES, VARIATION MANAGER & POSITION INFORMATION -->
+          <aside class="card analysis-moves-panel analysis-desktop-moves-panel" aria-label="Analisis Stockfish, Riwayat Langkah SAN, Variasi, dan Informasi Posisi">
+            <!-- MVP 5.4: STOCKFISH 19 ANALYSIS ENGINE PANEL (Desktop & Mobile) -->
+            <div
+              class="analysis-engine-panel"
+              role="region"
+              aria-label="Panel Analisis Engine Stockfish"
+              data-testid="analysis-engine-panel"
+              data-engine-status="ready"
+            >
+              <div class="analysis-engine-header">
+                <div class="analysis-engine-title-group">
+                  <span class="analysis-engine-icon" aria-hidden="true">${UI_ICONS.cpu}</span>
+                  <div>
+                    <h3 class="analysis-engine-title">Stockfish 19 Analysis</h3>
+                    <p class="analysis-engine-subtitle" data-testid="analysis-engine-mode-context"></p>
+                  </div>
+                </div>
+                <span
+                  class="badge analysis-engine-status-badge status-ready"
+                  data-testid="analysis-engine-status-badge"
+                  data-engine-status="ready"
+                >Ready</span>
+              </div>
+
+              <div class="analysis-engine-controls" role="group" aria-label="Kontrol Analisis Stockfish">
+                <button
+                  type="button"
+                  class="btn btn-primary btn-sm analysis-touch-btn analysis-engine-btn"
+                  data-action="analysis-start-engine"
+                  data-testid="analysis-analyze-btn"
+                >
+                  ${UI_ICONS.zap}
+                  <span data-testid="analysis-analyze-btn-label">Analyze Position</span>
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-secondary btn-sm analysis-touch-btn analysis-engine-btn"
+                  data-action="analysis-stop-engine"
+                  data-testid="analysis-stop-btn"
+                  disabled
+                >
+                  <span>Stop Analysis</span>
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-secondary btn-sm analysis-touch-btn analysis-engine-btn"
+                  data-action="analysis-reanalyze-engine"
+                  data-testid="analysis-reanalyze-btn"
+                >
+                  ${UI_ICONS.restart}
+                  <span>Analyze Again</span>
+                </button>
+              </div>
+
+              <!-- Empty / Initial State -->
+              <div
+                class="analysis-engine-state-box analysis-engine-empty"
+                data-testid="analysis-engine-empty"
+              >
+                <p class="analysis-engine-empty-text" data-testid="analysis-engine-empty-text">
+                  Tekan "Analyze Position" untuk menganalisis posisi aktif pada papan menggunakan Stockfish 19 Lite.
+                </p>
+              </div>
+
+              <!-- Stale / Position Changed Notice -->
+              <div
+                class="analysis-engine-state-box analysis-engine-stale hidden"
+                data-testid="analysis-engine-stale-notice"
+              >
+                <p class="analysis-engine-stale-text" data-testid="analysis-engine-stale-text"></p>
+              </div>
+
+              <!-- Loading / Analyzing State -->
+              <div
+                class="analysis-engine-state-box analysis-engine-loading hidden"
+                data-testid="analysis-engine-loading"
+              >
+                <span class="analysis-engine-spinner" aria-hidden="true"></span>
+                <p class="analysis-engine-loading-text" data-testid="analysis-engine-loading-text">
+                  Stockfish sedang menganalisis posisi aktif...
+                </p>
+              </div>
+
+              <!-- Error State -->
+              <div
+                class="analysis-engine-state-box analysis-engine-error hidden"
+                role="alert"
+                data-testid="analysis-engine-error"
+              >
+                <p class="analysis-engine-error-text" data-testid="analysis-engine-error-text"></p>
+              </div>
+
+              <!-- Finalized Analysis Results -->
+              <div
+                class="analysis-engine-results hidden"
+                data-testid="analysis-engine-results"
+              >
+                <div class="analysis-engine-top-metrics">
+                  <div class="analysis-eval-card" data-testid="analysis-eval-card">
+                    <span class="analysis-meta-label">Position Evaluation (Perspektif Putih)</span>
+                    <div class="analysis-eval-main-row">
+                      <strong class="analysis-eval-score" data-testid="analysis-eval-score"></strong>
+                      <span class="badge analysis-depth-badge" data-testid="analysis-depth-value"></span>
+                    </div>
+                    <span class="analysis-eval-advantage" data-testid="analysis-eval-label"></span>
+                  </div>
+
+                  <div class="analysis-best-move-card" data-testid="analysis-best-move-card">
+                    <span class="analysis-meta-label">Best Move (Langkah Terbaik)</span>
+                    <strong class="analysis-best-move-san" data-testid="analysis-best-move-san"></strong>
+                    <span class="analysis-best-move-squares" data-testid="analysis-best-move-squares"></span>
+                  </div>
+                </div>
+
+                <div class="analysis-pv-card" data-testid="analysis-pv-card">
+                  <div class="analysis-pv-header">
+                    <span class="analysis-meta-label">Principal Variation (PV)</span>
+                    <span class="analysis-pv-sub" data-testid="analysis-pv-count"></span>
+                  </div>
+                  <div class="analysis-pv-line" data-testid="analysis-pv-line"></div>
+                </div>
+              </div>
+            </div>
+
             <div class="analysis-moves-panel-header">
               <div>
                 <h3 class="card-title">Daftar Langkah (SAN)</h3>
@@ -974,7 +1155,7 @@ export function renderAnalysisView(container, sessionState, callbacks = {}) {
 
   // Jika ada partai valid, isi metadata & mount papan replay
   if (hasValidGame) {
-    _populateGamePreviewDom(container, state);
+    _populateGamePreviewDom(container, state, callbacks);
   }
 
   _bindAnalysisViewEvents(container, state, callbacks);
@@ -984,7 +1165,7 @@ export function renderAnalysisView(container, sessionState, callbacks = {}) {
  * Mengisi informasi metadata (Desktop & Mobile), papan interaktif, dan daftar langkah menggunakan textContent
  * agar sepenuhnya terlindung dari injeksi HTML/JS dari header atau komentar PGN.
  */
-function _populateGamePreviewDom(container, state) {
+function _populateGamePreviewDom(container, state, callbacks = {}) {
   const game = state.parsedGame;
   if (!game || !game.valid) return;
 
@@ -1058,6 +1239,35 @@ function _populateGamePreviewDom(container, state) {
   // 1) Mount AnalysisReplayBoard (mendukung Review Mode, Explore Mode, dan Variation Manager)
   const boardMount = container.querySelector('#analysis-replay-board-mount');
   if (boardMount) {
+    const engine =
+      (callbacks && callbacks.analysisEngine) ||
+      state.analysisEngine ||
+      chessAnalysisEngine;
+    activeAnalysisEngineInstance = engine;
+
+    if (engine && typeof engine.onStatusChange === 'function') {
+      activeEngineStatusUnsubscribe = engine.onStatusChange(statusInfo => {
+        if (!activeReplayBoardInstance) return;
+        const nextStatus = statusInfo && statusInfo.status ? statusInfo.status : ANALYSIS_ENGINE_STATES.READY;
+        const nextLabel = statusInfo && statusInfo.label ? statusInfo.label : 'Ready';
+        state.engineStatus = nextStatus;
+        state.engineStatusLabel = nextLabel;
+        _renderEngineAnalysisPanelDom(
+          container,
+          state,
+          activeReplayBoardInstance.getReplayState()
+        );
+      });
+    }
+
+    const initialRecommendedMove =
+      state.analysisResult &&
+      !state.analysisStale &&
+      state.analysisResult.bestMove &&
+      state.analysisResult.fen
+        ? { ...state.analysisResult.bestMove, fen: state.analysisResult.fen }
+        : null;
+
     activeReplayBoardInstance = new AnalysisReplayBoard(boardMount, game, {
       initialPly: state.currentPly,
       orientation: state.orientation,
@@ -1065,11 +1275,18 @@ function _populateGamePreviewDom(container, state) {
       variations: Array.isArray(state.variations) ? state.variations : [],
       activeLineId: state.activeLineId || 'mainline',
       variationCounter: Number(state.variationCounter) || 1,
+      recommendedMove: initialRecommendedMove,
       onPlyChange: replayState => {
+        const prevFen = state.lastKnownBoardFen;
+        const nextFen = replayState.currentFen;
+        const fenChanged = Boolean(prevFen && nextFen && prevFen !== nextFen);
+
         state.currentPly = replayState.currentPly;
         state.orientation = replayState.orientation;
         state.analysisMode = replayState.mode || 'review';
         state.activeLineId = replayState.activeLineId || 'mainline';
+        state.lastKnownBoardFen = nextFen;
+
         if (activeReplayBoardInstance) {
           state.variations = activeReplayBoardInstance.getVariations();
           state.variationCounter = activeReplayBoardInstance.variationCounter;
@@ -1077,6 +1294,45 @@ function _populateGamePreviewDom(container, state) {
         if (state.lastCopiedFen && state.lastCopiedFen !== replayState.currentFen) {
           state.copyFenStatusMessage = '';
         }
+
+        // MVP 5.4: Ketika posisi berubah (Review / Explore), batalkan analisis berjalan & tandai hasil lama tidak berlaku
+        if (fenChanged) {
+          const currentEngine = getActiveAnalysisEngine();
+          const wasAnalyzing = Boolean(
+            (currentEngine && typeof currentEngine.isAnalyzing === 'function' && currentEngine.isAnalyzing()) ||
+              state.engineStatus === ANALYSIS_ENGINE_STATES.ANALYZING ||
+              state.engineStatus === ANALYSIS_ENGINE_STATES.LOADING
+          );
+
+          if (currentEngine && typeof currentEngine.notifyPositionChanged === 'function') {
+            currentEngine.notifyPositionChanged(nextFen);
+          }
+
+          if (wasAnalyzing) {
+            state.engineStatus = ANALYSIS_ENGINE_STATES.STOPPED;
+            state.engineStatusLabel = ANALYSIS_ENGINE_STATE_LABELS[ANALYSIS_ENGINE_STATES.STOPPED];
+            state.analysisResult = null;
+            state.analysisError = null;
+            state.analysisStale = true;
+            state.analysisStaleMessage =
+              'Posisi papan berubah saat analisis berlangsung. Analisis posisi lama dihentikan — tekan "Analyze Position" untuk menganalisis posisi baru.';
+          } else if (state.analysisResult && state.analysisResult.fen !== nextFen) {
+            state.analysisResult = null;
+            state.analysisError = null;
+            state.analysisStale = true;
+            state.analysisStaleMessage =
+              'Posisi papan telah berpindah. Hasil analisis posisi sebelumnya tidak lagi berlaku — tekan "Analyze Position" untuk mengevaluasi posisi ini.';
+            if (state.engineStatus !== ANALYSIS_ENGINE_STATES.ERROR) {
+              state.engineStatus = ANALYSIS_ENGINE_STATES.READY;
+              state.engineStatusLabel = ANALYSIS_ENGINE_STATE_LABELS[ANALYSIS_ENGINE_STATES.READY];
+            }
+          }
+
+          if (activeReplayBoardInstance) {
+            activeReplayBoardInstance.clearRecommendedMove({ render: true });
+          }
+        }
+
         _syncReplayStatusDom(container, state, replayState);
       }
     });
@@ -1086,6 +1342,13 @@ function _populateGamePreviewDom(container, state) {
     state.orientation = initialReplayState.orientation;
     state.analysisMode = initialReplayState.mode;
     state.activeLineId = initialReplayState.activeLineId;
+    state.lastKnownBoardFen = initialReplayState.currentFen;
+    if (state.analysisResult && state.analysisResult.fen !== initialReplayState.currentFen) {
+      state.analysisResult = null;
+      state.analysisStale = true;
+      state.analysisStaleMessage =
+        'Posisi papan telah berpindah. Hasil analisis posisi sebelumnya tidak lagi berlaku.';
+    }
     state.variations = activeReplayBoardInstance.getVariations();
     state.variationCounter = activeReplayBoardInstance.variationCounter;
     _syncReplayStatusDom(container, state, initialReplayState);
@@ -1796,6 +2059,358 @@ function _syncReplayStatusDom(container, state, replayState) {
       }
     }
   }
+
+  // MVP 5.4: Sinkronkan Panel Analisis Stockfish 19
+  _renderEngineAnalysisPanelDom(container, state, replayState);
+}
+
+/**
+ * Merender status dan hasil akhir evaluasi Stockfish pada Panel Analisis (MVP 5.4).
+ * Hanya menampilkan hasil evaluasi yang sudah selesai dan cocok dengan FEN aktif saat ini.
+ */
+function _renderEngineAnalysisPanelDom(container, state, replayState) {
+  if (!container || !replayState) return;
+  const panelEl = container.querySelector('[data-testid="analysis-engine-panel"]');
+  if (!panelEl) return;
+
+  const rawStatus = state.engineStatus || ANALYSIS_ENGINE_STATES.IDLE;
+  const statusKey =
+    rawStatus === ANALYSIS_ENGINE_STATES.IDLE ? ANALYSIS_ENGINE_STATES.READY : rawStatus;
+  const statusLabel =
+    ANALYSIS_ENGINE_STATE_LABELS[statusKey] ||
+    state.engineStatusLabel ||
+    ANALYSIS_ENGINE_STATE_LABELS[ANALYSIS_ENGINE_STATES.READY];
+
+  panelEl.setAttribute('data-engine-status', statusKey);
+
+  const badgeEl = container.querySelector('[data-testid="analysis-engine-status-badge"]');
+  if (badgeEl) {
+    badgeEl.textContent = statusLabel;
+    badgeEl.setAttribute('data-engine-status', statusKey);
+    badgeEl.className = `badge analysis-engine-status-badge status-${statusKey}`;
+  }
+
+  const modeCtxEl = container.querySelector('[data-testid="analysis-engine-mode-context"]');
+  if (modeCtxEl) {
+    const modeText =
+      replayState.mode === 'explore' ? 'Mode Jelajahi Posisi (Explore)' : 'Mode Review';
+    const turnText = safeDisplayValue(replayState.turnLabel, 'Putih');
+    modeCtxEl.textContent = `${modeText} • Ply ${replayState.currentPly} • Giliran ${turnText}`;
+  }
+
+  const isBusy =
+    statusKey === ANALYSIS_ENGINE_STATES.LOADING ||
+    statusKey === ANALYSIS_ENGINE_STATES.ANALYZING;
+
+  const analyzeBtn = container.querySelector('[data-testid="analysis-analyze-btn"]');
+  const stopBtn = container.querySelector('[data-testid="analysis-stop-btn"]');
+  const reanalyzeBtn = container.querySelector('[data-testid="analysis-reanalyze-btn"]');
+
+  const setDisabled = (btn, disabled) => {
+    if (!btn) return;
+    btn.disabled = Boolean(disabled);
+    if (disabled) {
+      btn.setAttribute('disabled', 'true');
+    } else {
+      btn.removeAttribute('disabled');
+    }
+  };
+
+  setDisabled(analyzeBtn, isBusy);
+  setDisabled(stopBtn, !isBusy);
+  setDisabled(reanalyzeBtn, isBusy);
+
+  const emptyBoxEl = container.querySelector('[data-testid="analysis-engine-empty"]');
+  const emptyTextEl = container.querySelector('[data-testid="analysis-engine-empty-text"]');
+  const staleBoxEl = container.querySelector('[data-testid="analysis-engine-stale-notice"]');
+  const staleTextEl = container.querySelector('[data-testid="analysis-engine-stale-text"]');
+  const loadingBoxEl = container.querySelector('[data-testid="analysis-engine-loading"]');
+  const loadingTextEl = container.querySelector('[data-testid="analysis-engine-loading-text"]');
+  const errorBoxEl = container.querySelector('[data-testid="analysis-engine-error"]');
+  const errorTextEl = container.querySelector('[data-testid="analysis-engine-error-text"]');
+  const resultsBoxEl = container.querySelector('[data-testid="analysis-engine-results"]');
+
+  const hideAllBoxes = () => {
+    if (emptyBoxEl) emptyBoxEl.classList.add('hidden');
+    if (staleBoxEl) staleBoxEl.classList.add('hidden');
+    if (loadingBoxEl) loadingBoxEl.classList.add('hidden');
+    if (errorBoxEl) errorBoxEl.classList.add('hidden');
+    if (resultsBoxEl) resultsBoxEl.classList.add('hidden');
+  };
+
+  hideAllBoxes();
+
+  const res = state.analysisResult;
+  const hasValidFinalResult = Boolean(
+    res &&
+      res.ok &&
+      res.completed &&
+      !res.stale &&
+      !state.analysisStale &&
+      res.fen === replayState.currentFen &&
+      !isBusy &&
+      !state.analysisError
+  );
+
+  if (isBusy) {
+    if (loadingBoxEl) loadingBoxEl.classList.remove('hidden');
+    if (loadingTextEl) {
+      loadingTextEl.textContent =
+        statusKey === ANALYSIS_ENGINE_STATES.LOADING
+          ? 'Memuat engine Stockfish 19 Lite WASM...'
+          : 'Stockfish sedang menganalisis posisi aktif...';
+    }
+    return;
+  }
+
+  if (state.analysisError) {
+    if (errorBoxEl) errorBoxEl.classList.remove('hidden');
+    if (errorTextEl) {
+      errorTextEl.textContent = safeDisplayValue(
+        state.analysisError,
+        'Gagal menganalisis posisi catur. Silakan coba kembali.'
+      );
+    }
+    return;
+  }
+
+  if (hasValidFinalResult) {
+    if (resultsBoxEl) resultsBoxEl.classList.remove('hidden');
+
+    const evalInfo = res.evaluation || {};
+    const evalScoreEl = container.querySelector('[data-testid="analysis-eval-score"]');
+    const evalLabelEl = container.querySelector('[data-testid="analysis-eval-label"]');
+    const depthEl = container.querySelector('[data-testid="analysis-depth-value"]');
+    const bestMoveSanEl = container.querySelector('[data-testid="analysis-best-move-san"]');
+    const bestMoveSqEl = container.querySelector('[data-testid="analysis-best-move-squares"]');
+    const pvLineEl = container.querySelector('[data-testid="analysis-pv-line"]');
+    const pvCountEl = container.querySelector('[data-testid="analysis-pv-count"]');
+
+    if (evalScoreEl) {
+      evalScoreEl.textContent = safeDisplayValue(evalInfo.formatted, '0.00');
+      evalScoreEl.setAttribute('data-advantage', safeDisplayValue(evalInfo.advantage, 'equal'));
+      evalScoreEl.setAttribute('data-perspective', 'white');
+    }
+    if (evalLabelEl) {
+      evalLabelEl.textContent = safeDisplayValue(evalInfo.label, 'Posisi seimbang');
+    }
+    if (depthEl) {
+      const depthNum = typeof res.depth === 'number' && res.depth >= 0 ? res.depth : 0;
+      depthEl.textContent = `Depth ${depthNum}`;
+      depthEl.setAttribute('data-depth', String(depthNum));
+    }
+
+    if (bestMoveSanEl) {
+      if (res.bestMove && res.bestMove.san) {
+        bestMoveSanEl.textContent = `Best Move: ${res.bestMove.san}`;
+        bestMoveSanEl.setAttribute('data-san', res.bestMove.san);
+      } else {
+        bestMoveSanEl.textContent = 'Best Move: - (Posisi Terminal)';
+        bestMoveSanEl.setAttribute('data-san', '');
+      }
+    }
+
+    if (bestMoveSqEl) {
+      if (res.bestMove && res.bestMove.from && res.bestMove.to) {
+        bestMoveSqEl.textContent = `Petak: ${res.bestMove.from} → ${res.bestMove.to}`;
+        bestMoveSqEl.setAttribute('data-from', res.bestMove.from);
+        bestMoveSqEl.setAttribute('data-to', res.bestMove.to);
+      } else {
+        bestMoveSqEl.textContent = 'Tidak ada langkah lanjutan pada posisi ini';
+        bestMoveSqEl.setAttribute('data-from', '');
+        bestMoveSqEl.setAttribute('data-to', '');
+      }
+    }
+
+    const sanMoves =
+      res.pv && Array.isArray(res.pv.sanMoves) && res.pv.sanMoves.length > 0
+        ? res.pv.sanMoves
+        : res.bestMove && res.bestMove.san
+          ? [res.bestMove.san]
+          : [];
+
+    if (pvCountEl) {
+      pvCountEl.textContent = `${sanMoves.length} langkah`;
+    }
+
+    if (pvLineEl) {
+      pvLineEl.textContent =
+        sanMoves.length > 0 ? sanMoves.join(' ') : 'Tidak ada rangkaian langkah (posisi terminal).';
+    }
+    return;
+  }
+
+  if (state.analysisStale && state.analysisStaleMessage) {
+    if (staleBoxEl) staleBoxEl.classList.remove('hidden');
+    if (staleTextEl) {
+      staleTextEl.textContent = safeDisplayValue(
+        state.analysisStaleMessage,
+        'Posisi papan telah berubah. Tekan "Analyze Position" untuk menganalisis posisi baru.'
+      );
+    }
+    return;
+  }
+
+  if (emptyBoxEl) emptyBoxEl.classList.remove('hidden');
+  if (emptyTextEl) {
+    if (statusKey === ANALYSIS_ENGINE_STATES.STOPPED) {
+      emptyTextEl.textContent =
+        'Analisis dihentikan. Tekan "Analyze Position" atau "Analyze Again" untuk mengevaluasi posisi aktif.';
+    } else {
+      emptyTextEl.textContent =
+        'Tekan "Analyze Position" untuk menganalisis posisi aktif pada papan menggunakan Stockfish 19 Lite.';
+    }
+  }
+}
+
+/**
+ * Menjalankan analisis Stockfish secara manual untuk posisi papan yang sedang aktif.
+ */
+export async function runAnalysisForActivePosition(container, state, callbacks = {}) {
+  if (!container || !state || !activeReplayBoardInstance) return null;
+
+  const board = activeReplayBoardInstance;
+  const engine =
+    (callbacks && callbacks.analysisEngine) ||
+    state.analysisEngine ||
+    activeAnalysisEngineInstance ||
+    chessAnalysisEngine;
+
+  activeAnalysisEngineInstance = engine;
+
+  // Cegah permintaan analisis ganda yang tidak disengaja
+  if (
+    state.engineStatus === ANALYSIS_ENGINE_STATES.LOADING ||
+    state.engineStatus === ANALYSIS_ENGINE_STATES.ANALYZING ||
+    (engine && typeof engine.isAnalyzing === 'function' && engine.isAnalyzing())
+  ) {
+    return null;
+  }
+
+  const targetFen = board.getCurrentFen();
+  state.lastKnownBoardFen = targetFen;
+  state.analysisResult = null;
+  state.analysisError = null;
+  state.analysisStale = false;
+  state.analysisStaleMessage = '';
+
+  board.clearRecommendedMove({ render: true });
+
+  const initialStatus =
+    engine && engine.isReady ? ANALYSIS_ENGINE_STATES.ANALYZING : ANALYSIS_ENGINE_STATES.LOADING;
+  state.engineStatus = initialStatus;
+  state.engineStatusLabel = ANALYSIS_ENGINE_STATE_LABELS[initialStatus];
+  _renderEngineAnalysisPanelDom(container, state, board.getReplayState());
+
+  const engineOptions = {
+    ...(state.engineOptions || {}),
+    ...(callbacks && callbacks.engineOptions ? callbacks.engineOptions : {})
+  };
+
+  const result = await engine.analyzePosition(targetFen, engineOptions);
+
+  // Jika pengguna sudah meninggalkan halaman atau instance papan telah diganti, abaikan
+  if (!activeReplayBoardInstance || activeReplayBoardInstance !== board) {
+    return result;
+  }
+
+  const currentFenNow = board.getCurrentFen();
+
+  // Jika posisi papan berubah selama analisis atau hasil ditandai stale, abaikan hasil lama
+  if (currentFenNow !== targetFen || (result && result.stale)) {
+    state.analysisResult = null;
+    state.analysisStale = true;
+    if (!state.analysisStaleMessage) {
+      state.analysisStaleMessage =
+        'Posisi papan berubah saat analisis berlangsung. Hasil posisi lama diabaikan — tekan "Analyze Position" untuk menganalisis posisi baru.';
+    }
+    if (state.engineStatus !== ANALYSIS_ENGINE_STATES.ERROR) {
+      state.engineStatus = ANALYSIS_ENGINE_STATES.STOPPED;
+      state.engineStatusLabel = ANALYSIS_ENGINE_STATE_LABELS[ANALYSIS_ENGINE_STATES.STOPPED];
+    }
+    board.clearRecommendedMove({ render: true });
+    _renderEngineAnalysisPanelDom(container, state, board.getReplayState());
+    return result;
+  }
+
+  if (result && result.stopped) {
+    state.engineStatus = ANALYSIS_ENGINE_STATES.STOPPED;
+    state.engineStatusLabel = ANALYSIS_ENGINE_STATE_LABELS[ANALYSIS_ENGINE_STATES.STOPPED];
+    state.analysisResult = null;
+    board.clearRecommendedMove({ render: true });
+    _renderEngineAnalysisPanelDom(container, state, board.getReplayState());
+    return result;
+  }
+
+  if (!result || !result.ok || !result.completed) {
+    state.engineStatus = ANALYSIS_ENGINE_STATES.ERROR;
+    state.engineStatusLabel = ANALYSIS_ENGINE_STATE_LABELS[ANALYSIS_ENGINE_STATES.ERROR];
+    state.analysisError =
+      result && result.errorMessage
+        ? result.errorMessage
+        : 'Gagal menganalisis posisi dengan Stockfish. Silakan coba lagi.';
+    state.analysisResult = null;
+    board.clearRecommendedMove({ render: true });
+    _renderEngineAnalysisPanelDom(container, state, board.getReplayState());
+    return result;
+  }
+
+  // Hasil akhir valid untuk posisi aktif saat ini
+  state.engineStatus = ANALYSIS_ENGINE_STATES.READY;
+  state.engineStatusLabel = ANALYSIS_ENGINE_STATE_LABELS[ANALYSIS_ENGINE_STATES.READY];
+  state.analysisError = null;
+  state.analysisStale = false;
+  state.analysisStaleMessage = '';
+  state.analysisResult = result;
+  state.lastAnalyzedFen = targetFen;
+
+  // Tampilkan penanda visual rekomendasi langkah terbaik pada papan tanpa menjalankan langkahnya
+  if (result.bestMove && result.bestMove.from && result.bestMove.to) {
+    board.setRecommendedMove(
+      {
+        ...result.bestMove,
+        fen: targetFen
+      },
+      { render: true }
+    );
+  } else {
+    board.clearRecommendedMove({ render: true });
+  }
+
+  _renderEngineAnalysisPanelDom(container, state, board.getReplayState());
+  return result;
+}
+
+/**
+ * Menghentikan analisis Stockfish yang sedang berjalan dengan aman.
+ */
+export function stopAnalysisForActivePosition(container, state, callbacks = {}) {
+  const engine =
+    (callbacks && callbacks.analysisEngine) ||
+    (state && state.analysisEngine) ||
+    activeAnalysisEngineInstance ||
+    chessAnalysisEngine;
+
+  if (engine && typeof engine.stopAnalysis === 'function') {
+    engine.stopAnalysis('stopped_by_user');
+  }
+
+  if (state) {
+    state.engineStatus = ANALYSIS_ENGINE_STATES.STOPPED;
+    state.engineStatusLabel = ANALYSIS_ENGINE_STATE_LABELS[ANALYSIS_ENGINE_STATES.STOPPED];
+    state.analysisResult = null;
+  }
+
+  if (activeReplayBoardInstance) {
+    activeReplayBoardInstance.clearRecommendedMove({ render: true });
+    if (container && state) {
+      _renderEngineAnalysisPanelDom(
+        container,
+        state,
+        activeReplayBoardInstance.getReplayState()
+      );
+    }
+  }
 }
 
 function _applyPgnValidationResult(container, state, validationResult, rawText, callbacks) {
@@ -2454,6 +3069,28 @@ function _bindAnalysisViewEvents(container, state, callbacks) {
   if (mobileFlipBtn) {
     mobileFlipBtn.addEventListener('click', () => {
       if (activeReplayBoardInstance) activeReplayBoardInstance.flipBoard();
+    });
+  }
+
+  // MVP 5.4: Kontrol Analisis Stockfish (Analyze Position, Stop Analysis, Analyze Again)
+  const startEngineBtn = container.querySelector('[data-action="analysis-start-engine"]');
+  if (startEngineBtn) {
+    startEngineBtn.addEventListener('click', () => {
+      runAnalysisForActivePosition(container, state, callbacks);
+    });
+  }
+
+  const stopEngineBtn = container.querySelector('[data-action="analysis-stop-engine"]');
+  if (stopEngineBtn) {
+    stopEngineBtn.addEventListener('click', () => {
+      stopAnalysisForActivePosition(container, state, callbacks);
+    });
+  }
+
+  const reanalyzeEngineBtn = container.querySelector('[data-action="analysis-reanalyze-engine"]');
+  if (reanalyzeEngineBtn) {
+    reanalyzeEngineBtn.addEventListener('click', () => {
+      runAnalysisForActivePosition(container, state, callbacks);
     });
   }
 }

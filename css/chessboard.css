@@ -1019,3 +1019,39 @@
     transform: none !important;
   }
 }
+
+/* ============================================================================
+ * MVP 5.4 — Stockfish Best Move Visual Recommendation Overlay & Square Markers
+ * ============================================================================ */
+
+.chess-square.square-best-move-from {
+  box-shadow: inset 0 0 0 3px #E98232;
+}
+
+.chess-square.square-best-move-to {
+  box-shadow: inset 0 0 0 3.5px #E98232;
+}
+
+.best-move-origin-ring,
+.best-move-target-ring {
+  position: absolute;
+  inset: 4px;
+  border: 2px dashed #E98232;
+  border-radius: 4px;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.best-move-target-ring {
+  border-style: solid;
+  border-width: 2.5px;
+}
+
+.chessboard-best-move-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 6;
+}
