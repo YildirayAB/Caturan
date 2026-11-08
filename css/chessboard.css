@@ -999,6 +999,29 @@
   color: var(--text-inverse);
 }
 
+@media (max-width: 768px) {
+  .board-prefs-trigger-btn .theme-label {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .board-prefs-trigger-btn {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .board-prefs-popover {
+    right: -48px;
+    width: min(250px, calc(100vw - 24px));
+  }
+}
+
 @media (max-width: 600px) {
   .board-prefs-trigger-btn .theme-label {
     display: none;

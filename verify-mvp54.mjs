@@ -1486,6 +1486,272 @@ await runTest('19. Panel analisis responsif pada Desktop & Mobile (320px-1920px)
 // ---------------------------------------------------------------------------
 // Ringkasan Akhir
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// 20. FIX A — Global Mobile Header (Anti-Overlap, Brand Caturan Utuh, Touch Target >= 44px)
+// ---------------------------------------------------------------------------
+await runTest('20. [FIX A] Global mobile header menggunakan layout 2 baris rapi tanpa overlap, brand Caturan utuh, & touch target >= 44px', async () => {
+  const layoutCss = fs.readFileSync(path.join(ROOT, 'css/layout.css'), 'utf8');
+  const chessboardCss = fs.readFileSync(path.join(ROOT, 'css/chessboard.css'), 'utf8');
+
+  // 1) Pastikan .topbar-app-name memiliki flex-shrink: 0 dan white-space: nowrap agar tidak tertimpa badge
+  assert.ok(
+    /\.topbar-app-name\s*\{[\s\S]*?flex-shrink:\s*0/m.test(layoutCss),
+    '.topbar-app-name (Caturan) wajib memiliki flex-shrink: 0 agar tidak tertimpa elemen streak/XP'
+  );
+
+  // 2) Pastikan pada @media (max-width: 640px) .app-topbar menggunakan layout 2 baris (grid / flex-wrap) dengan row-gap
+  assert.ok(
+    /@media\s*\(max-width:\s*640px\)[\s\S]*?\.app-topbar\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0,\s*1fr\)[\s\S]*?row-gap:\s*8px/m.test(
+      layoutCss
+    ),
+    '.app-topbar pada mobile (<= 640px) wajib menggunakan layout 2 baris (grid minmax(0, 1fr) dengan row-gap: 8px)'
+  );
+
+  // 3) Pastikan tombol Hamburger, Sound Effects, dan Theme Toggle memiliki touch target minimal 44x44px
+  assert.ok(
+    /\.mobile-menu-trigger,\s*\.theme-toggle-btn,\s*\.board-prefs-trigger-btn\s*\{[\s\S]*?min-width:\s*44px[\s\S]*?min-height:\s*44px/m.test(
+      layoutCss
+    ),
+    'Tombol Hamburger, Sound Effects, dan Theme Toggle wajib memenuhi touch target >= 44px'
+  );
+  assert.ok(
+    /@media\s*\(max-width:\s*768px\)[\s\S]*?\.board-prefs-trigger-btn\s+\.theme-label\s*\{\s*display:\s*none/m.test(
+      chessboardCss
+    ),
+    'Label teks tombol Sound Effects wajib disembunyikan pada <= 768px agar tidak bertabrakan dengan badge XP'
+  );
+});
+
+// ---------------------------------------------------------------------------
+// 21. FIX B — Player Information Cards (Multi-Baris Fleksibel, Nama & Giliran Utuh, Ikon Material Terpisah)
+// ---------------------------------------------------------------------------
+await runTest('21. [FIX B] Player information cards menampilkan Stockfish 19 Lite, warna bidak, giliran, & ikon material secara utuh tanpa terpotong', async () => {
+  const { renderPlayGameView } = await import(toUrl('js/components/playGameView.js'));
+  const compCss = fs.readFileSync(path.join(ROOT, 'css/components.css'), 'utf8');
+
+  // 1) Verifikasi CSS: multi-baris fleksibel tanpa pemotongan teks pada .combatant-name dan .combatant-sub
+  assert.ok(
+    /\.play-mobile-combatant-main\s+\.combatant-name\s*\{[\s\S]*?white-space:\s*normal[\s\S]*?overflow:\s*visible/m.test(
+      compCss
+    ),
+    'Nama pemain & Stockfish 19 Lite pada mobile player card wajib white-space: normal dan overflow: visible'
+  );
+  assert.ok(
+    /\.play-mobile-captured-line\s+\.combatant-sub\s*\{[\s\S]*?white-space:\s*normal[\s\S]*?overflow:\s*visible/m.test(
+      compCss
+    ),
+    'Keterangan warna bidak dan teks status giliran wajib white-space: normal dan overflow: visible'
+  );
+  assert.ok(
+    /\.play-mobile-material-row\s*\{[\s\S]*?display:\s*flex[\s\S]*?border-top:\s*1px\s+solid/m.test(
+      compCss
+    ),
+    'Area ikon material bidak (.play-mobile-material-row) wajib dipisahkan pada baris tersendiri'
+  );
+
+  // 2) Verifikasi DOM aktual pada mobile viewport (360px)
+  globalThis.window.innerWidth = 360;
+  const playMount = document.createElement('div');
+  const board = await renderPlayGameView(playMount, {
+    engine: null,
+    colorPreference: 'white',
+    difficulty: 'beginner',
+    userEmail: 'alexander.maximilian.pratama@caturan.id'
+  });
+
+  const opponentBar = playMount.querySelector('[data-testid="play-mobile-opponent-bar"]');
+  const playerBar = playMount.querySelector('[data-testid="play-mobile-player-bar"]');
+  assert.ok(opponentBar && playerBar, 'Opponent bar dan Player bar mobile wajib dirender');
+
+  // Nama Stockfish 19 Lite dan Bidak Hitam tampil utuh
+  assert.ok(
+    opponentBar.textContent.includes('Stockfish 19 Lite'),
+    'Nama Stockfish 19 Lite wajib tampil utuh'
+  );
+  assert.equal(
+    playMount.querySelector('[data-testid="play-mobile-cpu-color"]').textContent.trim(),
+    'Bidak Hitam',
+    'Keterangan Bidak Hitam wajib tampil utuh'
+  );
+  assert.equal(
+    playMount.querySelector('[data-testid="play-mobile-turn-status"]').textContent.trim(),
+    'Giliran Anda (Putih)',
+    'Teks status giliran pengguna wajib tampil utuh'
+  );
+
+  // Pastikan baris material (.play-mobile-material-row) terpisah dari baris identitas (.combatant-name-line) dan baris status (.play-mobile-captured-line)
+  const oppMaterialRow = playMount.querySelector('[data-testid="play-mobile-opponent-material-row"]');
+  const playerMaterialRow = playMount.querySelector('[data-testid="play-mobile-player-material-row"]');
+  assert.ok(
+    oppMaterialRow && playerMaterialRow,
+    'Baris material bidak wajib terpisah pada kartu Putih maupun Hitam'
+  );
+  assert.ok(oppMaterialRow.querySelector('#play-mobile-cpu-captured'));
+  assert.ok(playerMaterialRow.querySelector('#play-mobile-player-captured'));
+
+  board.destroy();
+  globalThis.window.innerWidth = 1366;
+});
+
+// ---------------------------------------------------------------------------
+// 22. FIX C — PGN Clipboard Paste on Mobile (Editable Textarea, Native Paste, Tombol Tempel dari Clipboard, Fallback, Contoh PGN, Clear, & Validasi)
+// ---------------------------------------------------------------------------
+await runTest('22. [FIX C] PGN Clipboard Paste pada Mobile bekerja penuh (editable textarea, native paste, tombol Tempel dari Clipboard, fallback izin ditolak/kosong, Contoh PGN, Clear, & masuk ke Game Review)', async () => {
+  const compCss = fs.readFileSync(path.join(ROOT, 'css/components.css'), 'utf8');
+
+  // 1) Verifikasi CSS interaksi teks mobile pada .analysis-textarea
+  assert.ok(
+    /\.analysis-textarea\s*\{[\s\S]*?user-select:\s*text[\s\S]*?-webkit-user-select:\s*text[\s\S]*?-webkit-touch-callout:\s*default[\s\S]*?pointer-events:\s*auto/m.test(
+      compCss
+    ),
+    '.analysis-textarea wajib mengizinkan seleksi teks dan menu tempel native di mobile'
+  );
+
+  const mobileViewports = [320, 360, 390, 412, 430, 768, 1024, 1366, 1920];
+  for (const vp of mobileViewports) {
+    globalThis.window.innerWidth = vp;
+    const mount = document.createElement('div');
+    const state = createInitialAnalysisSessionState();
+
+    let clipboardReadCalledOnLoad = false;
+    globalThis.navigator.clipboard = {
+      readText: async () => {
+        clipboardReadCalledOnLoad = true;
+        return SAMPLE_PGN_PLACEHOLDER;
+      },
+      writeText: async () => {}
+    };
+
+    renderAnalysisView(mount, state);
+
+    // Pastikan tidak pernah membaca clipboard otomatis saat halaman dimuat
+    assert.equal(
+      clipboardReadCalledOnLoad,
+      false,
+      `Clipboard tidak boleh dibaca otomatis saat halaman dimuat (${vp}px)`
+    );
+
+    const textarea = mount.querySelector('[data-testid="pgn-paste-textarea"]');
+    const pasteClipboardBtn = mount.querySelector('[data-testid="pgn-paste-clipboard-btn"]');
+    const clearBtn = mount.querySelector('[data-testid="pgn-paste-clear-btn"]');
+    const sampleBtn = mount.querySelector('[data-testid="pgn-load-sample-btn"]');
+    const feedbackEl = mount.querySelector('[data-testid="pgn-clipboard-feedback"]');
+
+    assert.ok(textarea, `Textarea PGN wajib ada pada ${vp}px`);
+    assert.equal(textarea.hasAttribute('readonly'), false, 'Textarea PGN tidak boleh readonly');
+    assert.equal(textarea.hasAttribute('disabled'), false, 'Textarea PGN tidak boleh disabled');
+    assert.equal(textarea.disabled, false);
+    assert.ok(
+      !textarea.placeholder.includes('[Event "Partai Latihan Caturan"]'),
+      'Placeholder tidak boleh menampilkan 9 baris PGN penuh yang membingungkan pengguna mobile'
+    );
+    assert.ok(pasteClipboardBtn, `Tombol Tempel dari Clipboard wajib tersedia pada ${vp}px`);
+    assert.ok(pasteClipboardBtn.textContent.includes('Tempel dari Clipboard'));
+    assert.ok(clearBtn && sampleBtn && feedbackEl);
+  }
+
+  // 2) Uji pada layar mobile 390px:
+  globalThis.window.innerWidth = 390;
+  const mount = document.createElement('div');
+  const state = createInitialAnalysisSessionState();
+  renderAnalysisView(mount, state);
+
+  const textarea = mount.querySelector('[data-testid="pgn-paste-textarea"]');
+  const pasteBtn = mount.querySelector('[data-testid="pgn-paste-clipboard-btn"]');
+  const clearBtn = mount.querySelector('[data-testid="pgn-paste-clear-btn"]');
+  const sampleBtn = mount.querySelector('[data-testid="pgn-load-sample-btn"]');
+  const feedbackEl = mount.querySelector('[data-testid="pgn-clipboard-feedback"]');
+  const validateCta = mount.querySelector('[data-testid="analysis-mobile-validate-cta"]');
+
+  // A. Uji Native Paste event pada textarea (tanpa preventDefault)
+  const nativePastedPgn = '1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 1-0';
+  let pasteDefaultPrevented = false;
+  textarea.value = '';
+  textarea.dispatchEvent({
+    type: 'paste',
+    clipboardData: {
+      getData: () => nativePastedPgn
+    },
+    preventDefault: () => {
+      pasteDefaultPrevented = true;
+    }
+  });
+  assert.equal(pasteDefaultPrevented, false, 'Event paste tidak boleh memanggil preventDefault()');
+  assert.equal(textarea.value, nativePastedPgn, 'Native paste harus mengisi nilai textarea');
+  assert.equal(state.rawPgnText, nativePastedPgn, 'Native paste harus memperbarui state.rawPgnText');
+  assert.equal(state.parsedGame, null, 'Native paste tidak boleh memvalidasi otomatis sebelum tombol ditekan');
+
+  // B. Uji tombol Clear
+  clearBtn.click();
+  const textareaAfterClear = mount.querySelector('[data-testid="pgn-paste-textarea"]');
+  assert.equal(textareaAfterClear.value, '');
+  assert.equal(state.rawPgnText, '');
+
+  // C. Uji tombol "Tempel dari Clipboard" saat izin ditolak (Permission Denied Fallback)
+  globalThis.navigator.clipboard = {
+    readText: async () => {
+      throw new Error('NotAllowedError: Write permission denied');
+    }
+  };
+  mount.querySelector('[data-testid="pgn-paste-clipboard-btn"]').click();
+  await new Promise(r => setTimeout(r, 15));
+
+  const fbAfterDenied = mount.querySelector('[data-testid="pgn-clipboard-feedback"]');
+  assert.equal(fbAfterDenied.classList.contains('hidden'), false, 'Pesan fallback wajib tampil saat izin clipboard ditolak');
+  assert.equal(fbAfterDenied.getAttribute('data-status'), 'fallback');
+  assert.ok(
+    fbAfterDenied.textContent.toLowerCase().includes('long-press') ||
+      fbAfterDenied.textContent.toLowerCase().includes('tahan'),
+    'Pesan fallback harus memandu pengguna melakukan long-press -> Tempel pada textarea'
+  );
+
+  // D. Uji tombol "Tempel dari Clipboard" saat Clipboard API kosong
+  globalThis.navigator.clipboard = {
+    readText: async () => '   '
+  };
+  mount.querySelector('[data-testid="pgn-paste-clipboard-btn"]').click();
+  await new Promise(r => setTimeout(r, 15));
+  assert.equal(fbAfterDenied.getAttribute('data-status'), 'empty');
+
+  // E. Uji tombol "Tempel dari Clipboard" saat Clipboard API tersedia & berisi PGN valid
+  globalThis.navigator.clipboard = {
+    readText: async () => SAMPLE_PGN_PLACEHOLDER
+  };
+  mount.querySelector('[data-testid="pgn-paste-clipboard-btn"]').click();
+  await new Promise(r => setTimeout(r, 15));
+
+  const currentTextarea = mount.querySelector('[data-testid="pgn-paste-textarea"]');
+  assert.equal(
+    currentTextarea.value,
+    SAMPLE_PGN_PLACEHOLDER,
+    'Tombol Tempel dari Clipboard harus mengisi textarea dengan teks PGN dari clipboard'
+  );
+  assert.equal(state.rawPgnText, SAMPLE_PGN_PLACEHOLDER);
+  assert.equal(
+    state.parsedGame,
+    null,
+    'Tombol Tempel dari Clipboard tidak boleh langsung memvalidasi sebelum pengguna menekan Validasi & Mulai Review'
+  );
+  assert.equal(fbAfterDenied.getAttribute('data-status'), 'success');
+  assert.ok(fbAfterDenied.textContent.includes('berhasil ditempel'));
+
+  // F. Uji tombol Contoh PGN setelah dikosongkan
+  currentTextarea.value = '';
+  state.rawPgnText = '';
+  mount.querySelector('[data-testid="pgn-load-sample-btn"]').click();
+  assert.equal(currentTextarea.value, SAMPLE_PGN_PLACEHOLDER, 'Tombol Contoh PGN harus mengisi contoh PGN ke textarea');
+  assert.equal(state.rawPgnText, SAMPLE_PGN_PLACEHOLDER);
+
+  // G. Tekan "Validasi & Mulai Review" -> PGN hasil paste berhasil divalidasi dan masuk ke Game Review
+  mount.querySelector('[data-testid="analysis-mobile-validate-cta"]').click();
+  assert.equal(state.parsedGame?.valid, true, 'PGN hasil paste harus berhasil divalidasi');
+  assert.equal(state.mobileScreen, 'review', 'Harus berpindah ke layar Game Review setelah menekan Validasi & Mulai Review');
+  assert.ok(getActiveAnalysisBoard(), 'Papan analisis interaktif harus aktif di Game Review');
+
+  destroyActiveAnalysisBoard();
+  globalThis.window.innerWidth = 1366;
+});
+
 console.log('\n====================================================================');
 console.log(
   `RINGKASAN VERIFIKASI MVP 5.4: ${passedTests} LULUS, ${failedTests} GAGAL (Total: ${totalTests} Pengujian)`

@@ -173,7 +173,9 @@ export function renderPlayGameView(
                   </span>
                 </div>
                 <div class="play-mobile-captured-line">
-                  <span class="combatant-sub" data-testid="play-mobile-cpu-color">Hitam</span>
+                  <span class="combatant-sub" data-testid="play-mobile-cpu-color">Bidak Hitam</span>
+                </div>
+                <div class="play-mobile-material-row" data-testid="play-mobile-opponent-material-row">
                   <span class="meta-dot">•</span>
                   <div id="play-mobile-cpu-captured" class="play-mobile-captured-inline"></div>
                 </div>
@@ -207,6 +209,8 @@ export function renderPlayGameView(
                 </div>
                 <div class="play-mobile-captured-line">
                   <span class="combatant-sub" data-testid="play-mobile-turn-status">Menyiapkan permainan...</span>
+                </div>
+                <div class="play-mobile-material-row" data-testid="play-mobile-player-material-row">
                   <span class="meta-dot">•</span>
                   <div id="play-mobile-player-captured" class="play-mobile-captured-inline"></div>
                 </div>

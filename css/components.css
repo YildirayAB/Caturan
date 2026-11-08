@@ -6541,3 +6541,208 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* ============================================================================
+ * MVP 5.4 — Mobile Player Information Cards & PGN Clipboard Paste UX Fix
+ * ============================================================================ */
+
+.analysis-textarea {
+  user-select: text;
+  -webkit-user-select: text;
+  -webkit-touch-callout: default;
+  pointer-events: auto;
+  touch-action: manipulation;
+  scroll-margin-top: 84px;
+  scroll-margin-bottom: 96px;
+}
+
+.analysis-clipboard-feedback {
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-subtle);
+  color: var(--text-main);
+  font-size: 0.84rem;
+  font-weight: 600;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  box-sizing: border-box;
+}
+
+.analysis-clipboard-feedback.is-success {
+  background-color: var(--status-success-bg);
+  border-color: var(--status-success-border);
+  color: var(--status-success-text);
+}
+
+.analysis-clipboard-feedback.is-fallback,
+.analysis-clipboard-feedback.is-empty {
+  background-color: var(--status-warning-bg);
+  border-color: var(--status-warning-border);
+  color: var(--status-warning-text);
+}
+
+.analysis-clipboard-paste-btn {
+  min-height: 44px;
+}
+
+@media (max-width: 1100px) {
+  .play-mobile-opponent-bar,
+  .play-mobile-player-bar {
+    height: auto;
+    min-height: 76px;
+    max-height: none;
+    overflow: visible;
+    padding: 10px 12px;
+    align-items: flex-start;
+  }
+
+  .play-mobile-combatant-main {
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .play-mobile-combatant-main .combatant-details {
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .play-mobile-combatant-main .combatant-name-line {
+    flex-wrap: wrap;
+    height: auto;
+    min-height: 24px;
+    max-height: none;
+    overflow: visible;
+    gap: 6px;
+    justify-content: space-between;
+  }
+
+  .play-mobile-combatant-main .combatant-name {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    line-height: 1.3;
+    flex: 1 1 auto;
+  }
+
+  .play-mobile-captured-line {
+    flex-wrap: wrap;
+    height: auto;
+    min-height: 20px;
+    max-height: none;
+    overflow: visible;
+    gap: 6px;
+    width: 100%;
+  }
+
+  .play-mobile-captured-line .combatant-sub {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    line-height: 1.35;
+    flex: 1 1 100%;
+  }
+
+  .play-mobile-material-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    width: 100%;
+    min-width: 0;
+    min-height: 22px;
+    padding-top: 4px;
+    border-top: 1px solid var(--border-color);
+  }
+
+  .play-mobile-material-row > .meta-dot {
+    display: none;
+  }
+
+  .play-mobile-captured-inline {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 6px;
+    width: 100%;
+    min-width: 0;
+    overflow: visible;
+  }
+
+  .play-mobile-captured-inline .captured-pieces-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .play-mobile-captured-inline .captured-pieces-icons {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 3px;
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .play-mobile-captured-inline .captured-adv-badge {
+    margin-left: auto;
+    flex-shrink: 0;
+    padding: 2px 8px;
+    font-weight: 800;
+  }
+
+  .play-combatant-row {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 600px) {
+  .analysis-player-strip {
+    flex-wrap: wrap;
+    height: auto;
+    min-height: 44px;
+    overflow: visible;
+    gap: 8px;
+  }
+
+  .analysis-player-name,
+  .analysis-mobile-player-val,
+  .analysis-mobile-player-name {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    line-height: 1.3;
+  }
+
+  .analysis-mobile-players-matchup {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+  }
+}
+
+@media (max-width: 480px) {
+  .play-mobile-opponent-bar,
+  .play-mobile-player-bar {
+    height: auto;
+    min-height: 74px;
+    max-height: none;
+    overflow: visible;
+    padding: 8px 10px;
+    gap: 8px;
+  }
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

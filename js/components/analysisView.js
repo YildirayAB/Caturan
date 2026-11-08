@@ -45,6 +45,9 @@ export const SAMPLE_PGN_PLACEHOLDER = `[Event "Partai Latihan Caturan"]
 
 1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O Be7 6. Re1 b5 7. Bb3 d6 8. c3 O-O 1-0`;
 
+export const PGN_TEXTAREA_PLACEHOLDER =
+  'Tempel (paste) atau ketik teks PGN di sini...\nContoh: 1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 (atau tekan tombol "Contoh PGN")';
+
 let activeReplayBoardInstance = null;
 let activeAnalysisEngineInstance = null;
 let activeEngineStatusUnsubscribe = null;
@@ -155,7 +158,9 @@ export function createInitialAnalysisSessionState() {
     analysisStaleMessage: '',
     analysisError: null,
     lastKnownBoardFen: null,
-    lastAnalyzedFen: null
+    lastAnalyzedFen: null,
+    clipboardFeedback: null
+    // clipboardFeedback initialized above
   };
 }
 
@@ -474,10 +479,36 @@ export function renderAnalysisView(container, sessionState, callbacks = {}) {
                 class="analysis-textarea"
                 rows="8"
                 spellcheck="false"
+                spellcheck="false"
+                autocomplete="off"
+                autocorrect="off"
+                autocapitalize="off"
                 data-testid="pgn-paste-textarea"
               ></textarea>
+              <!-- Tombol aksi paste PGN -->
+
+              <div
+                class="analysis-clipboard-feedback ${state.clipboardFeedback ? `is-${state.clipboardFeedback.status || 'info'}` : 'hidden'}"
+                data-testid="pgn-clipboard-feedback"
+                data-status="${state.clipboardFeedback ? state.clipboardFeedback.status || 'info' : ''}"
+                role="status"
+                aria-live="polite"
+              ></div>
+
+                  <!-- Paste dari Clipboard -->
+              <!-- Tombol aksi paste PGN -->
 
               <div class="analysis-paste-actions">
+                <button
+                  type="button"
+                  class="btn btn-secondary analysis-touch-btn analysis-clipboard-paste-btn"
+                  data-action="paste-from-clipboard"
+                  data-testid="pgn-paste-clipboard-btn"
+                  ${state.isValidating ? 'disabled' : ''}
+                >
+                  ${UI_ICONS.copy}
+                  <span>Tempel dari Clipboard</span>
+                </button>
                 <button
                   type="button"
                   class="btn btn-primary analysis-touch-btn analysis-desktop-submit-btn"
@@ -1108,7 +1139,10 @@ export function renderAnalysisView(container, sessionState, callbacks = {}) {
   // Isi placeholder dan nilai textarea secara aman (mempertahankan input pengguna)
   const textareaEl = container.querySelector('[data-testid="pgn-paste-textarea"]');
   if (textareaEl) {
-    textareaEl.placeholder = SAMPLE_PGN_PLACEHOLDER;
+    textareaEl.placeholder = PGN_TEXTAREA_PLACEHOLDER;
+    textareaEl.removeAttribute('readonly');
+    textareaEl.removeAttribute('disabled');
+    _syncClipboardFeedbackDom(container, state);
     textareaEl.value = state.rawPgnText || '';
   }
 
@@ -2564,6 +2598,25 @@ async function _handleFileSelectionAndImport(file, container, state, callbacks) 
   }
 }
 
+function _syncClipboardFeedbackDom(container, state) {
+  if (!container) return;
+  const feedbackEl = container.querySelector('[data-testid="pgn-clipboard-feedback"]');
+  if (!feedbackEl) return;
+
+  const fb = state && state.clipboardFeedback ? state.clipboardFeedback : null;
+  if (!fb || !fb.message) {
+    feedbackEl.className = 'analysis-clipboard-feedback hidden';
+    feedbackEl.setAttribute('data-status', '');
+    feedbackEl.textContent = '';
+    return;
+  }
+
+  const statusKey = fb.status || 'info';
+  feedbackEl.className = `analysis-clipboard-feedback is-${statusKey}`;
+  feedbackEl.setAttribute('data-status', statusKey);
+  feedbackEl.textContent = safeDisplayValue(fb.message, '');
+}
+
 function _bindAnalysisViewEvents(container, state, callbacks) {
   const fileInput = container.querySelector('#pgn-file-input');
   const triggerFileBtn = container.querySelector('[data-action="trigger-file-picker"]');
@@ -2648,6 +2701,93 @@ function _bindAnalysisViewEvents(container, state, callbacks) {
   if (textareaEl) {
     textareaEl.addEventListener('input', () => {
       state.rawPgnText = textareaEl.value;
+      state.clipboardFeedback = null;
+      _syncClipboardFeedbackDom(container, state);
+    });
+
+    textareaEl.addEventListener('paste', e => {
+      // Jangan memanggil preventDefault() agar native paste mobile/desktop berfungsi mulus.
+      const clipDataText =
+        e && e.clipboardData && typeof e.clipboardData.getData === 'function'
+          ? e.clipboardData.getData('text/plain') || e.clipboardData.getData('text')
+          : '';
+      if (typeof clipDataText === 'string' && clipDataText.length > 0 && !textareaEl.value) {
+        textareaEl.value = clipDataText;
+      }
+      state.rawPgnText = textareaEl.value;
+      state.validationError = null;
+      state.clipboardFeedback = {
+        status: 'success',
+        message:
+          'Teks PGN berhasil ditempel ke kotak teks. Tekan "Validasi & Mulai Review" untuk melanjutkan.'
+      };
+      _syncClipboardFeedbackDom(container, state);
+      setTimeout(() => {
+        if (textareaEl) {
+          state.rawPgnText = textareaEl.value;
+        }
+      }, 0);
+    });
+  }
+
+  const pasteClipboardBtn = container.querySelector('[data-action="paste-from-clipboard"]');
+  if (pasteClipboardBtn) {
+    pasteClipboardBtn.addEventListener('click', async () => {
+      if (
+        typeof navigator === 'undefined' ||
+        !navigator.clipboard ||
+        typeof navigator.clipboard.readText !== 'function'
+      ) {
+        state.clipboardFeedback = {
+          status: 'fallback',
+          message:
+            'Fitur baca clipboard otomatis tidak tersedia di browser ini. Silakan ketuk dan tahan (long-press) di dalam kotak teks PGN di atas, lalu pilih Tempel (Paste).'
+        };
+        _syncClipboardFeedbackDom(container, state);
+        if (textareaEl && typeof textareaEl.focus === 'function') {
+          textareaEl.focus();
+        }
+        return;
+      }
+
+      try {
+        const clipText = await navigator.clipboard.readText();
+        if (typeof clipText !== 'string' || !clipText.trim()) {
+          state.clipboardFeedback = {
+            status: 'empty',
+            message:
+              'Clipboard perangkat kosong atau belum berisi teks PGN. Silakan salin PGN terlebih dahulu, atau ketuk dan tahan (long-press) di dalam kotak teks PGN lalu pilih Tempel (Paste).'
+          };
+          _syncClipboardFeedbackDom(container, state);
+          if (textareaEl && typeof textareaEl.focus === 'function') {
+            textareaEl.focus();
+          }
+          return;
+        }
+
+        state.rawPgnText = clipText;
+        state.validationError = null;
+        if (textareaEl) {
+          textareaEl.value = clipText;
+          textareaEl.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        state.clipboardFeedback = {
+          status: 'success',
+          message:
+            'Teks PGN berhasil ditempel dari clipboard. Tekan "Validasi & Mulai Review" untuk melanjutkan.'
+        };
+        _syncClipboardFeedbackDom(container, state);
+      } catch {
+        state.clipboardFeedback = {
+          status: 'fallback',
+          message:
+            'Izin akses clipboard ditolak atau dibatasi oleh browser. Silakan ketuk dan tahan (long-press) di dalam kotak teks PGN di atas, lalu pilih Tempel (Paste).'
+        };
+        _syncClipboardFeedbackDom(container, state);
+        if (textareaEl && typeof textareaEl.focus === 'function') {
+          textareaEl.focus();
+        }
+      }
     });
   }
 
@@ -2671,6 +2811,7 @@ function _bindAnalysisViewEvents(container, state, callbacks) {
       state.lastValidatedRawPgn = null;
       state.validationError = null;
       if (textareaEl) {
+      state.clipboardFeedback = null;
         textareaEl.value = '';
         textareaEl.focus();
       }
@@ -2684,6 +2825,12 @@ function _bindAnalysisViewEvents(container, state, callbacks) {
       state.validationError = null;
       if (textareaEl) {
         textareaEl.value = SAMPLE_PGN_PLACEHOLDER;
+      state.clipboardFeedback = {
+        status: 'success',
+        message:
+          'Contoh PGN berhasil dimuat ke kotak teks. Tekan "Validasi & Mulai Review" untuk melanjutkan.'
+      };
+      _syncClipboardFeedbackDom(container, state);
       }
     });
   }
