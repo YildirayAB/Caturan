@@ -92,13 +92,41 @@ export function createInitialAnalysisSessionState() {
     parsedGame: null,       // Hasil sukses dari validateAndParsePgn
     currentPly: 0,
     orientation: 'white',
+    analysisMode: 'review', // 'review' | 'explore'
+    activeLineId: 'mainline', // 'mainline' | 'var-1' | ...
+    variations: [],         // Daftar variasi sesi in-memory
+    variationCounter: 1,
+    renamingVariationId: null,
     mobileScreen: 'import', // 'import' | 'review'
     isValidating: false,
     validationCount: 0,
     showInputPanelInPreview: false,
     isImportNoticeDismissed: false,
-    copyStatusMessage: ''
+    copyStatusMessage: '',
+    copyFenStatusMessage: '',
+    lastCopiedFen: '',
+    sessionCleanupNotice: ''
   };
+}
+
+/**
+ * Membersihkan seluruh data eksplorasi & variasi pada memori sesi ketika partai baru dimuat atau ditutup.
+ */
+export function resetAnalysisExplorationState(state, { preserveCleanupNotice = false } = {}) {
+  if (!state || typeof state !== 'object') return;
+  state.currentPly = 0;
+  state.orientation = 'white';
+  state.analysisMode = 'review';
+  state.activeLineId = 'mainline';
+  state.variations = [];
+  state.variationCounter = 1;
+  state.renamingVariationId = null;
+  state.copyStatusMessage = '';
+  state.copyFenStatusMessage = '';
+  state.lastCopiedFen = '';
+  if (!preserveCleanupNotice) {
+    state.sessionCleanupNotice = '';
+  }
 }
 
 /**
@@ -544,6 +572,118 @@ export function renderAnalysisView(container, sessionState, callbacks = {}) {
         <!-- Area Utama Interactive Game Preview -->
         <div class="analysis-workspace-grid" data-testid="analysis-interactive-preview">
           <div class="analysis-board-column">
+            <!-- MVP 5.2: Mode Switcher & Exploration Bar (Review Mode vs Jelajahi Posisi) -->
+            <div
+              class="analysis-mode-bar"
+              role="region"
+              aria-label="Mode Analisis dan Eksplorasi Posisi"
+              data-testid="analysis-mode-bar"
+            >
+              <div
+                class="analysis-mode-toggle-group"
+                role="group"
+                aria-label="Pilih Mode Papan Analisis"
+                data-testid="analysis-mode-selector-group"
+              >
+                <button
+                  type="button"
+                  class="btn btn-sm analysis-mode-btn ${state.analysisMode !== 'explore' ? 'active' : ''}"
+                  data-action="set-mode-review"
+                  data-testid="analysis-mode-review-btn"
+                  aria-pressed="${state.analysisMode !== 'explore' ? 'true' : 'false'}"
+                >
+                  Review Mode
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-sm analysis-mode-btn ${state.analysisMode === 'explore' ? 'active' : ''}"
+                  data-action="set-mode-explore"
+                  data-testid="analysis-mode-explore-btn"
+                  aria-pressed="${state.analysisMode === 'explore' ? 'true' : 'false'}"
+                >
+                  Jelajahi Posisi
+                </button>
+              </div>
+
+              <div class="analysis-mode-quick-actions" data-testid="analysis-explore-quick-actions">
+                <div class="analysis-mode-status-row" data-testid="analysis-mode-status-row">
+                  <span class="analysis-mode-status-pill" data-testid="analysis-mode-status"></span>
+                  <button
+                    type="button"
+                    class="btn btn-secondary btn-sm analysis-explore-action-btn analysis-undo-btn"
+                    data-action="undo-exploration-move"
+                    data-testid="analysis-undo-move-btn"
+                    title="Batalkan langkah eksplorasi terakhir"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+                      <path d="M9 14 4 9l5-5" />
+                      <path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11" />
+                    </svg>
+                    <span>Undo Langkah</span>
+                  </button>
+                </div>
+
+                <div
+                  class="analysis-variation-nav-group hidden"
+                  role="group"
+                  aria-label="Navigasi Variasi Aktif"
+                  data-testid="analysis-variation-nav-group"
+                >
+                  <button
+                    type="button"
+                    class="btn btn-secondary btn-sm analysis-explore-action-btn analysis-var-nav-btn"
+                    data-action="return-parent-position"
+                    data-testid="analysis-return-parent-btn"
+                    title="Kembali ke posisi asal variasi"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+                      <circle cx="6" cy="6" r="3" />
+                      <circle cx="6" cy="18" r="3" />
+                      <path d="M20 4 8.12 15.88" />
+                      <circle cx="20" cy="16" r="3" />
+                      <path d="M14.47 14.48 20 20" />
+                    </svg>
+                    <span>Posisi Asal</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-secondary btn-sm analysis-explore-action-btn analysis-var-nav-btn"
+                    data-action="switch-to-mainline"
+                    data-testid="analysis-switch-mainline-btn"
+                    title="Kembali ke partai asli (Mainline)"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+                      <polyline points="15 18 9 12 15 6" />
+                      <line x1="9" y1="12" x2="21" y2="12" />
+                      <line x1="3" y1="6" x2="3" y2="18" />
+                    </svg>
+                    <span data-testid="analysis-switch-mainline-label">Partai Asli</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- MOBILE VARIATION SELECTOR (Tampil di Mobile saat variasi tersedia untuk memilih Partai Asli / Variasi) -->
+            <div
+              class="analysis-mobile-only analysis-mobile-variation-bar hidden"
+              role="region"
+              aria-label="Pemilih Variasi Mobile"
+              data-testid="analysis-mobile-variation-bar"
+            >
+              <label for="analysis-mobile-variation-select" class="analysis-mobile-variation-label">
+                Jalur:
+              </label>
+              <select
+                id="analysis-mobile-variation-select"
+                class="analysis-mobile-variation-select"
+                data-action="mobile-select-variation"
+                data-testid="analysis-mobile-variation-select"
+                aria-label="Pilih Partai Asli atau Variasi"
+              >
+                <option value="mainline">Partai Asli</option>
+              </select>
+            </div>
+
             <!-- Bar Pemain Atas -->
             <div class="analysis-player-strip" data-testid="analysis-top-player-strip">
               <span class="analysis-player-color-dot" data-testid="analysis-top-player-dot"></span>
@@ -660,8 +800,8 @@ export function renderAnalysisView(container, sessionState, callbacks = {}) {
             </nav>
           </div>
 
-          <!-- DESKTOP MOVES PANEL (Dipertahankan persis seperti MVP 5.1) -->
-          <aside class="card analysis-moves-panel analysis-desktop-moves-panel" aria-label="Riwayat Langkah SAN">
+          <!-- DESKTOP & MOBILE AUXILIARY PANEL: MOVES, VARIATION MANAGER & POSITION INFORMATION -->
+          <aside class="card analysis-moves-panel analysis-desktop-moves-panel" aria-label="Riwayat Langkah SAN, Variasi, dan Informasi Posisi">
             <div class="analysis-moves-panel-header">
               <div>
                 <h3 class="card-title">Daftar Langkah (SAN)</h3>
@@ -678,14 +818,100 @@ export function renderAnalysisView(container, sessionState, callbacks = {}) {
               data-testid="analysis-move-list"
             ></div>
 
+            <!-- MVP 5.2: VARIATION MANAGER (Berada dekat dengan notasi) -->
+            <div
+              class="analysis-variation-manager"
+              role="region"
+              aria-label="Variation Manager"
+              data-testid="analysis-variation-manager"
+            >
+              <div class="analysis-variation-header">
+                <div class="analysis-variation-title-group">
+                  <h4 class="analysis-variation-title">Variation Manager</h4>
+                  <span class="badge analysis-variation-count-badge" data-testid="analysis-variation-count-badge">0 variasi</span>
+                </div>
+                <button
+                  type="button"
+                  class="btn btn-secondary btn-sm analysis-mainline-pill-btn"
+                  data-action="switch-to-mainline"
+                  data-testid="analysis-line-mainline"
+                >
+                  Mainline (Partai Asli)
+                </button>
+              </div>
+
+              <p
+                class="analysis-session-memory-notice hidden"
+                data-testid="analysis-unsaved-variations-notice"
+              ></p>
+              <p
+                class="analysis-session-cleanup-notice hidden"
+                data-testid="analysis-session-cleanup-notice"
+              ></p>
+
+              <div
+                class="analysis-variation-list"
+                data-testid="analysis-variation-list"
+              ></div>
+            </div>
+
             <div class="analysis-annotation-box" data-testid="analysis-move-annotation">
               <span class="analysis-meta-label">Catatan / Komentar Langkah</span>
               <p class="analysis-annotation-text" data-testid="analysis-move-annotation-text"></p>
             </div>
 
-            <div class="analysis-current-fen-bar">
-              <span class="analysis-meta-label">FEN Posisi Saat Ini</span>
-              <code class="analysis-fen-code" data-testid="analysis-current-fen"></code>
+            <!-- MVP 5.2: POSITION INFORMATION PANEL -->
+            <div
+              class="analysis-position-info-panel"
+              role="region"
+              aria-label="Informasi Posisi Aktif"
+              data-testid="analysis-position-info-panel"
+            >
+              <div class="analysis-position-info-header">
+                <span class="analysis-meta-label">Informasi Posisi Saat Ini</span>
+                <div class="analysis-position-info-header-actions">
+                  <span class="analysis-position-line-tag" data-testid="analysis-pos-active-line"></span>
+                  <button
+                    type="button"
+                    class="btn btn-secondary btn-sm analysis-copy-fen-btn"
+                    data-action="copy-current-fen"
+                    data-testid="analysis-copy-fen-btn"
+                  >
+                    ${UI_ICONS.copy}
+                    <span data-testid="analysis-copy-fen-label">Salin FEN</span>
+                  </button>
+                </div>
+              </div>
+
+              <div class="analysis-position-info-grid">
+                <div class="analysis-pos-item">
+                  <span class="analysis-meta-label">Nomor Langkah</span>
+                  <strong class="analysis-pos-value" data-testid="analysis-pos-move-number"></strong>
+                </div>
+                <div class="analysis-pos-item">
+                  <span class="analysis-meta-label">Ply Aktif</span>
+                  <strong class="analysis-pos-value" data-testid="analysis-pos-active-ply"></strong>
+                </div>
+                <div class="analysis-pos-item">
+                  <span class="analysis-meta-label">Giliran Berikutnya</span>
+                  <strong class="analysis-pos-value" data-testid="analysis-pos-next-turn"></strong>
+                </div>
+                <div class="analysis-pos-item analysis-pos-item-status">
+                  <span class="analysis-meta-label">Status Posisi</span>
+                  <strong class="analysis-pos-value" data-testid="analysis-pos-check-status"></strong>
+                </div>
+                <div class="analysis-pos-item analysis-pos-item-wide">
+                  <span class="analysis-meta-label">SAN Langkah Terakhir</span>
+                  <strong class="analysis-pos-value" data-testid="analysis-pos-last-san"></strong>
+                </div>
+              </div>
+
+              <details class="analysis-fen-details" data-testid="analysis-fen-details">
+                <summary class="analysis-fen-summary">Lihat FEN Posisi Saat Ini</summary>
+                <div class="analysis-current-fen-bar">
+                  <code class="analysis-fen-code" data-testid="analysis-current-fen"></code>
+                </div>
+              </details>
             </div>
 
             <details class="analysis-normalized-pgn-details">
@@ -829,123 +1055,155 @@ function _populateGamePreviewDom(container, state) {
     mobileCopyLabelEl.textContent = state.copyStatusMessage ? 'Tersalin' : 'Salin';
   }
 
-  // 1) Render daftar pasangan langkah Desktop (White & Black) menggunakan pembuatan node DOM murni
-  const moveListEl = container.querySelector('[data-testid="analysis-move-list"]');
-  const pairs = Array.isArray(game.movePairs) ? game.movePairs : [];
-
-  if (moveListEl) {
-    moveListEl.innerHTML = '';
-
-    const startRowBtn = document.createElement('button');
-    startRowBtn.type = 'button';
-    startRowBtn.className = `analysis-start-ply-btn ${state.currentPly === 0 ? 'active' : ''}`;
-    startRowBtn.setAttribute('data-ply', '0');
-    startRowBtn.setAttribute('data-testid', 'analysis-move-ply-0');
-    startRowBtn.textContent = '0. Posisi Awal Partai';
-    moveListEl.appendChild(startRowBtn);
-
-    if (pairs.length === 0) {
-      const emptyNote = document.createElement('p');
-      emptyNote.className = 'analysis-empty-moves-note';
-      emptyNote.textContent = 'Partai ini tidak memiliki langkah (hanya posisi FEN awal).';
-      moveListEl.appendChild(emptyNote);
-    } else {
-      pairs.forEach(pair => {
-        const rowEl = document.createElement('div');
-        rowEl.className = 'analysis-move-row';
-        rowEl.setAttribute('data-move-number', String(pair.moveNumber));
-
-        const numSpan = document.createElement('span');
-        numSpan.className = 'analysis-move-num';
-        numSpan.textContent = `${pair.moveNumber}.`;
-        rowEl.appendChild(numSpan);
-
-        if (pair.white) {
-          const wBtn = _createMovePlyButton(pair.white, state.currentPly === pair.white.ply);
-          rowEl.appendChild(wBtn);
-        } else {
-          const wPlaceholder = document.createElement('span');
-          wPlaceholder.className = 'analysis-move-placeholder';
-          wPlaceholder.textContent = '...';
-          rowEl.appendChild(wPlaceholder);
-        }
-
-        if (pair.black) {
-          const bBtn = _createMovePlyButton(pair.black, state.currentPly === pair.black.ply);
-          rowEl.appendChild(bBtn);
-        } else {
-          const bPlaceholder = document.createElement('span');
-          bPlaceholder.className = 'analysis-move-placeholder';
-          bPlaceholder.textContent = '';
-          rowEl.appendChild(bPlaceholder);
-        }
-
-        moveListEl.appendChild(rowEl);
-      });
-    }
-  }
-
-  // 2) Render Move Navigation Strip Mobile (Horizontal Scrollable SAN Strip)
-  const mobileStripScrollEl = container.querySelector('[data-testid="analysis-mobile-strip-scroll"]');
-  if (mobileStripScrollEl) {
-    mobileStripScrollEl.innerHTML = '';
-
-    const startPill = document.createElement('button');
-    startPill.type = 'button';
-    startPill.className = `analysis-mobile-san-pill ${state.currentPly === 0 ? 'active' : ''}`;
-    startPill.setAttribute('data-mobile-ply', '0');
-    startPill.setAttribute('data-testid', 'analysis-mobile-ply-0');
-    startPill.textContent = 'Awal';
-    mobileStripScrollEl.appendChild(startPill);
-
-    pairs.forEach(pair => {
-      const pairGroup = document.createElement('div');
-      pairGroup.className = 'analysis-mobile-san-pair';
-
-      const numTag = document.createElement('span');
-      numTag.className = 'analysis-mobile-san-num';
-      numTag.textContent = `${pair.moveNumber}.`;
-      pairGroup.appendChild(numTag);
-
-      if (pair.white) {
-        pairGroup.appendChild(
-          _createMobileSanPillButton(pair.white, state.currentPly === pair.white.ply)
-        );
-      }
-      if (pair.black) {
-        pairGroup.appendChild(
-          _createMobileSanPillButton(pair.black, state.currentPly === pair.black.ply)
-        );
-      }
-
-      mobileStripScrollEl.appendChild(pairGroup);
-    });
-  }
-
-  // 3) Mount AnalysisReplayBoard
+  // 1) Mount AnalysisReplayBoard (mendukung Review Mode, Explore Mode, dan Variation Manager)
   const boardMount = container.querySelector('#analysis-replay-board-mount');
   if (boardMount) {
     activeReplayBoardInstance = new AnalysisReplayBoard(boardMount, game, {
       initialPly: state.currentPly,
       orientation: state.orientation,
+      mode: state.analysisMode || 'review',
+      variations: Array.isArray(state.variations) ? state.variations : [],
+      activeLineId: state.activeLineId || 'mainline',
+      variationCounter: Number(state.variationCounter) || 1,
       onPlyChange: replayState => {
         state.currentPly = replayState.currentPly;
         state.orientation = replayState.orientation;
+        state.analysisMode = replayState.mode || 'review';
+        state.activeLineId = replayState.activeLineId || 'mainline';
+        if (activeReplayBoardInstance) {
+          state.variations = activeReplayBoardInstance.getVariations();
+          state.variationCounter = activeReplayBoardInstance.variationCounter;
+        }
+        if (state.lastCopiedFen && state.lastCopiedFen !== replayState.currentFen) {
+          state.copyFenStatusMessage = '';
+        }
         _syncReplayStatusDom(container, state, replayState);
       }
     });
 
-    _syncReplayStatusDom(container, state, activeReplayBoardInstance.getReplayState());
+    const initialReplayState = activeReplayBoardInstance.getReplayState();
+    state.currentPly = initialReplayState.currentPly;
+    state.orientation = initialReplayState.orientation;
+    state.analysisMode = initialReplayState.mode;
+    state.activeLineId = initialReplayState.activeLineId;
+    state.variations = activeReplayBoardInstance.getVariations();
+    state.variationCounter = activeReplayBoardInstance.variationCounter;
+    _syncReplayStatusDom(container, state, initialReplayState);
   }
 }
 
-function _createMovePlyButton(moveObj, isActive) {
+function _renderMoveListDom(moveListEl, pairs, currentPly, activeLineId) {
+  if (!moveListEl) return;
+  moveListEl.innerHTML = '';
+
+  const startRowBtn = document.createElement('button');
+  startRowBtn.type = 'button';
+  startRowBtn.className = `analysis-start-ply-btn ${currentPly === 0 ? 'active' : ''}`;
+  startRowBtn.setAttribute('data-ply', '0');
+  startRowBtn.setAttribute('data-line-id', String(activeLineId || 'mainline'));
+  startRowBtn.setAttribute('data-testid', 'analysis-move-ply-0');
+  if (currentPly === 0) {
+    startRowBtn.setAttribute('aria-current', 'step');
+  }
+  startRowBtn.textContent = '0. Posisi Awal Partai';
+  moveListEl.appendChild(startRowBtn);
+
+  if (!Array.isArray(pairs) || pairs.length === 0) {
+    const emptyNote = document.createElement('p');
+    emptyNote.className = 'analysis-empty-moves-note';
+    emptyNote.textContent = 'Partai ini tidak memiliki langkah (hanya posisi FEN awal).';
+    moveListEl.appendChild(emptyNote);
+    return;
+  }
+
+  pairs.forEach(pair => {
+    const rowEl = document.createElement('div');
+    rowEl.className = 'analysis-move-row';
+    rowEl.setAttribute('data-move-number', String(pair.moveNumber));
+
+    const numSpan = document.createElement('span');
+    numSpan.className = 'analysis-move-num';
+    numSpan.textContent = `${pair.moveNumber}.`;
+    rowEl.appendChild(numSpan);
+
+    if (pair.white) {
+      const wBtn = _createMovePlyButton(pair.white, currentPly === pair.white.ply, activeLineId);
+      rowEl.appendChild(wBtn);
+    } else {
+      const wPlaceholder = document.createElement('span');
+      wPlaceholder.className = 'analysis-move-placeholder';
+      wPlaceholder.textContent = '...';
+      rowEl.appendChild(wPlaceholder);
+    }
+
+    if (pair.black) {
+      const bBtn = _createMovePlyButton(pair.black, currentPly === pair.black.ply, activeLineId);
+      rowEl.appendChild(bBtn);
+    } else {
+      const bPlaceholder = document.createElement('span');
+      bPlaceholder.className = 'analysis-move-placeholder';
+      bPlaceholder.textContent = '';
+      rowEl.appendChild(bPlaceholder);
+    }
+
+    moveListEl.appendChild(rowEl);
+  });
+}
+
+function _renderMobileMoveStripDom(mobileStripScrollEl, pairs, currentPly, activeLineId) {
+  if (!mobileStripScrollEl) return;
+  mobileStripScrollEl.innerHTML = '';
+
+  const startPill = document.createElement('button');
+  startPill.type = 'button';
+  startPill.className = `analysis-mobile-san-pill ${currentPly === 0 ? 'active' : ''}`;
+  startPill.setAttribute('data-mobile-ply', '0');
+  startPill.setAttribute('data-line-id', String(activeLineId || 'mainline'));
+  startPill.setAttribute('data-testid', 'analysis-mobile-ply-0');
+  if (currentPly === 0) {
+    startPill.setAttribute('aria-current', 'step');
+  }
+  startPill.textContent = 'Awal';
+  mobileStripScrollEl.appendChild(startPill);
+
+  if (!Array.isArray(pairs)) return;
+
+  pairs.forEach(pair => {
+    const pairGroup = document.createElement('div');
+    pairGroup.className = 'analysis-mobile-san-pair';
+
+    const numTag = document.createElement('span');
+    numTag.className = 'analysis-mobile-san-num';
+    numTag.textContent = `${pair.moveNumber}.`;
+    pairGroup.appendChild(numTag);
+
+    if (pair.white) {
+      pairGroup.appendChild(
+        _createMobileSanPillButton(pair.white, currentPly === pair.white.ply, activeLineId)
+      );
+    }
+    if (pair.black) {
+      pairGroup.appendChild(
+        _createMobileSanPillButton(pair.black, currentPly === pair.black.ply, activeLineId)
+      );
+    }
+
+    mobileStripScrollEl.appendChild(pairGroup);
+  });
+}
+
+function _createMovePlyButton(moveObj, isActive, activeLineId = 'mainline') {
   const btn = document.createElement('button');
   btn.type = 'button';
-  btn.className = `analysis-ply-btn ${isActive ? 'active' : ''}`;
+  const isVariationMove = Boolean(moveObj.variationId && moveObj.variationId !== 'mainline');
+  btn.className = `analysis-ply-btn ${isActive ? 'active' : ''} ${isVariationMove ? 'is-variation-move' : ''}`.trim();
   btn.setAttribute('data-ply', String(moveObj.ply));
   btn.setAttribute('data-san', String(moveObj.san));
+  btn.setAttribute('data-line-id', String(activeLineId || 'mainline'));
   btn.setAttribute('data-testid', `analysis-move-ply-${moveObj.ply}`);
+  if (isActive) {
+    btn.setAttribute('aria-current', 'step');
+  }
 
   const sanSpan = document.createElement('span');
   sanSpan.className = 'analysis-ply-san';
@@ -966,19 +1224,251 @@ function _createMovePlyButton(moveObj, isActive) {
   return btn;
 }
 
-function _createMobileSanPillButton(moveObj, isActive) {
+function _createMobileSanPillButton(moveObj, isActive, activeLineId = 'mainline') {
   const btn = document.createElement('button');
   btn.type = 'button';
-  btn.className = `analysis-mobile-san-pill ${isActive ? 'active' : ''}`;
+  const isVariationMove = Boolean(moveObj.variationId && moveObj.variationId !== 'mainline');
+  btn.className = `analysis-mobile-san-pill ${isActive ? 'active' : ''} ${isVariationMove ? 'is-variation-move' : ''}`.trim();
   btn.setAttribute('data-mobile-ply', String(moveObj.ply));
   btn.setAttribute('data-san', String(moveObj.san));
+  btn.setAttribute('data-line-id', String(activeLineId || 'mainline'));
   btn.setAttribute('data-testid', `analysis-mobile-ply-${moveObj.ply}`);
+  if (isActive) {
+    btn.setAttribute('aria-current', 'step');
+  }
 
   const nagSymbols = Array.isArray(moveObj.nags)
     ? moveObj.nags.map(n => n.symbol).filter(Boolean).join('')
     : '';
   btn.textContent = `${moveObj.san}${nagSymbols}`;
   return btn;
+}
+
+function _renderVariationManagerDom(container, state, replayState) {
+  const varListEl = container.querySelector('[data-testid="analysis-variation-list"]');
+  const countBadgeEl = container.querySelector('[data-testid="analysis-variation-count-badge"]');
+  const mainlineBtn = container.querySelector('[data-testid="analysis-line-mainline"]');
+  const unsavedNoticeEl = container.querySelector('[data-testid="analysis-unsaved-variations-notice"]');
+  const cleanupNoticeEl = container.querySelector('[data-testid="analysis-session-cleanup-notice"]');
+  const mobileSelectEl = container.querySelector('[data-testid="analysis-mobile-variation-select"]');
+
+  const variations = Array.isArray(replayState.variations) ? replayState.variations : [];
+  const activeLineId = replayState.activeLineId || 'mainline';
+
+  if (countBadgeEl) {
+    countBadgeEl.textContent = `${variations.length} variasi`;
+  }
+
+  if (mainlineBtn) {
+    if (activeLineId === 'mainline') {
+      mainlineBtn.classList.add('active');
+      mainlineBtn.setAttribute('aria-current', 'true');
+    } else {
+      mainlineBtn.classList.remove('active');
+      mainlineBtn.removeAttribute('aria-current');
+    }
+  }
+
+  if (unsavedNoticeEl) {
+    if (variations.length > 0) {
+      unsavedNoticeEl.classList.remove('hidden');
+      unsavedNoticeEl.textContent =
+        'Variasi disimpan di memori sesi lokal (tidak mengubah PGN asli dan akan dibersihkan saat partai ditutup atau diganti).';
+    } else {
+      unsavedNoticeEl.classList.add('hidden');
+      unsavedNoticeEl.textContent = '';
+    }
+  }
+
+  if (cleanupNoticeEl) {
+    if (state.sessionCleanupNotice) {
+      cleanupNoticeEl.classList.remove('hidden');
+      cleanupNoticeEl.textContent = safeDisplayValue(state.sessionCleanupNotice, '');
+    } else {
+      cleanupNoticeEl.classList.add('hidden');
+      cleanupNoticeEl.textContent = '';
+    }
+  }
+
+  const mobileVarBarEl = container.querySelector('[data-testid="analysis-mobile-variation-bar"]');
+  if (mobileVarBarEl) {
+    if (variations.length > 0) {
+      mobileVarBarEl.classList.remove('hidden');
+    } else {
+      mobileVarBarEl.classList.add('hidden');
+    }
+  }
+
+  if (mobileSelectEl) {
+    mobileSelectEl.innerHTML = '';
+    const mainOpt = document.createElement('option');
+    mainOpt.value = 'mainline';
+    mainOpt.textContent = 'Partai Asli';
+    if (activeLineId === 'mainline') mainOpt.selected = true;
+    mobileSelectEl.appendChild(mainOpt);
+
+    variations.forEach(v => {
+      const opt = document.createElement('option');
+      opt.value = v.id;
+      const firstSan = Array.isArray(v.sanMoves) && v.sanMoves.length > 0 ? v.sanMoves[0] : '';
+      opt.textContent = `${v.name} (Ply ${v.startPly}${firstSan ? `: ${firstSan}` : ''})`;
+      if (activeLineId === v.id) opt.selected = true;
+      mobileSelectEl.appendChild(opt);
+    });
+    mobileSelectEl.value = activeLineId;
+  }
+
+  if (!varListEl) return;
+  varListEl.innerHTML = '';
+
+  if (variations.length === 0) {
+    const emptyEl = document.createElement('p');
+    emptyEl.className = 'analysis-variation-empty';
+    emptyEl.setAttribute('data-testid', 'analysis-variation-empty');
+    emptyEl.textContent =
+      'Belum ada variasi. Aktifkan mode "Jelajahi Posisi" lalu mainkan langkah alternatif di papan untuk membuat cabang baru.';
+    varListEl.appendChild(emptyEl);
+    return;
+  }
+
+  variations.forEach(v => {
+    const itemEl = document.createElement('div');
+    const isActiveVar = activeLineId === v.id;
+    itemEl.className = `analysis-variation-item ${isActiveVar ? 'active' : ''}`;
+    itemEl.setAttribute('data-variation-id', v.id);
+    itemEl.setAttribute('data-testid', `analysis-variation-item-${v.id}`);
+
+    const topRow = document.createElement('div');
+    topRow.className = 'analysis-variation-item-top';
+
+    if (state.renamingVariationId === v.id) {
+      const renameForm = document.createElement('div');
+      renameForm.className = 'analysis-variation-rename-row';
+      renameForm.setAttribute('data-testid', `analysis-variation-rename-form-${v.id}`);
+
+      const renameInput = document.createElement('input');
+      renameInput.type = 'text';
+      renameInput.className = 'analysis-variation-rename-input';
+      renameInput.value = v.name;
+      renameInput.setAttribute('data-variation-id', v.id);
+      renameInput.setAttribute('data-testid', `analysis-variation-rename-input-${v.id}`);
+      renameInput.setAttribute('aria-label', `Nama baru untuk ${v.name}`);
+      renameForm.appendChild(renameInput);
+
+      const saveBtn = document.createElement('button');
+      saveBtn.type = 'button';
+      saveBtn.className = 'btn btn-primary btn-sm analysis-var-action-btn';
+      saveBtn.setAttribute('data-action', 'save-rename-variation');
+      saveBtn.setAttribute('data-variation-id', v.id);
+      saveBtn.setAttribute('data-testid', `analysis-variation-rename-save-${v.id}`);
+      saveBtn.textContent = 'Simpan';
+      renameForm.appendChild(saveBtn);
+
+      const cancelBtn = document.createElement('button');
+      cancelBtn.type = 'button';
+      cancelBtn.className = 'btn btn-secondary btn-sm analysis-var-action-btn';
+      cancelBtn.setAttribute('data-action', 'cancel-rename-variation');
+      cancelBtn.setAttribute('data-variation-id', v.id);
+      cancelBtn.setAttribute('data-testid', `analysis-variation-rename-cancel-${v.id}`);
+      cancelBtn.textContent = 'Batal';
+      renameForm.appendChild(cancelBtn);
+
+      topRow.appendChild(renameForm);
+    } else {
+      const selectBtn = document.createElement('button');
+      selectBtn.type = 'button';
+      selectBtn.className = `analysis-variation-select-btn ${isActiveVar ? 'active' : ''}`;
+      selectBtn.setAttribute('data-action', 'select-variation');
+      selectBtn.setAttribute('data-variation-id', v.id);
+      selectBtn.setAttribute('data-testid', `analysis-variation-select-${v.id}`);
+
+      const nameStrong = document.createElement('strong');
+      nameStrong.className = 'analysis-variation-name';
+      nameStrong.setAttribute('data-testid', `analysis-variation-name-${v.id}`);
+      nameStrong.textContent = safeDisplayValue(v.name, 'Variation');
+      selectBtn.appendChild(nameStrong);
+
+      const metaSpan = document.createElement('span');
+      metaSpan.className = 'analysis-variation-meta';
+      const parentLabel =
+        v.parentVariationId && v.parentVariationId !== 'mainline'
+          ? `Cabang ${v.parentVariationId}`
+          : 'Mainline';
+      metaSpan.textContent = `Dari ${parentLabel} (Ply ${v.parentPly}) • ${v.moves.length} ply`;
+      selectBtn.appendChild(metaSpan);
+
+      topRow.appendChild(selectBtn);
+
+      const actionsGroup = document.createElement('div');
+      actionsGroup.className = 'analysis-variation-item-actions';
+
+      const continueBtn = document.createElement('button');
+      continueBtn.type = 'button';
+      continueBtn.className = 'btn btn-secondary btn-sm analysis-var-action-btn';
+      continueBtn.setAttribute('data-action', 'continue-variation');
+      continueBtn.setAttribute('data-variation-id', v.id);
+      continueBtn.setAttribute('data-testid', `analysis-variation-continue-${v.id}`);
+      continueBtn.title = 'Lanjutkan eksplorasi pada variasi ini';
+      continueBtn.textContent = 'Lanjutkan';
+      actionsGroup.appendChild(continueBtn);
+
+      const originBtn = document.createElement('button');
+      originBtn.type = 'button';
+      originBtn.className = 'btn btn-secondary btn-sm analysis-var-action-btn';
+      originBtn.setAttribute('data-action', 'variation-parent-pos');
+      originBtn.setAttribute('data-variation-id', v.id);
+      originBtn.setAttribute('data-testid', `analysis-variation-origin-${v.id}`);
+      originBtn.title = 'Kembali ke posisi asal variasi ini';
+      originBtn.textContent = 'Posisi Asal';
+      actionsGroup.appendChild(originBtn);
+
+      const renameBtn = document.createElement('button');
+      renameBtn.type = 'button';
+      renameBtn.className = 'btn btn-secondary btn-sm analysis-var-action-btn';
+      renameBtn.setAttribute('data-action', 'start-rename-variation');
+      renameBtn.setAttribute('data-variation-id', v.id);
+      renameBtn.setAttribute('data-testid', `analysis-variation-rename-${v.id}`);
+      renameBtn.title = 'Ganti nama variasi';
+      renameBtn.textContent = 'Ubah Nama';
+      actionsGroup.appendChild(renameBtn);
+
+      const deleteBtn = document.createElement('button');
+      deleteBtn.type = 'button';
+      deleteBtn.className = 'btn btn-ghost btn-sm analysis-var-action-btn analysis-danger-btn';
+      deleteBtn.setAttribute('data-action', 'delete-variation');
+      deleteBtn.setAttribute('data-variation-id', v.id);
+      deleteBtn.setAttribute('data-testid', `analysis-variation-delete-${v.id}`);
+      deleteBtn.title = 'Hapus variasi ini';
+      deleteBtn.textContent = 'Hapus';
+      actionsGroup.appendChild(deleteBtn);
+
+      topRow.appendChild(actionsGroup);
+    }
+
+    itemEl.appendChild(topRow);
+
+    // Urutan langkah SAN pada variasi (dapat diklik langsung)
+    const sanRow = document.createElement('div');
+    sanRow.className = 'analysis-variation-san-sequence';
+    sanRow.setAttribute('data-testid', `analysis-variation-moves-${v.id}`);
+
+    v.moves.forEach(m => {
+      const moveChip = document.createElement('button');
+      moveChip.type = 'button';
+      const isChipActive = isActiveVar && replayState.currentPly === m.ply;
+      moveChip.className = `analysis-variation-move-chip ${isChipActive ? 'active' : ''}`;
+      moveChip.setAttribute('data-action', 'jump-variation-ply');
+      moveChip.setAttribute('data-variation-id', v.id);
+      moveChip.setAttribute('data-ply', String(m.ply));
+      moveChip.setAttribute('data-testid', `analysis-variation-${v.id}-ply-${m.ply}`);
+      const movePrefix = m.color === 'w' ? `${m.moveNumber}.` : `${m.moveNumber}...`;
+      moveChip.textContent = `${movePrefix} ${m.san}`;
+      sanRow.appendChild(moveChip);
+    });
+
+    itemEl.appendChild(sanRow);
+    varListEl.appendChild(itemEl);
+  });
 }
 
 function _syncReplayStatusDom(container, state, replayState) {
@@ -1012,73 +1502,183 @@ function _syncReplayStatusDom(container, state, replayState) {
   if (bottomRoleEl) bottomRoleEl.textContent = `(${bottomPlayerRole})`;
   if (bottomDotEl) bottomDotEl.className = `analysis-player-color-dot ${bottomDotClass}`;
 
+  // Sinkronkan Mode Switcher & tombol eksplorasi
+  const isExplore = replayState.mode === 'explore';
+  const reviewModeBtn = container.querySelector('[data-testid="analysis-mode-review-btn"]');
+  const exploreModeBtn = container.querySelector('[data-testid="analysis-mode-explore-btn"]');
+  const modeStatusEl = container.querySelector('[data-testid="analysis-mode-status"]');
+
+  if (reviewModeBtn) {
+    reviewModeBtn.classList.toggle('active', !isExplore);
+    reviewModeBtn.setAttribute('aria-pressed', !isExplore ? 'true' : 'false');
+  }
+  if (exploreModeBtn) {
+    exploreModeBtn.classList.toggle('active', isExplore);
+    exploreModeBtn.setAttribute('aria-pressed', isExplore ? 'true' : 'false');
+  }
+  if (modeStatusEl) {
+    const isMainlineLine = !replayState.activeLineId || replayState.activeLineId === 'mainline';
+    const lineLabel = isMainlineLine
+      ? 'Partai Asli'
+      : safeDisplayValue(replayState.activeLineName, 'Variasi');
+    const modePrefix = isExplore ? 'Jelajahi Posisi' : 'Review Mode';
+    const statusText = `${modePrefix} • ${lineLabel}`;
+    modeStatusEl.textContent = statusText;
+    modeStatusEl.title = statusText;
+  }
+
   // Update ply badge & subtitle
   const plyBadgeEl = container.querySelector('[data-testid="analysis-ply-badge"]');
   if (plyBadgeEl) {
     plyBadgeEl.textContent = `Ply ${replayState.currentPly} / ${replayState.totalPlies}`;
   }
 
+  const totalLineMoves = Math.ceil((Number(replayState.totalPlies) || 0) / 2);
   const stepSubtitleEl = container.querySelector('[data-testid="analysis-step-counter-subtitle"]');
   if (stepSubtitleEl) {
+    const lineSuffix =
+      replayState.activeLineId && replayState.activeLineId !== 'mainline'
+        ? ` (${safeDisplayValue(replayState.activeLineName, 'Variasi')})`
+        : '';
     if (replayState.currentPly === 0) {
-      stepSubtitleEl.textContent = `Posisi Awal (Langkah 0 dari ${game.totalMoves})`;
+      stepSubtitleEl.textContent = `Posisi Awal (Langkah 0 dari ${totalLineMoves})${lineSuffix}`;
     } else if (replayState.activeMove) {
       const sideText = replayState.activeMove.color === 'w' ? 'Putih' : 'Hitam';
-      stepSubtitleEl.textContent = `Langkah ${replayState.activeMove.moveNumber} dari ${game.totalMoves} • ${sideText}: ${replayState.activeMove.san}`;
+      stepSubtitleEl.textContent = `Langkah ${replayState.activeMove.moveNumber} dari ${totalLineMoves} • ${sideText}: ${replayState.activeMove.san}${lineSuffix}`;
     }
   }
 
-  // Update current FEN bar
+  // Update Position Information Panel (MVP 5.2)
+  const setPosText = (testId, text) => {
+    const el = container.querySelector(`[data-testid="${testId}"]`);
+    if (el) {
+      el.textContent = safeDisplayValue(text, '-');
+    }
+  };
+
+  setPosText('analysis-pos-active-line', safeDisplayValue(replayState.activeLineName, 'Mainline'));
+  setPosText(
+    'analysis-pos-move-number',
+    replayState.currentPly === 0
+      ? '0 (Posisi Awal)'
+      : `Langkah ${Number(replayState.moveNumber) || 1}`
+  );
+  setPosText(
+    'analysis-pos-active-ply',
+    `${Number(replayState.currentPly) || 0} / ${Number(replayState.totalPlies) || 0}`
+  );
+  setPosText('analysis-pos-next-turn', safeDisplayValue(replayState.nextTurnLabel, 'Putih (w)'));
+  setPosText(
+    'analysis-pos-check-status',
+    safeDisplayValue(replayState.statusLabel, 'Normal (Tidak Skak)')
+  );
+  setPosText(
+    'analysis-pos-last-san',
+    replayState.lastMoveSan ? safeDisplayValue(replayState.lastMoveSan, '-') : 'Posisi Awal (-)'
+  );
+
+  // Update current FEN bar & Copy FEN label
   const currentFenEl = container.querySelector('[data-testid="analysis-current-fen"]');
   if (currentFenEl) {
-    currentFenEl.textContent = replayState.currentFen;
+    currentFenEl.textContent = safeDisplayValue(replayState.currentFen, game.initialFen);
+  }
+  const copyFenLabelEl = container.querySelector('[data-testid="analysis-copy-fen-label"]');
+  if (copyFenLabelEl) {
+    copyFenLabelEl.textContent = state.copyFenStatusMessage || 'Salin FEN';
   }
 
-  // Update active highlight pada daftar langkah SAN (Desktop)
+  // Render daftar langkah SAN (Desktop) dan Move Strip (Mobile) bila struktur jalur berubah,
+  // atau perbarui class active secara in-place pada node DOM yang sudah ada.
+  const linePairs = activeReplayBoardInstance
+    ? activeReplayBoardInstance.getLineMovePairs(replayState.activeLineId)
+    : Array.isArray(game.movePairs)
+      ? game.movePairs
+      : [];
+
+  const lineSignature = `${replayState.activeLineId || 'mainline'}:${replayState.totalPlies}`;
+
   const moveListEl = container.querySelector('[data-testid="analysis-move-list"]');
   if (moveListEl) {
-    const allPlyBtns = moveListEl.querySelectorAll('[data-ply]');
-    allPlyBtns.forEach(btn => {
-      const btnPly = Number(btn.getAttribute('data-ply'));
-      if (btnPly === replayState.currentPly) {
-        btn.classList.add('active');
-        btn.setAttribute('aria-current', 'step');
-      } else {
-        btn.classList.remove('active');
-        btn.removeAttribute('aria-current');
-      }
-    });
-  }
+    if (moveListEl.getAttribute('data-rendered-signature') !== lineSignature) {
+      _renderMoveListDom(moveListEl, linePairs, replayState.currentPly, replayState.activeLineId);
+      moveListEl.setAttribute('data-rendered-signature', lineSignature);
+    } else {
+      const allPlyBtns = moveListEl.querySelectorAll('[data-ply]');
+      allPlyBtns.forEach(btn => {
+        const btnPly = Number(btn.getAttribute('data-ply'));
+        if (btnPly === replayState.currentPly) {
+          btn.classList.add('active');
+          btn.setAttribute('aria-current', 'step');
+        } else {
+          btn.classList.remove('active');
+          btn.removeAttribute('aria-current');
+        }
+      });
+    }
 
-  // Update active highlight & auto-scroll pada Move Navigation Strip (Mobile)
-  const mobileStripScrollEl = container.querySelector('[data-testid="analysis-mobile-strip-scroll"]');
-  if (mobileStripScrollEl) {
-    const allMobilePills = mobileStripScrollEl.querySelectorAll('[data-mobile-ply]');
-    let activePillEl = null;
-    allMobilePills.forEach(pill => {
-      const pillPly = Number(pill.getAttribute('data-mobile-ply'));
-      if (pillPly === replayState.currentPly) {
-        pill.classList.add('active');
-        pill.setAttribute('aria-current', 'step');
-        activePillEl = pill;
-      } else {
-        pill.classList.remove('active');
-        pill.removeAttribute('aria-current');
-      }
-    });
-
-    if (activePillEl && typeof activePillEl.scrollIntoView === 'function') {
-      try {
-        activePillEl.scrollIntoView({ block: 'nearest', inline: 'center' });
-      } catch {
-        // Abaikan jika environment headless/mock tidak mendukung opsi scrollIntoView
-      }
+    const activePlyBtn = moveListEl.querySelector(`[data-ply="${replayState.currentPly}"]`);
+    if (
+      activePlyBtn &&
+      typeof moveListEl.scrollHeight === 'number' &&
+      moveListEl.scrollHeight > moveListEl.clientHeight &&
+      typeof activePlyBtn.offsetTop === 'number'
+    ) {
+      const targetScrollTop = Math.max(
+        0,
+        activePlyBtn.offsetTop - Math.floor(moveListEl.clientHeight / 2)
+      );
+      moveListEl.scrollTop = targetScrollTop;
     }
   }
 
-  // Update disabled state untuk tombol di Mobile Move Strip & Mobile Bottom Toolbar
+  const mobileStripScrollEl = container.querySelector('[data-testid="analysis-mobile-strip-scroll"]');
+  if (mobileStripScrollEl) {
+    if (mobileStripScrollEl.getAttribute('data-rendered-signature') !== lineSignature) {
+      _renderMobileMoveStripDom(
+        mobileStripScrollEl,
+        linePairs,
+        replayState.currentPly,
+        replayState.activeLineId
+      );
+      mobileStripScrollEl.setAttribute('data-rendered-signature', lineSignature);
+    } else {
+      const allMobilePills = mobileStripScrollEl.querySelectorAll('[data-mobile-ply]');
+      allMobilePills.forEach(pill => {
+        const pillPly = Number(pill.getAttribute('data-mobile-ply'));
+        if (pillPly === replayState.currentPly) {
+          pill.classList.add('active');
+          pill.setAttribute('aria-current', 'step');
+        } else {
+          pill.classList.remove('active');
+          pill.removeAttribute('aria-current');
+        }
+      });
+    }
+
+    const activePillEl = mobileStripScrollEl.querySelector(
+      `[data-mobile-ply="${replayState.currentPly}"]`
+    );
+    if (
+      activePillEl &&
+      typeof mobileStripScrollEl.scrollWidth === 'number' &&
+      mobileStripScrollEl.scrollWidth > mobileStripScrollEl.clientWidth &&
+      typeof activePillEl.offsetLeft === 'number'
+    ) {
+      mobileStripScrollEl.scrollLeft = Math.max(
+        0,
+        activePillEl.offsetLeft - Math.floor(mobileStripScrollEl.clientWidth / 2)
+      );
+    }
+  }
+
+  // Render Variation Manager
+  _renderVariationManagerDom(container, state, replayState);
+
+  // Update disabled state untuk tombol di Mobile Move Strip, Mobile Bottom Toolbar, dan Quick Actions
   const isAtStart = replayState.currentPly <= 0;
   const isAtEnd = replayState.currentPly >= replayState.totalPlies;
+  const isVariationActive =
+    Boolean(replayState.activeLineId) && replayState.activeLineId !== 'mainline';
 
   const setBtnDisabled = (testId, disabled) => {
     const btn = container.querySelector(`[data-testid="${testId}"]`);
@@ -1097,6 +1697,53 @@ function _syncReplayStatusDom(container, state, replayState) {
   setBtnDisabled('analysis-mobile-btn-prev', isAtStart);
   setBtnDisabled('analysis-mobile-btn-next', isAtEnd);
   setBtnDisabled('analysis-mobile-btn-last', isAtEnd);
+
+  const canUndoExploration = Boolean(
+    isExplore &&
+      isVariationActive &&
+      replayState.activeVariation &&
+      Array.isArray(replayState.activeVariation.moves) &&
+      replayState.activeVariation.moves.length > 0
+  );
+  setBtnDisabled('analysis-undo-move-btn', !canUndoExploration);
+
+  const undoBtnEl = container.querySelector('[data-testid="analysis-undo-move-btn"]');
+  if (undoBtnEl) {
+    if (!isExplore) {
+      undoBtnEl.title =
+        'Undo hanya aktif pada mode Jelajahi Posisi saat ada langkah eksplorasi';
+    } else if (!canUndoExploration) {
+      undoBtnEl.title = 'Belum ada langkah eksplorasi pada variasi aktif untuk dibatalkan';
+    } else {
+      undoBtnEl.title = 'Batalkan langkah eksplorasi terakhir pada variasi aktif';
+    }
+  }
+
+  const variationNavGroupEl = container.querySelector(
+    '[data-testid="analysis-variation-nav-group"]'
+  );
+  if (variationNavGroupEl) {
+    if (isVariationActive) {
+      variationNavGroupEl.classList.remove('hidden');
+    } else {
+      variationNavGroupEl.classList.add('hidden');
+    }
+  }
+
+  const isAtParentPosition = Boolean(
+    isVariationActive &&
+      replayState.activeVariation &&
+      replayState.currentPly === replayState.activeVariation.parentPly
+  );
+  setBtnDisabled('analysis-return-parent-btn', !isVariationActive || isAtParentPosition);
+  setBtnDisabled('analysis-switch-mainline-btn', !isVariationActive);
+
+  const returnParentBtnEl = container.querySelector('[data-testid="analysis-return-parent-btn"]');
+  if (returnParentBtnEl) {
+    returnParentBtnEl.title = isAtParentPosition
+      ? 'Anda sudah berada tepat di posisi asal variasi ini'
+      : 'Kembali ke posisi asal (parent position) dari variasi aktif';
+  }
 
   // Update komentar / NAG untuk langkah aktif (Desktop & Mobile)
   const annotationTextEl = container.querySelector('[data-testid="analysis-move-annotation-text"]');
@@ -1169,7 +1816,7 @@ function _applyPgnValidationResult(container, state, validationResult, rawText, 
     }
     state.parsedGame = null;
     state.lastValidatedRawPgn = null;
-    state.currentPly = 0;
+    resetAnalysisExplorationState(state);
     state.mobileScreen = 'import';
     if (typeof callbacks.onMobileScreenChange === 'function') {
       callbacks.onMobileScreenChange('import');
@@ -1178,17 +1825,21 @@ function _applyPgnValidationResult(container, state, validationResult, rawText, 
     return false;
   }
 
+  const hadPreviousVariations = Array.isArray(state.variations) && state.variations.length > 0;
+  const previousVarCount = hadPreviousVariations ? state.variations.length : 0;
+
   state.validationError = null;
   state.parsedGame = validationResult;
   if (typeof rawText === 'string') {
     state.rawPgnText = rawText;
     state.lastValidatedRawPgn = rawText;
   }
-  state.currentPly = 0;
-  state.orientation = 'white';
+  resetAnalysisExplorationState(state, { preserveCleanupNotice: false });
+  if (hadPreviousVariations) {
+    state.sessionCleanupNotice = `Sesi eksplorasi sebelumnya (${previousVarCount} variasi) telah dibersihkan karena partai baru dimuat.`;
+  }
   state.mobileScreen = 'review';
   state.showInputPanelInPreview = false;
-  state.copyStatusMessage = '';
 
   if (typeof callbacks.onMobileScreenChange === 'function') {
     callbacks.onMobileScreenChange('review');
@@ -1268,6 +1919,7 @@ async function _handleFileSelectionAndImport(file, container, state, callbacks) 
     };
     state.parsedGame = null;
     state.lastValidatedRawPgn = null;
+    resetAnalysisExplorationState(state);
     state.mobileScreen = 'import';
     renderAnalysisView(container, state, callbacks);
     return false;
@@ -1290,6 +1942,7 @@ async function _handleFileSelectionAndImport(file, container, state, callbacks) 
     };
     state.parsedGame = null;
     state.lastValidatedRawPgn = null;
+    resetAnalysisExplorationState(state);
     state.mobileScreen = 'import';
     renderAnalysisView(container, state, callbacks);
     return false;
@@ -1356,6 +2009,7 @@ function _bindAnalysisViewEvents(container, state, callbacks) {
         };
         state.parsedGame = null;
         state.lastValidatedRawPgn = null;
+        resetAnalysisExplorationState(state);
         state.mobileScreen = 'import';
         renderAnalysisView(container, state, callbacks);
         return;
@@ -1467,7 +2121,7 @@ function _bindAnalysisViewEvents(container, state, callbacks) {
       state.parsedGame = null;
       state.lastValidatedRawPgn = null;
       state.validationError = null;
-      state.currentPly = 0;
+      resetAnalysisExplorationState(state);
       state.mobileScreen = 'import';
       state.showInputPanelInPreview = false;
       renderAnalysisView(container, state, callbacks);
@@ -1482,11 +2136,9 @@ function _bindAnalysisViewEvents(container, state, callbacks) {
       state.selectedFileMeta = null;
       state.validationError = null;
       state.parsedGame = null;
-      state.currentPly = 0;
-      state.orientation = 'white';
+      resetAnalysisExplorationState(state);
       state.mobileScreen = 'import';
       state.showInputPanelInPreview = false;
-      state.copyStatusMessage = '';
       renderAnalysisView(container, state, callbacks);
     });
   }
@@ -1516,6 +2168,211 @@ function _bindAnalysisViewEvents(container, state, callbacks) {
       });
     }
   });
+
+  // MVP 5.2: Tombol Salin FEN Posisi Saat Ini
+  const copyFenBtn = container.querySelector('[data-action="copy-current-fen"]');
+  if (copyFenBtn) {
+    copyFenBtn.addEventListener('click', async () => {
+      const activeFen = activeReplayBoardInstance
+        ? activeReplayBoardInstance.getCurrentFen()
+        : state.parsedGame
+          ? state.parsedGame.initialFen
+          : '';
+      if (!activeFen) return;
+
+      let copiedViaClipboard = false;
+      try {
+        if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+          await navigator.clipboard.writeText(activeFen);
+          copiedViaClipboard = true;
+        }
+      } catch {
+        copiedViaClipboard = false;
+      }
+
+      if (!copiedViaClipboard && typeof document !== 'undefined' && document.body) {
+        try {
+          const tempInput = document.createElement('textarea');
+          tempInput.value = activeFen;
+          tempInput.setAttribute('readonly', 'true');
+          tempInput.style.position = 'fixed';
+          tempInput.style.opacity = '0';
+          document.body.appendChild(tempInput);
+          if (typeof tempInput.select === 'function') {
+            tempInput.select();
+          }
+          if (typeof document.execCommand === 'function') {
+            document.execCommand('copy');
+          }
+          if (typeof tempInput.remove === 'function') {
+            tempInput.remove();
+          } else if (tempInput.parentNode) {
+            tempInput.parentNode.removeChild(tempInput);
+          }
+        } catch {
+          // Fallback aman selesai
+        }
+      }
+
+      state.lastCopiedFen = activeFen;
+      state.copyFenStatusMessage = 'FEN Tersalin!';
+      const copyFenLabelEl = container.querySelector('[data-testid="analysis-copy-fen-label"]');
+      if (copyFenLabelEl) {
+        copyFenLabelEl.textContent = state.copyFenStatusMessage;
+      }
+    });
+  }
+
+  // MVP 5.2: Mode Switcher (Review Mode vs Jelajahi Posisi)
+  const modeReviewBtn = container.querySelector('[data-action="set-mode-review"]');
+  if (modeReviewBtn) {
+    modeReviewBtn.addEventListener('click', () => {
+      state.analysisMode = 'review';
+      if (activeReplayBoardInstance) {
+        activeReplayBoardInstance.setMode('review');
+      }
+    });
+  }
+
+  const modeExploreBtn = container.querySelector('[data-action="set-mode-explore"]');
+  if (modeExploreBtn) {
+    modeExploreBtn.addEventListener('click', () => {
+      state.analysisMode = 'explore';
+      if (activeReplayBoardInstance) {
+        activeReplayBoardInstance.setMode('explore');
+      }
+    });
+  }
+
+  // MVP 5.2: Quick Exploration Actions (Undo, Posisi Asal, Mainline)
+  const undoExploreBtn = container.querySelector('[data-action="undo-exploration-move"]');
+  if (undoExploreBtn) {
+    undoExploreBtn.addEventListener('click', () => {
+      if (activeReplayBoardInstance) {
+        activeReplayBoardInstance.undoExplorationMove();
+      }
+    });
+  }
+
+  const returnParentBtns = container.querySelectorAll('[data-action="return-parent-position"]');
+  returnParentBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (activeReplayBoardInstance) {
+        activeReplayBoardInstance.returnToParentPosition();
+      }
+    });
+  });
+
+  const switchMainlineBtns = container.querySelectorAll('[data-action="switch-to-mainline"]');
+  switchMainlineBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.renamingVariationId = null;
+      if (activeReplayBoardInstance) {
+        activeReplayBoardInstance.switchToMainline();
+      }
+    });
+  });
+
+  // Mobile Variation Selector dropdown
+  const mobileVariationSelect = container.querySelector('[data-action="mobile-select-variation"]');
+  if (mobileVariationSelect) {
+    mobileVariationSelect.addEventListener('change', e => {
+      const targetLineId = e.target ? e.target.value : 'mainline';
+      if (!activeReplayBoardInstance) return;
+      if (targetLineId === 'mainline') {
+        activeReplayBoardInstance.switchToMainline();
+      } else {
+        activeReplayBoardInstance.selectVariation(targetLineId);
+      }
+    });
+  }
+
+  // MVP 5.2: Delegasi klik pada Variation Manager (Pilih, Lanjutkan, Posisi Asal, Rename, Hapus, Lompat Ply)
+  const varListEl = container.querySelector('[data-testid="analysis-variation-list"]');
+  if (varListEl) {
+    varListEl.addEventListener('click', e => {
+      const actionEl =
+        e.target && typeof e.target.closest === 'function'
+          ? e.target.closest('[data-action]')
+          : null;
+      if (!actionEl || !activeReplayBoardInstance) return;
+
+      const action = actionEl.getAttribute('data-action');
+      const variationId = actionEl.getAttribute('data-variation-id');
+      if (!variationId) return;
+
+      if (action === 'select-variation') {
+        state.renamingVariationId = null;
+        activeReplayBoardInstance.selectVariation(variationId);
+      } else if (action === 'continue-variation') {
+        state.renamingVariationId = null;
+        activeReplayBoardInstance.continueVariation(variationId);
+      } else if (action === 'variation-parent-pos') {
+        state.renamingVariationId = null;
+        activeReplayBoardInstance.returnToParentPosition(variationId);
+      } else if (action === 'start-rename-variation') {
+        state.renamingVariationId = variationId;
+        _renderVariationManagerDom(
+          container,
+          state,
+          activeReplayBoardInstance.getReplayState()
+        );
+        const inputEl = container.querySelector(
+          `[data-testid="analysis-variation-rename-input-${variationId}"]`
+        );
+        if (inputEl && typeof inputEl.focus === 'function') {
+          inputEl.focus();
+        }
+      } else if (action === 'save-rename-variation') {
+        const inputEl = container.querySelector(
+          `[data-testid="analysis-variation-rename-input-${variationId}"]`
+        );
+        const newName = inputEl ? inputEl.value : '';
+        state.renamingVariationId = null;
+        activeReplayBoardInstance.renameVariation(variationId, newName);
+      } else if (action === 'cancel-rename-variation') {
+        state.renamingVariationId = null;
+        _renderVariationManagerDom(
+          container,
+          state,
+          activeReplayBoardInstance.getReplayState()
+        );
+      } else if (action === 'delete-variation') {
+        state.renamingVariationId = null;
+        activeReplayBoardInstance.deleteVariation(variationId);
+      } else if (action === 'jump-variation-ply') {
+        state.renamingVariationId = null;
+        const targetPly = Number(actionEl.getAttribute('data-ply'));
+        if (!Number.isNaN(targetPly)) {
+          activeReplayBoardInstance.selectVariation(variationId, { targetPly });
+        }
+      }
+    });
+
+    varListEl.addEventListener('keydown', e => {
+      const inputEl =
+        e.target && typeof e.target.closest === 'function'
+          ? e.target.closest('.analysis-variation-rename-input')
+          : null;
+      if (!inputEl || !activeReplayBoardInstance) return;
+      const variationId = inputEl.getAttribute('data-variation-id');
+      if (!variationId) return;
+
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        state.renamingVariationId = null;
+        activeReplayBoardInstance.renameVariation(variationId, inputEl.value);
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        state.renamingVariationId = null;
+        _renderVariationManagerDom(
+          container,
+          state,
+          activeReplayBoardInstance.getReplayState()
+        );
+      }
+    });
+  }
 
   // Navigasi klik langsung pada daftar langkah SAN (Desktop)
   const moveListEl = container.querySelector('[data-testid="analysis-move-list"]');
