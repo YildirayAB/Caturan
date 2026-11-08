@@ -56,6 +56,23 @@
 
         <div class="topbar-right">
           <div id="topbar-quick-stats" class="topbar-quick-stats" aria-label="Ringkasan Statistik"></div>
+          <div id="board-prefs-wrapper" class="board-prefs-topbar-wrapper">
+            <button
+              type="button"
+              id="board-prefs-toggle-btn"
+              class="theme-toggle-btn board-prefs-trigger-btn"
+              data-testid="topbar-board-prefs-btn"
+              aria-expanded="false"
+              aria-label="Pengaturan Suara dan Animasi Papan"
+              title="Pengaturan Suara &amp; Animasi Papan"
+            ></button>
+            <div
+              id="board-prefs-popover"
+              class="board-prefs-popover"
+              data-testid="topbar-board-prefs-popover"
+              hidden
+            ></div>
+          </div>
           <button
             type="button"
             id="theme-toggle-btn"

@@ -6,6 +6,61 @@
 
 import { UI_ICONS } from './icons.js';
 import { SYNC_STATUS, SYNC_STATUS_LABELS } from '../services/storage.js';
+import { chessAudioService } from '../services/chessAudioService.js';
+
+export function renderChessboardPreferencesCardHtml(scope = 'sidebar') {
+  const prefs = chessAudioService.getPreferences();
+  const soundOn = Boolean(prefs.soundEnabled);
+  const motionOn = Boolean(prefs.motionEnabled);
+
+  return `
+    <div class="board-preferences-card" data-testid="${scope}-board-preferences">
+      <div class="board-prefs-header">
+        <span class="board-prefs-title">${UI_ICONS.sliders || ''} Pengaturan Papan &amp; Suara</span>
+      </div>
+      <div class="board-prefs-row">
+        <span class="board-prefs-label">Sound Effects</span>
+        <button
+          type="button"
+          class="btn btn-sm board-pref-toggle ${soundOn ? 'is-on' : 'is-off'}"
+          data-action="toggle-board-sound"
+          data-testid="pref-sound-toggle"
+          aria-pressed="${soundOn ? 'true' : 'false'}"
+        >${soundOn ? 'ON' : 'OFF'}</button>
+      </div>
+      <div class="board-prefs-row">
+        <span class="board-prefs-label">Board Animation</span>
+        <button
+          type="button"
+          class="btn btn-sm board-pref-toggle ${motionOn ? 'is-on' : 'is-off'}"
+          data-action="toggle-board-motion"
+          data-testid="pref-motion-toggle"
+          aria-pressed="${motionOn ? 'true' : 'false'}"
+        >${motionOn ? 'ON' : 'OFF'}</button>
+      </div>
+    </div>
+  `;
+}
+
+export function bindChessboardPreferencesEvents(rootEl) {
+  if (!rootEl || typeof rootEl.querySelectorAll !== 'function') return;
+
+  const soundBtns = rootEl.querySelectorAll('[data-action="toggle-board-sound"]');
+  soundBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const current = chessAudioService.getPreferences().soundEnabled;
+      chessAudioService.setSoundEnabled(!current);
+    });
+  });
+
+  const motionBtns = rootEl.querySelectorAll('[data-action="toggle-board-motion"]');
+  motionBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const current = chessAudioService.getPreferences().motionEnabled;
+      chessAudioService.setMotionEnabled(!current);
+    });
+  });
+}
 
 export const NAV_ITEMS = [
   {
@@ -169,6 +224,8 @@ export function renderSidebar(
           </div>
         </div>
 
+        ${renderChessboardPreferencesCardHtml('sidebar')}
+
         <div class="sync-status-box status-${escapeHtml(statusKey)}" data-testid="sidebar-sync-status">
           <div class="sync-status-main">
             <span class="storage-dot status-dot-${escapeHtml(statusKey)}"></span>
@@ -252,6 +309,7 @@ export function renderSidebar(
   }
 
   // Bind tombol Keluar (Logout)
+  bindChessboardPreferencesEvents(container);
   const logoutBtn = container.querySelector('[data-action="logout"]');
   if (logoutBtn && typeof onLogout === 'function') {
     logoutBtn.addEventListener('click', () => {

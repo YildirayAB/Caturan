@@ -15,7 +15,12 @@ import { authService } from './services/auth.js';
 import { getLessonById } from './data/curriculum.js';
 import { getPuzzleById, getDailyPuzzle, selectNextPuzzle } from './data/puzzles.js';
 import { getOpeningById } from './data/openings.js';
-import { renderSidebar } from './components/sidebar.js';
+import {
+  renderSidebar,
+  renderChessboardPreferencesCardHtml,
+  bindChessboardPreferencesEvents
+} from './components/sidebar.js';
+import { chessAudioService } from './services/chessAudioService.js';
 import { renderDashboardView } from './components/dashboardView.js';
 import { renderLearnView } from './components/learnView.js';
 import { renderLoginView } from './components/loginView.js';
@@ -126,6 +131,30 @@ export class CaturanApp {
     this.mainContainer = document.getElementById('app-main-content');
     this.topbarStatsContainer = document.getElementById('topbar-quick-stats');
     this.themeToggleBtn = document.getElementById('theme-toggle-btn');
+    this.boardPrefsBtn = document.getElementById('board-prefs-toggle-btn');
+    this.boardPrefsPopover = document.getElementById('board-prefs-popover');
+    this.isBoardPrefsOpen = false;
+    if (this.boardPrefsBtn) {
+      this.boardPrefsBtn.addEventListener('click', () => {
+        this.isBoardPrefsOpen = !this.isBoardPrefsOpen;
+        this.renderBoardPrefsUI();
+      });
+    }
+    this._unsubBoardPrefs = chessAudioService.subscribePreferences(() => {
+      this.renderBoardPrefsUI();
+      if (this.sidebarContainer) {
+        const sidebarCard = this.sidebarContainer.querySelector('[data-testid="sidebar-board-preferences"]');
+        if (sidebarCard && sidebarCard.parentNode) {
+          const wrapper = document.createElement('div');
+          wrapper.innerHTML = renderChessboardPreferencesCardHtml('sidebar');
+          const nextCard = wrapper.firstElementChild;
+          if (nextCard) {
+            sidebarCard.parentNode.replaceChild(nextCard, sidebarCard);
+            bindChessboardPreferencesEvents(nextCard);
+          }
+        }
+      }
+    });
     this.mobileMenuBtn = document.getElementById('mobile-menu-btn');
     this.sidebarOverlay = document.getElementById('sidebar-backdrop');
 
@@ -495,6 +524,8 @@ export class CaturanApp {
   }
 
   renderThemeButton() {
+    this.renderBoardPrefsUI();
+    if (!this.themeToggleBtn) return;
     if (!this.themeToggleBtn) return;
     const isDark = themeService.getTheme() === THEME_DARK;
     this.themeToggleBtn.innerHTML = `
@@ -505,6 +536,27 @@ export class CaturanApp {
       'aria-label',
       isDark ? 'Ganti ke Light Mode' : 'Ganti ke Dark Mode'
     );
+  }
+
+  renderBoardPrefsUI() {
+    const prefs = chessAudioService.getPreferences();
+    if (this.boardPrefsBtn) {
+      const soundOn = Boolean(prefs.soundEnabled);
+      this.boardPrefsBtn.innerHTML = `
+        <span class="theme-icon">${soundOn ? UI_ICONS.volumeOn : UI_ICONS.volumeOff}</span>
+        <span class="theme-label">Suara ${soundOn ? 'ON' : 'OFF'}</span>
+      `;
+      this.boardPrefsBtn.setAttribute('aria-expanded', this.isBoardPrefsOpen ? 'true' : 'false');
+    }
+    if (this.boardPrefsPopover) {
+      if (this.isBoardPrefsOpen) {
+        this.boardPrefsPopover.removeAttribute('hidden');
+      } else {
+        this.boardPrefsPopover.setAttribute('hidden', '');
+      }
+      this.boardPrefsPopover.innerHTML = renderChessboardPreferencesCardHtml('topbar');
+      bindChessboardPreferencesEvents(this.boardPrefsPopover);
+    }
   }
 
   renderTopbarQuickStats(summary, syncState = storageService.getSyncState()) {
