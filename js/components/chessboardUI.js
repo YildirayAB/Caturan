@@ -4096,4 +4096,393 @@ export class OpeningPracticeBoard {
   }
 }
 
+/**
+ * Komponen Papan Catur Replay Analisis PGN (MVP 5.1 — Chess Analysis Studio Tahap Dasar)
+ * Hanya untuk memutar ulang (replay) partai yang telah tervalidasi:
+ * - Posisi awal, Langkah sebelumnya, Langkah berikutnya, Posisi akhir
+ * - Navigasi langsung ke ply mana pun (goToPly)
+ * - Highlight langkah terakhir (from & to) dan highlight Raja saat skak
+ * - Informasi nomor langkah & ply saat ini serta orientasi papan
+ * - Tanpa evaluasi Stockfish, best move, blunder detection, atau evaluation graph pada MVP 5.1
+ */
+export class AnalysisReplayBoard {
+  /**
+   * @param {HTMLElement} container
+   * @param {Object} parsedGame - Hasil validasi dari validateAndParsePgn()
+   * @param {Object} options - { initialPly, orientation, onPlyChange }
+   */
+  constructor(container, parsedGame, options = {}) {
+    this.container = container;
+    this.parsedGame = parsedGame || {};
+    this.options = options;
+
+    this.initialFen =
+      this.parsedGame.initialFen ||
+      'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+    this.moves = Array.isArray(this.parsedGame.moves) ? this.parsedGame.moves : [];
+    this.totalPlies = this.moves.length;
+
+    const requestedPly =
+      typeof options.initialPly === 'number' ? options.initialPly : 0;
+    this.currentPly = Math.max(0, Math.min(this.totalPlies, requestedPly));
+    this.orientation = options.orientation === 'black' ? 'black' : 'white';
+
+    this.chess = new Chess(this.initialFen);
+    this.lastMove = null;
+    this.inspectedSquareInfo = 'Klik langkah pada daftar notasi atau tombol navigasi untuk memutar ulang partai.';
+
+    this._syncChessToCurrentPly();
+    this.render();
+  }
+
+  _syncChessToCurrentPly() {
+    if (this.currentPly === 0) {
+      this.chess.load(this.initialFen);
+      this.lastMove = null;
+      return;
+    }
+
+    const activeMove = this.moves[this.currentPly - 1];
+    if (activeMove && activeMove.fenAfter) {
+      this.chess.load(activeMove.fenAfter);
+      this.lastMove = { from: activeMove.from, to: activeMove.to };
+    } else {
+      this.chess.load(this.initialFen);
+      for (let i = 0; i < this.currentPly; i += 1) {
+        const m = this.moves[i];
+        if (m) {
+          this.chess.move({ from: m.from, to: m.to, promotion: m.promotion || undefined });
+        }
+      }
+      const last = this.moves[this.currentPly - 1];
+      this.lastMove = last ? { from: last.from, to: last.to } : null;
+    }
+  }
+
+  destroy() {
+    // Tidak ada timer atau engine worker pada MVP 5.1
+  }
+
+  getCurrentFen() {
+    return this.chess.fen();
+  }
+
+  getReplayState() {
+    const activeMove = this.currentPly > 0 ? this.moves[this.currentPly - 1] : null;
+    const currentMoveNumber = activeMove ? activeMove.moveNumber : 0;
+    return {
+      currentPly: this.currentPly,
+      totalPlies: this.totalPlies,
+      currentMoveNumber,
+      totalMoves: this.parsedGame.totalMoves || 0,
+      currentFen: this.chess.fen(),
+      orientation: this.orientation,
+      activeMove,
+      lastMove: this.lastMove ? { ...this.lastMove } : null
+    };
+  }
+
+  goToPly(targetPly) {
+    const clamped = Math.max(0, Math.min(this.totalPlies, Number(targetPly) || 0));
+    this.currentPly = clamped;
+    this._syncChessToCurrentPly();
+
+    const activeMove = this.currentPly > 0 ? this.moves[this.currentPly - 1] : null;
+    if (activeMove) {
+      const sideLabel = activeMove.color === 'w' ? 'Putih' : 'Hitam';
+      this.inspectedSquareInfo = `Langkah ${activeMove.moveNumber} (${sideLabel}): ${activeMove.san} (${activeMove.from} → ${activeMove.to})`;
+    } else {
+      this.inspectedSquareInfo = 'Posisi Awal Partai (Ply 0)';
+    }
+
+    this.render();
+    if (typeof this.options.onPlyChange === 'function') {
+      this.options.onPlyChange(this.getReplayState());
+    }
+    return this.getReplayState();
+  }
+
+  firstMove() {
+    return this.goToPly(0);
+  }
+
+  resetToStart() {
+    return this.goToPly(0);
+  }
+
+  prevMove() {
+    if (this.currentPly <= 0) return this.getReplayState();
+    return this.goToPly(this.currentPly - 1);
+  }
+
+  nextMove() {
+    if (this.currentPly >= this.totalPlies) return this.getReplayState();
+    return this.goToPly(this.currentPly + 1);
+  }
+
+  lastMovePosition() {
+    return this.goToPly(this.totalPlies);
+  }
+
+  goToEnd() {
+    return this.goToPly(this.totalPlies);
+  }
+
+  flipBoard() {
+    this.orientation = this.orientation === 'white' ? 'black' : 'white';
+    this.render();
+    if (typeof this.options.onPlyChange === 'function') {
+      this.options.onPlyChange(this.getReplayState());
+    }
+    return this.orientation;
+  }
+
+  _handleSquareInspect(square) {
+    const clickedPiece = this.chess.get(square);
+    if (clickedPiece) {
+      const colorName = clickedPiece.color === WHITE ? 'Putih' : 'Hitam';
+      const pieceName = PIECE_NAMES_ID[clickedPiece.type] || clickedPiece.type;
+      this.inspectedSquareInfo = `Petak ${square}: ${pieceName} ${colorName} (Mode Replay)`;
+    } else {
+      this.inspectedSquareInfo = `Petak ${square}: Kosong (Mode Replay)`;
+    }
+    const inspectorEl = this.container
+      ? this.container.querySelector('[data-testid="analysis-coord-inspector"]')
+      : null;
+    if (inspectorEl) {
+      inspectorEl.textContent = this.inspectedSquareInfo;
+    }
+  }
+
+  render() {
+    if (!this.container) return;
+
+    const turn = this.chess.turn();
+    const turnText = turn === WHITE ? 'Giliran Putih' : 'Giliran Hitam';
+    const inCheck = this.chess.inCheck();
+    const isCheckmate = this.chess.isCheckmate();
+    const isStalemate = this.chess.isStalemate();
+
+    const activeMove = this.currentPly > 0 ? this.moves[this.currentPly - 1] : null;
+    const currentMoveNumber = activeMove ? activeMove.moveNumber : 0;
+
+    let stepBadgeText = `Posisi Awal (0 / ${this.totalPlies} ply)`;
+    if (activeMove) {
+      const sideText = activeMove.color === 'w' ? 'Putih' : 'Hitam';
+      stepBadgeText = `Langkah ${currentMoveNumber} • ${sideText}: ${activeMove.san} (${this.currentPly}/${this.totalPlies} ply)`;
+    }
+
+    let checkBadgeHtml = '';
+    if (isCheckmate) {
+      checkBadgeHtml = `<span class="board-state-badge badge-danger" data-testid="analysis-board-alert">Skakmat</span>`;
+    } else if (isStalemate) {
+      checkBadgeHtml = `<span class="board-state-badge badge-warning" data-testid="analysis-board-alert">Stalemate</span>`;
+    } else if (inCheck) {
+      checkBadgeHtml = `<span class="board-state-badge badge-danger" data-testid="analysis-board-alert">Skak</span>`;
+    }
+
+    const orientationLabel =
+      this.orientation === 'white' ? 'Putih di Bawah' : 'Hitam di Bawah';
+
+    const rowIndices =
+      this.orientation === 'white' ? [0, 1, 2, 3, 4, 5, 6, 7] : [7, 6, 5, 4, 3, 2, 1, 0];
+    const colIndices =
+      this.orientation === 'white' ? [0, 1, 2, 3, 4, 5, 6, 7] : [7, 6, 5, 4, 3, 2, 1, 0];
+
+    const boardState = this.chess.board();
+    let squaresHtml = '';
+
+    for (let visualRowIdx = 0; visualRowIdx < 8; visualRowIdx += 1) {
+      const r = rowIndices[visualRowIdx];
+      for (let visualColIdx = 0; visualColIdx < 8; visualColIdx += 1) {
+        const c = colIndices[visualColIdx];
+        const sq = FILES[c] + RANKS[r];
+        const isLight = (r + c) % 2 === 0;
+        const piece = boardState[r][c];
+        const isLastMove =
+          this.lastMove && (this.lastMove.from === sq || this.lastMove.to === sq);
+        const isKingInCheck =
+          inCheck && piece && piece.type === 'k' && piece.color === turn;
+
+        const showRankLabel = visualColIdx === 0;
+        const showFileLabel = visualRowIdx === 7;
+
+        const classes = [
+          'chess-square',
+          isLight ? 'square-light' : 'square-dark',
+          isLastMove ? 'square-last-move' : '',
+          isKingInCheck ? 'square-king-check' : '',
+          piece ? 'has-piece' : ''
+        ]
+          .filter(Boolean)
+          .join(' ');
+
+        squaresHtml += `
+          <button
+            type="button"
+            class="${classes}"
+            data-square="${sq}"
+            draggable="false"
+            aria-label="Petak ${sq}${
+          piece
+            ? ` berisi ${PIECE_NAMES_ID[piece.type]} ${
+                piece.color === WHITE ? 'Putih' : 'Hitam'
+              }`
+            : ''
+        }"
+          >
+            ${showRankLabel ? `<span class="coord-label coord-rank">${RANKS[r]}</span>` : ''}
+            ${showFileLabel ? `<span class="coord-label coord-file">${FILES[c]}</span>` : ''}
+            ${
+              piece
+                ? `<span class="piece-wrapper">${getPieceSvg(piece.color, piece.type)}</span>`
+                : ''
+            }
+          </button>
+        `;
+      }
+    }
+
+    const isAtStart = this.currentPly <= 0;
+    const isAtEnd = this.currentPly >= this.totalPlies;
+
+    this.container.innerHTML = `
+      <div class="chessboard-widget analysis-replay-board-widget" data-testid="analysis-replay-board" data-orientation="${this.orientation}" data-current-ply="${this.currentPly}">
+        <div class="chessboard-topbar">
+          <div class="turn-indicator" data-turn="${turn}" data-testid="analysis-turn-indicator">
+            <span class="turn-dot ${turn === WHITE ? 'dot-white' : 'dot-black'}"></span>
+            <span class="turn-label">${turnText}</span>
+          </div>
+          <div class="board-status-badges">
+            <span class="board-state-badge badge-step" data-testid="analysis-current-move-indicator"></span>
+            <span class="board-state-badge" data-testid="analysis-orientation-indicator">${orientationLabel}</span>
+            ${checkBadgeHtml}
+          </div>
+        </div>
+
+        <div class="chessboard-frame">
+          <div class="chessboard-grid" role="grid" aria-label="Papan Catur Replay Analisis PGN">
+            ${squaresHtml}
+          </div>
+        </div>
+
+        <div class="chessboard-coord-statusbar">
+          <span class="coord-inspector-text" data-testid="analysis-coord-inspector"></span>
+          <span class="move-history-pill" data-testid="analysis-fen-pill"></span>
+        </div>
+
+        <div class="chessboard-controls analysis-replay-controls" role="toolbar" aria-label="Navigasi Replay PGN">
+          <button
+            type="button"
+            class="btn btn-secondary btn-sm analysis-nav-btn"
+            data-action="analysis-first"
+            data-testid="analysis-btn-first"
+            aria-label="Posisi Awal"
+            ${isAtStart ? 'disabled' : ''}
+          >
+            ${UI_ICONS.skipBack}
+            <span>Awal</span>
+          </button>
+          <button
+            type="button"
+            class="btn btn-secondary btn-sm analysis-nav-btn"
+            data-action="analysis-prev"
+            data-testid="analysis-btn-prev"
+            aria-label="Langkah Sebelumnya"
+            ${isAtStart ? 'disabled' : ''}
+          >
+            ${UI_ICONS.chevronLeft}
+            <span>Sebelumnya</span>
+          </button>
+          <button
+            type="button"
+            class="btn btn-primary btn-sm analysis-nav-btn"
+            data-action="analysis-next"
+            data-testid="analysis-btn-next"
+            aria-label="Langkah Berikutnya"
+            ${isAtEnd ? 'disabled' : ''}
+          >
+            <span>Berikutnya</span>
+            ${UI_ICONS.chevronRight}
+          </button>
+          <button
+            type="button"
+            class="btn btn-secondary btn-sm analysis-nav-btn"
+            data-action="analysis-last"
+            data-testid="analysis-btn-last"
+            aria-label="Posisi Akhir"
+            ${isAtEnd ? 'disabled' : ''}
+          >
+            <span>Akhir</span>
+            ${UI_ICONS.skipForward}
+          </button>
+          <button
+            type="button"
+            class="btn btn-secondary btn-sm analysis-nav-btn"
+            data-action="analysis-flip"
+            data-testid="analysis-btn-flip"
+            aria-label="Balik Papan"
+          >
+            ${UI_ICONS.flip}
+            <span>Balik Papan</span>
+          </button>
+        </div>
+      </div>
+    `;
+
+    // Gunakan textContent untuk data dinamis agar 100% aman dari injeksi DOM
+    const moveIndicatorEl = this.container.querySelector('[data-testid="analysis-current-move-indicator"]');
+    if (moveIndicatorEl) {
+      moveIndicatorEl.textContent = stepBadgeText;
+    }
+
+    const inspectorEl = this.container.querySelector('[data-testid="analysis-coord-inspector"]');
+    if (inspectorEl) {
+      inspectorEl.textContent = this.inspectedSquareInfo;
+    }
+
+    const fenPillEl = this.container.querySelector('[data-testid="analysis-fen-pill"]');
+    if (fenPillEl) {
+      fenPillEl.textContent = `FEN: ${this.chess.fen()}`;
+    }
+
+    this._bindEvents();
+  }
+
+  _bindEvents() {
+    const squares = this.container.querySelectorAll('.chess-square');
+    squares.forEach(sqBtn => {
+      sqBtn.addEventListener('click', () => {
+        const sq = sqBtn.getAttribute('data-square');
+        this._handleSquareInspect(sq);
+      });
+    });
+
+    const firstBtn = this.container.querySelector('[data-action="analysis-first"]');
+    if (firstBtn) {
+      firstBtn.addEventListener('click', () => this.firstMove());
+    }
+
+    const prevBtn = this.container.querySelector('[data-action="analysis-prev"]');
+    if (prevBtn) {
+      prevBtn.addEventListener('click', () => this.prevMove());
+    }
+
+    const nextBtn = this.container.querySelector('[data-action="analysis-next"]');
+    if (nextBtn) {
+      nextBtn.addEventListener('click', () => this.nextMove());
+    }
+
+    const lastBtn = this.container.querySelector('[data-action="analysis-last"]');
+    if (lastBtn) {
+      lastBtn.addEventListener('click', () => this.lastMovePosition());
+    }
+
+    const flipBtn = this.container.querySelector('[data-action="analysis-flip"]');
+    if (flipBtn) {
+      flipBtn.addEventListener('click', () => this.flipBoard());
+    }
+  }
+}
+
 export default InteractiveChessboard;

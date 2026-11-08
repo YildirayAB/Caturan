@@ -42,8 +42,7 @@ export const NAV_ITEMS = [
     id: 'analysis',
     label: 'Analisis',
     icon: UI_ICONS.analysis,
-    activeInMvp: false,
-    badge: 'Coming Soon'
+    activeInMvp: true
   }
 ];
 

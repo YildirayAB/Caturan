@@ -658,3 +658,104 @@
     max-width: min(100%, 70vh);
   }
 }
+
+
+/* =========================================================================
+   MVP 5.1 — ANALYSIS REPLAY BOARD WIDGET
+   ========================================================================= */
+
+.analysis-replay-board-widget {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.analysis-replay-board-widget .chessboard-frame {
+  width: 100%;
+  max-width: min(100%, 540px);
+  aspect-ratio: 1 / 1;
+  margin: 0 auto;
+}
+
+.analysis-replay-board-widget .chessboard-coord-statusbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.analysis-replay-board-widget .coord-inspector-text {
+  flex: 1 1 200px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.analysis-replay-board-widget .move-history-pill {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: monospace;
+  font-size: 0.74rem;
+}
+
+.analysis-replay-controls {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.analysis-replay-controls .analysis-nav-btn {
+  min-height: 44px;
+  min-width: 0;
+  width: 100%;
+  padding: 8px 10px;
+  justify-content: center;
+  font-size: 0.82rem;
+}
+
+@media (max-width: 768px) {
+  .analysis-replay-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .analysis-replay-controls .analysis-nav-btn[data-action="analysis-flip"] {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 600px) {
+  /* Pada Mobile Screen 2 (Game Review), kontrol navigasi berada di Bottom Toolbar
+     sehingga kontrol internal AnalysisReplayBoard disembunyikan agar fokus pada papan 1:1 */
+  .analysis-replay-board-widget .analysis-replay-controls {
+    display: none !important;
+  }
+
+  .analysis-replay-board-widget .chessboard-frame {
+    width: 100%;
+    max-width: min(100%, 480px);
+    aspect-ratio: 1 / 1;
+    margin: 0 auto;
+  }
+
+  .analysis-replay-board-widget .chessboard-topbar {
+    padding: 6px 10px;
+  }
+}
+
+@media (max-width: 360px) {
+  .analysis-replay-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .analysis-replay-controls .analysis-nav-btn {
+    padding: 8px 6px;
+    font-size: 0.78rem;
+  }
+}

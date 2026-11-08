@@ -36,6 +36,11 @@ import {
 import { renderOpeningLearnView } from './components/openingLearnView.js';
 import { renderOpeningPracticeView } from './components/openingPracticeView.js';
 import {
+  renderAnalysisView,
+  destroyActiveAnalysisBoard,
+  createInitialAnalysisSessionState
+} from './components/analysisView.js';
+import {
   renderLessonDetailView,
   updateLessonCompletionUI,
   destroyActiveLessonBoard
@@ -53,6 +58,7 @@ export class CaturanApp {
     this._lastSyncedUserId = null;
 
     this.currentRoute = 'dashboard'; // 'dashboard' | 'learn' | 'lesson-detail' | 'puzzle' | 'puzzle-play'
+    this.previousRoute = 'dashboard';
     this.activeLessonId = null;
     this.activeCategoryFilter = 'all';
     this.completionFeedback = null;
@@ -83,6 +89,9 @@ export class CaturanApp {
       searchQuery: ''
     };
     this._activeOpeningBoard = null;
+
+    // State Chess Analysis Studio (MVP 5.1 — hanya dalam memori sesi, tidak ke LocalStorage/Supabase)
+    this.analysisSessionState = createInitialAnalysisSessionState();
 
     // State Sidebar:
     // - Desktop: membaca preferensi dari LocalStorage (default terbuka = false)
@@ -161,6 +170,12 @@ export class CaturanApp {
           this.isMobileSidebarOpen = false;
         }
         this._syncSidebarDOM();
+        if (this.currentRoute === 'analysis' && this.mainContainer) {
+          renderAnalysisView(this.mainContainer, this.analysisSessionState, {
+            onBackFromStudio: () => this.navigate(this.previousRoute || 'dashboard'),
+            onMobileScreenChange: screen => this._syncAnalysisMobileHash(screen)
+          });
+        }
       });
 
       window.addEventListener('hashchange', () => {
@@ -185,7 +200,8 @@ export class CaturanApp {
           this.currentRoute === 'puzzle-play' ||
           this.currentRoute === 'play-game' ||
           this.currentRoute === 'opening-learn' ||
-          this.currentRoute === 'opening-practice'
+          this.currentRoute === 'opening-practice' ||
+          this.currentRoute === 'analysis'
         ) {
           this._refreshChromeUI();
         } else {
@@ -230,6 +246,8 @@ export class CaturanApp {
       destroyActivePuzzleBoard();
       destroyActivePlayBoard({ terminateEngine: true });
       this._destroyActiveOpeningBoard();
+      destroyActiveAnalysisBoard();
+      this.analysisSessionState = createInitialAnalysisSessionState();
       this._clearActivePlaySession();
       this.closeMobileSidebar();
       this.renderAuthGate();
@@ -425,6 +443,29 @@ export class CaturanApp {
     } else if (hash === 'opening-trainer') {
       this.navigate('opening-trainer', false);
       return;
+    } else if (hash === 'analysis/review') {
+      if (!this.analysisSessionState) {
+        this.analysisSessionState = createInitialAnalysisSessionState();
+      }
+      if (this.analysisSessionState.parsedGame && this.analysisSessionState.parsedGame.valid) {
+        this.analysisSessionState.mobileScreen = 'review';
+        this.navigate('analysis', false);
+      } else {
+        this.analysisSessionState.mobileScreen = 'import';
+        this.navigate('analysis', true);
+      }
+      return;
+    } else if (hash === 'analysis') {
+      if (this.currentRoute === 'analysis' && this.analysisSessionState) {
+        this.analysisSessionState.mobileScreen = 'import';
+        renderAnalysisView(this.mainContainer, this.analysisSessionState, {
+          onBackFromStudio: () => this.navigate(this.previousRoute || 'dashboard'),
+          onMobileScreenChange: screen => this._syncAnalysisMobileHash(screen)
+        });
+        return;
+      }
+      this.navigate('analysis', false);
+      return;
     } else if (hash === 'play-game') {
       // Jika halaman direfresh saat berada di #play-game, arahkan ke #play dengan bersih
       // tanpa mengklaim game selesai apabila sesi sebelumnya belum berakhir
@@ -541,6 +582,7 @@ export class CaturanApp {
     destroyActivePuzzleBoard();
     destroyActivePlayBoard({ terminateEngine: route !== 'play-game' });
     this._destroyActiveOpeningBoard();
+    destroyActiveAnalysisBoard();
     if (route !== 'play-game') {
       this._clearActivePlaySession();
     }
@@ -548,6 +590,9 @@ export class CaturanApp {
       this.unfinishedPlayNotice = null;
     }
     this.closeMobileSidebar();
+    if (route !== this.currentRoute && this.currentRoute !== 'analysis') {
+      this.previousRoute = this.currentRoute;
+    }
     this.currentRoute = route;
     this.completionFeedback = null;
 
@@ -1127,6 +1172,28 @@ export class CaturanApp {
         onBackToDashboard: () => this.navigate('opening-trainer'),
         onPracticeComplete: practiceState => this.handleOpeningPracticeComplete(practiceState)
       });
+    } else if (this.currentRoute === 'analysis') {
+      if (!this.analysisSessionState) {
+        this.analysisSessionState = createInitialAnalysisSessionState();
+      }
+      renderAnalysisView(this.mainContainer, this.analysisSessionState, {
+        onBackFromStudio: () => this.navigate(this.previousRoute || 'dashboard'),
+        onMobileScreenChange: screen => this._syncAnalysisMobileHash(screen)
+      });
+    }
+  }
+
+  _syncAnalysisMobileHash(screen) {
+    if (typeof window === 'undefined' || !window.history) return;
+    const isMobile600 = typeof window.innerWidth === 'number' && window.innerWidth <= 600;
+    if (!isMobile600) return;
+    const targetHash = screen === 'review' ? '#analysis/review' : '#analysis';
+    if (window.location && window.location.hash !== targetHash) {
+      if (screen === 'review' && typeof window.history.pushState === 'function') {
+        window.history.pushState(null, '', targetHash);
+      } else if (typeof window.history.replaceState === 'function') {
+        window.history.replaceState(null, '', targetHash);
+      }
     }
   }
 }

@@ -1823,12 +1823,12 @@ await runTest('14.3 Regresi MVP 3 (Stockfish 19 Lite WASM, ComputerChessboard, K
   compBoard.destroy();
 });
 
-await runTest('14.4 Integrasi CaturanApp, Sidebar (Opening Trainer Aktif, Analisis Coming Soon), dan Aturan CSS 100% Solid Color', async () => {
+await runTest('14.4 Integrasi CaturanApp, Sidebar (Opening Trainer & Analisis Aktif), dan Aturan CSS 100% Solid Color', async () => {
   const openingItem = NAV_ITEMS.find(item => item.id === 'opening-trainer');
   const analysisItem = NAV_ITEMS.find(item => item.id === 'analysis');
   assert.equal(openingItem.activeInMvp, true, 'Menu Opening Trainer wajib aktif');
-  assert.equal(analysisItem.activeInMvp, false, 'Menu Analisis wajib tetap nonaktif (Coming Soon)');
-  assert.equal(analysisItem.badge, 'Coming Soon');
+  assert.equal(analysisItem.activeInMvp, true, 'Menu Analisis wajib aktif pada MVP 5.1');
+  assert.equal(analysisItem.badge, undefined, 'Menu Analisis yang sudah aktif tidak lagi menggunakan badge Coming Soon');
 
   globalThis.localStorage.clear();
   progressService.resetAllProgress();
