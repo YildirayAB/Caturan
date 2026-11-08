@@ -975,7 +975,7 @@ await runTest('Audio 14/17: Master Gain internal tetap 100% (1.0), dilengkapi Pe
   assert.equal('volumePercent' in rec, false, 'Tidak boleh ada atribut volumePercent');
 
   for (const preset of Object.values(SOUND_PRESETS)) {
-    assert.ok(preset.maxGain <= 0.50, `Preset ${preset.id} harus terkalibrasi <= 0.50 agar bebas clipping`);
+    const expectedPrevTargets = { move: 0.72, capture: 0.96, castling: 0.76, promotion: 0.80, check: 0.84, checkmate: 0.96 }; const expectedTargets = { move: 1.44, capture: 1.92, castling: 1.52, promotion: 1.60, check: 1.68, checkmate: 1.92 }; assert.equal(preset.previousMaxGain, expectedPrevTargets[preset.id]); assert.equal(preset.maxGain, expectedTargets[preset.id], `Preset ${preset.id} harus memiliki target second 2x maxGain = ${expectedTargets[preset.id]}`); assert.equal(Number((preset.previousMaxGain * 2).toFixed(2)), preset.maxGain); assert.equal(preset.outputGain, 4.0, `Preset ${preset.id} harus memiliki outputGain 4.0x (2.0x dari 2.0x sebelumnya) pada jalur output sebelum limiter`); assert.ok(preset.maxGain <= 2.0, `Preset ${preset.id} harus terkalibrasi <= 2.0 dengan proteksi peak limiter`);
   }
 
   chessAudioService.setSoundEnabled(false);

@@ -31,6 +31,8 @@ export const DEFAULT_CHESSBOARD_PREFERENCES = Object.freeze({
 });
 
 export const MASTER_GAIN_DEFAULT = 1.0;
+export const PREVIOUS_OUTPUT_GAIN_MULTIPLIER = 2.0;
+export const PRESET_OUTPUT_GAIN_MULTIPLIER = 4.0;
 
 /**
  * Separate, tunable procedural acoustic presets for each chess move type.
@@ -44,7 +46,7 @@ export const SOUND_PRESETS = Object.freeze({
     id: SOUND_TYPES.MOVE,
     label: 'Normal Move (Ketukan Kayu Natural)',
     durationMs: 75,
-    maxGain: 0.36,
+    baseMaxGain: 0.36, previousMaxGain: 0.72, maxGain: 1.44, outputGain: PRESET_OUTPUT_GAIN_MULTIPLIER,
     transient: {
       durationSec: 0.018,
       filterType: 'bandpass',
@@ -87,7 +89,7 @@ export const SOUND_PRESETS = Object.freeze({
     id: SOUND_TYPES.CAPTURE,
     label: 'Capture (Ketukan Tegas & Berat)',
     durationMs: 95,
-    maxGain: 0.48,
+    baseMaxGain: 0.48, previousMaxGain: 0.96, maxGain: 1.92, outputGain: PRESET_OUTPUT_GAIN_MULTIPLIER,
     transient: {
       durationSec: 0.026,
       filterType: 'bandpass',
@@ -130,7 +132,7 @@ export const SOUND_PRESETS = Object.freeze({
     id: SOUND_TYPES.CASTLING,
     label: 'Castling (Ketukan Ganda Raja & Benteng Terkontrol)',
     durationMs: 145,
-    maxGain: 0.38,
+    baseMaxGain: 0.38, previousMaxGain: 0.76, maxGain: 1.52, outputGain: PRESET_OUTPUT_GAIN_MULTIPLIER,
     transient: {
       durationSec: 0.022,
       filterType: 'bandpass',
@@ -177,7 +179,7 @@ export const SOUND_PRESETS = Object.freeze({
     id: SOUND_TYPES.PROMOTION,
     label: 'Promotion (Ketukan Kayu & Resonansi Cerah)',
     durationMs: 185,
-    maxGain: 0.40,
+    baseMaxGain: 0.40, previousMaxGain: 0.80, maxGain: 1.60, outputGain: PRESET_OUTPUT_GAIN_MULTIPLIER,
     transient: {
       durationSec: 0.020,
       filterType: 'bandpass',
@@ -233,7 +235,7 @@ export const SOUND_PRESETS = Object.freeze({
     id: SOUND_TYPES.CHECK,
     label: 'Check (Peringatan Harmonis Dua Nada)',
     durationMs: 175,
-    maxGain: 0.42,
+    baseMaxGain: 0.42, previousMaxGain: 0.84, maxGain: 1.68, outputGain: PRESET_OUTPUT_GAIN_MULTIPLIER,
     transient: {
       durationSec: 0.020,
       filterType: 'bandpass',
@@ -292,7 +294,7 @@ export const SOUND_PRESETS = Object.freeze({
     id: SOUND_TYPES.CHECKMATE,
     label: 'Checkmate (Resolusi Tegas Tiga Komponen)',
     durationMs: 265,
-    maxGain: 0.48,
+    baseMaxGain: 0.48, previousMaxGain: 0.96, maxGain: 1.92, outputGain: PRESET_OUTPUT_GAIN_MULTIPLIER,
     transient: {
       durationSec: 0.028,
       filterType: 'bandpass',
@@ -788,11 +790,11 @@ class ChessAudioService {
           param.value = value;
         }
       };
-      setParam(limiter.threshold, -3.0);
-      setParam(limiter.knee, 6.0);
-      setParam(limiter.ratio, 12.0);
-      setParam(limiter.attack, 0.002);
-      setParam(limiter.release, 0.08);
+      setParam(limiter.threshold, -1.0);
+      setParam(limiter.knee, 3.0);
+      setParam(limiter.ratio, 20.0);
+      setParam(limiter.attack, 0.001);
+      setParam(limiter.release, 0.05);
       return limiter;
     } catch {
       return null;
@@ -1118,6 +1120,37 @@ class ChessAudioService {
    * @param {object} [options] - Optional metadata ({ dedupeKey, source, move })
    * @returns {object} Result summary of the sound playback attempt
    */
+  _createPresetOutputBus(ctx, preset, startTime, destination, voiceGroup) {
+    if (!ctx || typeof ctx.createGain !== 'function') {
+      return destination;
+    }
+    try {
+      const bus = ctx.createGain();
+      const targetOutputGain = clampNumber(
+        preset && preset.outputGain,
+        0.1,
+        5.0,
+        PRESET_OUTPUT_GAIN_MULTIPLIER
+      );
+      if (bus.gain) {
+        if (typeof bus.gain.setValueAtTime === 'function') {
+          bus.gain.setValueAtTime(targetOutputGain, startTime);
+        } else {
+          bus.gain.value = targetOutputGain;
+        }
+      }
+      if (destination && typeof bus.connect === 'function') {
+        bus.connect(destination);
+      }
+      if (voiceGroup && voiceGroup.nodesCreated) {
+        voiceGroup.nodesCreated.gains += 1;
+      }
+      return bus;
+    } catch {
+      return destination;
+    }
+  }
+
   playSound(soundType, options = {}) {
     const preset = SOUND_PRESETS[soundType];
     if (!preset) {
@@ -1176,14 +1209,15 @@ class ChessAudioService {
         const startTime = Number.isFinite(ctx.currentTime) ? ctx.currentTime : 0;
 
         this._registerVoiceCleanup(voiceGroup);
-        this._synthesizeTransient(ctx, destination, preset.transient, startTime, voiceGroup);
+        const presetBus = this._createPresetOutputBus(ctx, preset, startTime, destination, voiceGroup);
+        this._synthesizeTransient(ctx, presetBus, preset.transient, startTime, voiceGroup);
 
         for (const voiceCfg of preset.voices) {
           this._synthesizeOscillatorVoice(
             ctx,
-            destination,
+            presetBus,
             voiceCfg,
-            preset.maxGain,
+            preset.baseMaxGain || preset.maxGain,
             startTime,
             voiceGroup
           );
@@ -1201,7 +1235,7 @@ class ChessAudioService {
       soundType,
       presetId: preset.id,
       durationMs: preset.durationMs,
-      masterGain: masterGainValue,
+      presetBaseMaxGain: preset.baseMaxGain, presetPreviousMaxGain: preset.previousMaxGain, presetMaxGain: preset.maxGain, presetOutputGain: preset.outputGain, masterGain: masterGainValue,
       peakLimiterActive: Boolean(this._peakLimiter),
       nodesCreated: { ...voiceGroup.nodesCreated },
       source: options.source || 'board',
