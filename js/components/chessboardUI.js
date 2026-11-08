@@ -18,6 +18,70 @@ import {
 } from '../vendor/chess.js';
 import { getPieceSvg, UI_ICONS } from './icons.js';
 import { getPuzzleCategoryById, getPuzzleDifficultyById } from '../data/puzzles.js';
+import { chessAudioService } from '../services/chessAudioService.js';
+import { chessMotionService } from '../services/chessMotionService.js';
+
+/**
+ * Shared centralized helper for triggering audio and piece motion across all
+ * Caturan chessboard components without duplicating game logic or double-playing audio.
+ */
+export function triggerBoardMoveExperience(boardInstance, moveResult, options = {}) {
+  if (!boardInstance || !moveResult || typeof moveResult !== 'object') {
+    return { audio: null, motion: null };
+  }
+
+  const chess = options.chess || boardInstance.chess || null;
+  const container = options.container || boardInstance.container || null;
+  const orientation = options.orientation || boardInstance.orientation || 'white';
+  const source = options.source || boardInstance.constructor?.name || 'board';
+
+  let capturedPieceHtml = '';
+  if (moveResult.captured) {
+    const capturedColor = moveResult.color === 'w' ? 'b' : 'w';
+    capturedPieceHtml = getPieceSvg(capturedColor, moveResult.captured);
+  }
+
+  const audio = chessAudioService.playSoundForMove(moveResult, chess, {
+    source,
+    dedupeKey: options.dedupeKey || null,
+  });
+
+  const motion = options.skipMotion
+    ? chessMotionService.applyCheckAndMateVisuals(container, { chess }, false)
+    : chessMotionService.animateMove(container, moveResult, {
+        orientation,
+        chess,
+        inCheck: typeof moveResult.inCheck === 'boolean' ? moveResult.inCheck : undefined,
+        isCheckmate: typeof moveResult.isCheckmate === 'boolean' ? moveResult.isCheckmate : undefined,
+        capturedPieceHtml,
+        source,
+      });
+
+  boardInstance._lastMoveExperience = { audio, motion, move: moveResult };
+  return { audio, motion };
+}
+
+function syncBoardVisualState(boardInstance) {
+  if (!boardInstance || !boardInstance.container) return;
+  chessMotionService.cancelActiveAnimations(boardInstance.container);
+  if (boardInstance.chess) {
+    chessMotionService.applyCheckAndMateVisuals(
+      boardInstance.container,
+      { chess: boardInstance.chess },
+      false
+    );
+  }
+}
+
+function finalizeBoardRender(boardInstance) {
+  if (!boardInstance || !boardInstance.container) return;
+  syncBoardVisualState(boardInstance);
+  if (boardInstance._pendingMoveExperience) {
+    const exp = boardInstance._pendingMoveExperience;
+    boardInstance._pendingMoveExperience = null;
+    triggerBoardMoveExperience(boardInstance, exp.move, exp);
+  }
+}
 
 const FILES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
 const RANKS = ['8', '7', '6', '5', '4', '3', '2', '1'];
@@ -276,7 +340,8 @@ export class InteractiveChessboard {
         this.lastMove = { from: moveResult.from, to: moveResult.to };
         this.feedback = {
           type: 'info',
-          message: `Langkah dieksekusi: ${moveResult.san}. ${this._getGameStateText()}`
+          message: `Langkah dieksekusi: ${moveResult.san}. ${this._getGameStateText()}`,
+          _exp: (this._pendingMoveExperience = { move: moveResult, source: 'lesson_freeplay' })
         };
         this.render();
       }
@@ -311,6 +376,7 @@ export class InteractiveChessboard {
     }
 
     // Langkah benar sesuai skenario latihan!
+    this._pendingMoveExperience = { move: moveResult, source: 'lesson_player' };
     this.lastMove = { from: moveResult.from, to: moveResult.to };
     this.feedback = {
       type: 'success',
@@ -324,6 +390,9 @@ export class InteractiveChessboard {
 
       this._replyTimeout = setTimeout(() => {
         const replyMove = this.chess.move(currentStep.opponentReply);
+        if (replyMove) {
+          this._pendingMoveExperience = { move: replyMove, source: 'lesson_opponent' };
+        }
         if (replyMove) {
           this.lastMove = { from: replyMove.from, to: replyMove.to };
         }
@@ -569,6 +638,7 @@ export class InteractiveChessboard {
     `;
 
     this._bindEvents();
+    finalizeBoardRender(this);
   }
 
   _bindEvents() {
@@ -1003,6 +1073,7 @@ export class PuzzleChessboard {
     this.hintStage = 0;
     this.lastMove = { from: moveResult.from, to: moveResult.to };
     this.playedSolutionSan.push(moveResult.san);
+    this._pendingMoveExperience = { move: moveResult, source: 'puzzle_player' };
     this.solutionPlyIndex++;
 
     // Cek apakah masih ada balasan otomatis lawan pada rangkaian solusi
@@ -1014,13 +1085,15 @@ export class PuzzleChessboard {
       };
 
       if (this.replyDelayMs === 0) {
+        this.render();
         this._applyOpponentReply(replyUci);
       } else {
         this.isLockedForReply = true;
         this.render();
         this._replyTimeout = setTimeout(() => {
           this._replyTimeout = null;
-          this._applyOpponentReply(replyUci);
+          this.render();
+        this._applyOpponentReply(replyUci);
         }, this.replyDelayMs);
       }
       return true;
@@ -1046,6 +1119,7 @@ export class PuzzleChessboard {
     if (replyResult) {
       this.lastMove = { from: replyResult.from, to: replyResult.to };
       this.playedSolutionSan.push(replyResult.san);
+      this._pendingMoveExperience = { move: replyResult, source: 'puzzle_opponent' };
     }
 
     this.isLockedForReply = false;
@@ -1308,6 +1382,7 @@ export class PuzzleChessboard {
     `;
 
     this._bindEvents();
+    finalizeBoardRender(this);
   }
 
   _bindEvents() {
@@ -1766,6 +1841,7 @@ export class ComputerChessboard {
     };
 
     this.inspectedSquareInfo = `Langkah Anda: ${moveResult.san} (${moveResult.from} → ${moveResult.to})`;
+    this._pendingMoveExperience = { move: moveResult, source: 'stockfish_player' };
 
     // Periksa apakah langkah pemain mengakhiri permainan secara otomatis
     // (Skakmat, Stalemate, Pengulangan Lima Kali, Aturan 75 Langkah, Materi Tidak Cukup)
@@ -1932,6 +2008,7 @@ export class ComputerChessboard {
       color: computerMoveResult.color
     };
     this.inspectedSquareInfo = `Langkah Komputer: ${computerMoveResult.san} (${computerMoveResult.from} → ${computerMoveResult.to})`;
+    this._pendingMoveExperience = { move: computerMoveResult, source: 'stockfish_computer' };
 
     if (this._pendingPlayerClaimableDraw) {
       this._pendingPlayerClaimableDraw.afterComputerFen = this.chess.fen();
@@ -2872,6 +2949,12 @@ export class ComputerChessboard {
         claimSlotEl._lastClaimHtml = boardClaimDrawButtonHtml;
         this._bindClaimDrawEvents();
       }
+      finalizeBoardRender(this);
+      if (claimSlotEl && claimSlotEl._lastClaimHtml !== boardClaimDrawButtonHtml) {
+        claimSlotEl.innerHTML = boardClaimDrawButtonHtml;
+        claimSlotEl._lastClaimHtml = boardClaimDrawButtonHtml;
+        this._bindClaimDrawEvents();
+      }
 
       return;
     }
@@ -2938,6 +3021,7 @@ export class ComputerChessboard {
     if (mountedClaim) mountedClaim._lastClaimHtml = boardClaimDrawButtonHtml;
 
     this._bindEvents();
+    finalizeBoardRender(this);
   }
 
   _bindPromotionEvents() {
@@ -3056,6 +3140,11 @@ export function validateOpeningSequenceWithChess(opening) {
       from: applied.from,
       to: applied.to,
       piece: applied.piece,
+      flags: applied.flags,
+      captured: applied.captured || null,
+      promotion: applied.promotion || null,
+      inCheck: game.inCheck(),
+      isCheckmate: game.isCheckmate(),
       idea:
         typeof ann.idea === 'string' && ann.idea.trim()
           ? ann.idea.trim()
@@ -3142,7 +3231,17 @@ export class OpeningLearnBoard {
       lastApplied = step;
     }
 
+    const previousPly = this.currentPly;
     this.currentPly = clampedPly;
+    if (clampedPly > previousPly && lastApplied) {
+      this._pendingMoveExperience = {
+        move: { ...lastApplied, color: lastApplied.colorChar || (lastApplied.color === 'white' ? 'w' : 'b') },
+        source: 'opening_learn',
+        skipMotion: clampedPly !== previousPly + 1
+      };
+    } else {
+      this._pendingMoveExperience = null;
+    }
     this.lastMove = lastApplied ? { from: lastApplied.from, to: lastApplied.to } : null;
 
     if (lastApplied) {
@@ -3351,6 +3450,7 @@ export class OpeningLearnBoard {
     `;
 
     this._bindEvents();
+    finalizeBoardRender(this);
   }
 
   _bindEvents() {
@@ -3517,13 +3617,19 @@ export class OpeningPracticeBoard {
 
     const expectedStep = this.validMoves[this.currentPly];
     if (expectedStep.color !== this.playerColor) {
+      const wasAlreadyLocked = this.isLockedForOpponent;
       this.isLockedForOpponent = true;
+      if (!wasAlreadyLocked) this.render();
+      if (false)
       this.render();
 
       const executeOpponentStep = () => {
         if (this.isPracticeComplete || this.currentPly >= this.validMoves.length) return;
         const oppStep = this.validMoves[this.currentPly];
         const moveRes = this.chess.move(oppStep.san);
+        if (moveRes) {
+          this._pendingMoveExperience = { move: moveRes, source: 'opening_practice_opponent' };
+        }
         if (moveRes) {
           this.lastMove = { from: moveRes.from, to: moveRes.to };
           this.currentPly += 1;
@@ -3721,6 +3827,9 @@ export class OpeningPracticeBoard {
     // 3. Langkah benar sesuai variasi latihan!
     this.lastMove = { from: moveResult.from, to: moveResult.to };
     this.correctMoves += 1;
+    this._pendingMoveExperience = { move: moveResult, source: 'opening_practice_player' };
+    const nextStepInVar = this.validMoves[this.currentPly + 1];
+    this.isLockedForOpponent = Boolean(nextStepInVar && nextStepInVar.color !== this.playerColor);
     this.currentPly += 1;
     this.hintStage = 0;
     this.hintSquares = [];
@@ -4024,6 +4133,7 @@ export class OpeningPracticeBoard {
     `;
 
     this._bindEvents();
+    finalizeBoardRender(this);
   }
 
   _bindEvents() {
@@ -4534,6 +4644,7 @@ export class AnalysisReplayBoard {
   goToPly(targetPly) {
     this.totalPlies = this._getLineTotalPlies(this.activeLineId);
     const clamped = Math.max(0, Math.min(this.totalPlies, Number(targetPly) || 0));
+    const previousPly = this.currentPly;
     this.currentPly = clamped;
     this.feedback = null;
     this._syncChessToCurrentPly();
@@ -4542,8 +4653,18 @@ export class AnalysisReplayBoard {
     if (activeMove) {
       const sideLabel = activeMove.color === 'w' ? 'Putih' : 'Hitam';
       this.inspectedSquareInfo = `Langkah ${activeMove.moveNumber} (${sideLabel}): ${activeMove.san} (${activeMove.from} → ${activeMove.to})`;
+      if (clamped > previousPly) {
+        this._pendingMoveExperience = {
+          move: activeMove,
+          source: 'analysis_replay',
+          skipMotion: clamped !== previousPly + 1
+        };
+      } else {
+        this._pendingMoveExperience = null;
+      }
     } else {
       this.inspectedSquareInfo = 'Posisi Awal Partai (Ply 0)';
+      this._pendingMoveExperience = null;
     }
 
     this.render();
@@ -4878,6 +4999,7 @@ export class AnalysisReplayBoard {
 
     const sideLabel = moveNode.color === 'w' ? 'Putih' : 'Hitam';
     this.inspectedSquareInfo = `Langkah ${moveNode.moveNumber} (${sideLabel}): ${moveNode.san} (${moveNode.from} → ${moveNode.to})`;
+    this._pendingMoveExperience = { move: appliedMove, source: 'analysis_explore' };
 
     this.render();
     this._notifyStateChange();
@@ -5615,6 +5737,7 @@ export class AnalysisReplayBoard {
     }
 
     this._bindEvents();
+    finalizeBoardRender(this);
   }
 
   _bindEvents() {

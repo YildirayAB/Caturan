@@ -847,3 +847,175 @@
     font-size: 0.78rem;
   }
 }
+
+
+/* ============================================================================
+ * MVP 5.3 — Chessboard Motion System, Check/Checkmate Highlights & Preferences
+ * ============================================================================ */
+
+.chess-square {
+  overflow: visible;
+}
+
+.piece-wrapper {
+  will-change: transform;
+  transform-origin: center center;
+}
+
+.piece-wrapper.piece-moving {
+  z-index: 8;
+  pointer-events: none;
+}
+
+.piece-wrapper.piece-moving-castling {
+  z-index: 9;
+}
+
+.piece-wrapper.piece-moving-promotion {
+  z-index: 10;
+}
+
+.chess-captured-ghost {
+  position: absolute;
+  inset: 0;
+  width: 78%;
+  height: 78%;
+  margin: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 4;
+  transform-origin: center center;
+}
+
+.chess-square.square-king-check {
+  background-color: var(--board-check-sq) !important;
+  box-shadow: inset 0 0 0 3px var(--status-danger-border);
+  transition: background-color 140ms ease-out, box-shadow 140ms ease-out;
+}
+
+.chess-square.square-king-checkmate {
+  background-color: var(--board-check-sq) !important;
+  box-shadow: inset 0 0 0 4px var(--status-danger-text);
+  transition: background-color 160ms ease-out, box-shadow 160ms ease-out;
+}
+
+.chessboard-frame.board-in-check {
+  border-color: var(--status-danger-border);
+}
+
+.chessboard-frame.board-checkmate-state {
+  border-color: var(--status-danger-text);
+}
+
+/* Global Chessboard Preferences Card & Topbar Popover */
+.board-prefs-topbar-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.board-prefs-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 260px;
+  max-width: calc(100vw - 24px);
+  z-index: 120;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  padding: 12px;
+}
+
+.board-prefs-popover[hidden] {
+  display: none !important;
+}
+
+.board-preferences-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  background-color: var(--bg-surface-alt);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.board-prefs-popover .board-preferences-card {
+  padding: 0;
+  background-color: transparent;
+  border: none;
+}
+
+.board-prefs-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.board-prefs-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.board-prefs-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.board-prefs-label {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.board-pref-toggle {
+  min-width: 52px;
+  min-height: 28px;
+  padding: 3px 10px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  background-color: var(--bg-surface);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.board-pref-toggle.is-on {
+  background-color: var(--brand-primary);
+  border-color: var(--brand-primary);
+  color: var(--text-inverse);
+}
+
+@media (max-width: 600px) {
+  .board-prefs-trigger-btn .theme-label {
+    display: none;
+  }
+
+  .board-prefs-popover {
+    right: -8px;
+    width: min(250px, calc(100vw - 24px));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .piece-wrapper,
+  .piece-wrapper.piece-moving,
+  .chess-captured-ghost {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+  }
+}
