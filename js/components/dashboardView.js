@@ -31,13 +31,13 @@ export function renderDashboardView(container, { summary, onOpenLesson, onGoToLe
   let activitySummaryText = '';
   if (completedCount === 0 && !continueLesson) {
     activitySummaryText =
-      'Anda belum memulai materi pembelajaran. Semua statistik saat ini masih bernilai 0—mulai langkah pertama Anda dari Level 1 untuk mengumpulkan XP dan membangun streak belajar harian!';
+      'Mulai langkah pertama dari Level 1 untuk mengumpulkan XP dan membangun streak belajar!';
   } else if (completedCount === 0 && continueLesson) {
-    activitySummaryText = `Anda telah membuka materi "${continueLesson.title}". Selesaikan latihan interaktifnya dan tandai selesai untuk meraih XP pertama Anda!`;
+    activitySummaryText = `Materi "${continueLesson.title}" siap dipelajari. Selesaikan latihan untuk meraih XP pertama!`;
   } else if (completedCount === totalLessonsCount) {
-    activitySummaryText = `Luar biasa! Anda telah menyelesaikan seluruh ${totalLessonsCount} materi kurikulum Caturan dengan total ${totalXp} XP.`;
+    activitySummaryText = `Selamat! Anda telah menyelesaikan seluruh ${totalLessonsCount} materi dengan total ${totalXp} XP.`;
   } else {
-    activitySummaryText = `Anda telah menyelesaikan ${completedCount} dari ${totalLessonsCount} materi (${overallPercentage}%) dan mengumpulkan ${totalXp} XP. Teruskan konsistensi latihan Anda!`;
+    activitySummaryText = `Anda telah menyelesaikan ${completedCount} dari ${totalLessonsCount} materi (${overallPercentage}%) dengan ${totalXp} XP. Teruskan latihan Anda!`;
   }
 
   // Kartu D: Lanjutkan Belajar / Mulai Belajar (Empty State jujur jika belum ada materi dibuka)

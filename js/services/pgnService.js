@@ -429,13 +429,16 @@ function parseHeadersAndExtractMovetext(normalizedText) {
 
 /**
  * Memindai movetext secara leksikal untuk memisahkan token langkah, komentar ({...} & ;...),
- * serta mendeteksi komentar yang tidak ditutup atau adanya variasi (...).
+ * serta mengekstrak variasi RAV (...) ke dalam struktur variasi terpisah.
  */
 function tokenizeMovetext(movetext) {
   const items = [];
+  const rawVariations = [];
   let i = 0;
   const len = movetext.length;
   let variationDepth = 0;
+  let currentVariationText = '';
+  let variationStartPlyIndex = -1;
   let hasVariations = false;
 
   while (i < len) {
@@ -443,6 +446,9 @@ function tokenizeMovetext(movetext) {
 
     // Lewati whitespace
     if (/\s/.test(ch)) {
+      if (variationDepth > 0) {
+        currentVariationText += ch;
+      }
       i += 1;
       continue;
     }
@@ -474,8 +480,10 @@ function tokenizeMovetext(movetext) {
       if (variationDepth === 0) {
         const cleanComment = commentBody.replace(/\s+/g, ' ').trim();
         if (cleanComment) {
-          items.push({ type: 'comment', text: cleanComment });
+          items.push({ type: 'comment', text: cleanComment, itemIndex: items.length });
         }
+      } else {
+        currentVariationText += `{${commentBody}}`;
       }
       continue;
     }
@@ -502,6 +510,8 @@ function tokenizeMovetext(movetext) {
         if (cleanComment) {
           items.push({ type: 'comment', text: cleanComment });
         }
+      } else {
+        currentVariationText += ` ;${lineComment}\n`;
       }
       continue;
     }
@@ -509,6 +519,12 @@ function tokenizeMovetext(movetext) {
     // Variasi RAV ( ... )
     if (ch === '(') {
       hasVariations = true;
+      if (variationDepth === 0) {
+        variationStartPlyIndex = items.length;
+        currentVariationText = '';
+      } else {
+        currentVariationText += '(';
+      }
       variationDepth += 1;
       i += 1;
       continue;
@@ -524,12 +540,26 @@ function tokenizeMovetext(movetext) {
         };
       }
       variationDepth -= 1;
+      if (variationDepth === 0) {
+        const cleanVar = currentVariationText.trim();
+        if (cleanVar) {
+          rawVariations.push({
+            parentItemIndex: variationStartPlyIndex,
+            text: cleanVar
+          });
+        }
+        currentVariationText = '';
+        variationStartPlyIndex = -1;
+      } else {
+        currentVariationText += ')';
+      }
       i += 1;
       continue;
     }
 
-    // Jika masih di dalam variasi, lewati token sampai kurung tutup (tetap periksa keseimbangan kurung)
+    // Jika di dalam variasi, kumpulkan karakter variasi
     if (variationDepth > 0) {
+      currentVariationText += ch;
       i += 1;
       continue;
     }
@@ -555,7 +585,7 @@ function tokenizeMovetext(movetext) {
     }
 
     if (token) {
-      items.push({ type: 'token', value: token });
+      items.push({ type: 'token', value: token, itemIndex: items.length });
     }
   }
 
@@ -571,7 +601,8 @@ function tokenizeMovetext(movetext) {
   return {
     ok: true,
     items,
-    hasVariations
+    hasVariations,
+    rawVariations
   };
 }
 
@@ -706,6 +737,169 @@ function buildNormalizedPgn(headers, headerOrder, initialFen, moves, gameComment
  * @param {string} rawPgnText - Konten teks PGN mentah dari pengguna
  * @param {Object} options - Opsi tambahan { source: 'paste' | 'file', fileName, fileSize, allowVariations }
  */
+
+/**
+ * Mem-parsing sub-variasi RAV secara rekursif dan memvalidasi legalitas langkah
+ */
+function parseVariationTree(movetext, startFen) {
+  let i = 0;
+  const len = movetext.length;
+  let variationDepth = 0;
+  let currentVariationText = '';
+  const items = [];
+  const subVariations = [];
+  let currentItemIndex = -1;
+
+  while (i < len) {
+    const ch = movetext[i];
+    if (/\s/.test(ch)) {
+      if (variationDepth > 0) currentVariationText += ch;
+      i += 1;
+      continue;
+    }
+    if (ch === '{') {
+      i += 1;
+      let commentBody = '';
+      while (i < len && movetext[i] !== '}') {
+        commentBody += movetext[i];
+        i += 1;
+      }
+      if (i < len && movetext[i] === '}') i += 1;
+      if (variationDepth === 0) {
+        items.push({ type: 'comment', text: commentBody.trim() });
+      } else {
+        currentVariationText += '{' + commentBody + '}';
+      }
+      continue;
+    }
+    if (ch === ';') {
+      i += 1;
+      let lineComment = '';
+      while (i < len && movetext[i] !== '\n') {
+        lineComment += movetext[i];
+        i += 1;
+      }
+      if (variationDepth === 0) {
+        items.push({ type: 'comment', text: lineComment.trim() });
+      } else {
+        currentVariationText += ' ;' + lineComment + '\n';
+      }
+      continue;
+    }
+    if (ch === '(') {
+      if (variationDepth === 0) {
+        currentItemIndex = items.length;
+        currentVariationText = '';
+      } else {
+        currentVariationText += '(';
+      }
+      variationDepth += 1;
+      i += 1;
+      continue;
+    }
+    if (ch === ')') {
+      variationDepth -= 1;
+      if (variationDepth === 0) {
+        const cleanVar = currentVariationText.trim();
+        if (cleanVar) {
+          subVariations.push({
+            parentItemIndex: currentItemIndex,
+            text: cleanVar
+          });
+        }
+        currentVariationText = '';
+      } else {
+        currentVariationText += ')';
+      }
+      i += 1;
+      continue;
+    }
+    if (variationDepth > 0) {
+      currentVariationText += ch;
+      i += 1;
+      continue;
+    }
+    let token = '';
+    while (i < len && !/\s/.test(movetext[i]) && !['{', '}', ';', '(', ')', '[', ']'].includes(movetext[i])) {
+      token += movetext[i];
+      i += 1;
+    }
+    if (token) {
+      items.push({ type: 'token', value: token });
+    }
+  }
+
+  const chess = new Chess(startFen);
+  const moves = [];
+
+  for (let idx = 0; idx < items.length; idx += 1) {
+    const item = items[idx];
+    if (item.type === 'comment') {
+      if (moves.length > 0) {
+        moves[moves.length - 1].comments.push(item.text);
+      }
+      continue;
+    }
+    const val = item.value;
+    if (/^\d+\.+$/.test(val) || /^\d+\.\.\.$/.test(val) || val.startsWith('$') || ['1-0', '0-1', '1/2-1/2', '*'].includes(val)) {
+      continue;
+    }
+    let cleanVal = val.replace(/^\d+\.+/, '');
+    cleanVal = cleanVal.replace(/(\!\!|\?\?|\!\?|\?\!|\!|\?)+$/, '');
+    if (/^0-0-0([+#])?$/.test(cleanVal)) cleanVal = cleanVal.replace(/^0-0-0/, 'O-O-O');
+    else if (/^0-0([+#])?$/.test(cleanVal)) cleanVal = cleanVal.replace(/^0-0/, 'O-O');
+
+    const fenBefore = chess.fen();
+    const applied = chess.move(cleanVal);
+    if (!applied) {
+      break;
+    }
+    moves.push({
+      ply: moves.length + 1,
+      san: applied.san,
+      fenBefore,
+      fenAfter: chess.fen(),
+      itemIndex: idx,
+      comments: [],
+      childVariations: []
+    });
+  }
+
+  const childVariations = [];
+  for (const sv of subVariations) {
+    let subFen = startFen;
+    let targetMove = null;
+    for (let mIdx = moves.length - 1; mIdx >= 0; mIdx -= 1) {
+      if (moves[mIdx].itemIndex < sv.parentItemIndex) {
+        targetMove = moves[mIdx];
+        subFen = moves[mIdx].fenBefore;
+        break;
+      }
+    }
+    const childTree = parseVariationTree(sv.text, subFen);
+    childTree.parentFen = subFen;
+    childTree.rawText = sv.text;
+    if (targetMove) {
+      targetMove.childVariations.push(childTree);
+    }
+    childVariations.push(childTree);
+  }
+
+  let totalPliesRecursive = moves.length;
+  for (const cv of childVariations) {
+    totalPliesRecursive += cv.totalPliesRecursive || cv.totalPlies;
+  }
+
+  return {
+    startFen,
+    moves,
+    totalPlies: moves.length,
+    totalPliesRecursive,
+    childVariations,
+    variations: childVariations
+  };
+}
+
 export function validateAndParsePgn(rawPgnText, options = {}) {
   const source = options.source === 'file' ? 'file' : 'paste';
   const fileName = typeof options.fileName === 'string' ? options.fileName.trim() : null;
@@ -840,7 +1034,7 @@ export function validateAndParsePgn(rawPgnText, options = {}) {
       } else {
         const subTokens = expandRawToken(item.value);
         for (const st of subTokens) {
-          stream.push({ type: 'token', value: st });
+          stream.push({ type: 'token', value: st, itemIndex: item.itemIndex });
         }
       }
     }
@@ -1077,7 +1271,8 @@ export function validateAndParsePgn(rawPgnText, options = {}) {
         nags,
         nagSymbols,
         nagLabels,
-        comments: []
+        comments: [],
+        itemIndex: entry.itemIndex !== undefined ? entry.itemIndex : moves.length
       });
 
       pendingMoveNumberToken = null;
@@ -1222,6 +1417,7 @@ export function validateAndParsePgn(rawPgnText, options = {}) {
       resultLabel: hasResultMeta ? formatPgnResultLabel(finalResult) : 'Tidak diketahui',
       eco: normalizeMetadataValue(headers.ECO, 'Tidak diketahui'),
       opening: normalizeMetadataValue(headers.Opening, 'Tidak diketahui'),
+      timeControl: normalizeMetadataValue(headers.TimeControl, 'Tidak diketahui'),
       whiteElo: normalizeMetadataValue(headers.WhiteElo, '-'),
       blackElo: normalizeMetadataValue(headers.BlackElo, '-')
     };
@@ -1257,7 +1453,41 @@ export function validateAndParsePgn(rawPgnText, options = {}) {
       description: gameStatusSummary
     };
 
+
+    // 13. Susun variasi RAV bila allowVariations diaktifkan
+    const parsedVariations = [];
+    let totalVariationPlies = 0;
+    if (allowVariations && lexResult.rawVariations && lexResult.rawVariations.length > 0) {
+      for (const rv of lexResult.rawVariations) {
+        let branchFen = initialFen;
+        let targetMove = null;
+        for (let mIdx = moves.length - 1; mIdx >= 0; mIdx -= 1) {
+          if (moves[mIdx].itemIndex <= rv.parentItemIndex) {
+            targetMove = moves[mIdx];
+            branchFen = moves[mIdx].fenBefore;
+            break;
+          }
+        }
+        if (!targetMove && moves.length > 0) {
+          branchFen = moves[moves.length - 1].fenBefore;
+          targetMove = moves[moves.length - 1];
+        }
+        const varTree = parseVariationTree(rv.text, branchFen);
+        varTree.parentFen = branchFen;
+        varTree.rawText = rv.text;
+        parsedVariations.push(varTree);
+        totalVariationPlies += varTree.totalPliesRecursive || varTree.totalPlies;
+        if (targetMove) {
+          if (!targetMove.variations) targetMove.variations = [];
+          targetMove.variations.push(varTree);
+        }
+      }
+    }
+
     const parsedData = {
+      variations: parsedVariations,
+      hasVariations: parsedVariations.length > 0,
+      totalVariationPlies,
       headers: { ...headers },
       metadata,
       initialFen,

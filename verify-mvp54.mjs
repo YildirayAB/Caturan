@@ -1645,8 +1645,11 @@ await runTest('22. [FIX C] PGN Clipboard Paste pada Mobile bekerja penuh (editab
       !textarea.placeholder.includes('[Event "Partai Latihan Caturan"]'),
       'Placeholder tidak boleh menampilkan 9 baris PGN penuh yang membingungkan pengguna mobile'
     );
-    assert.ok(pasteClipboardBtn, `Tombol Tempel dari Clipboard wajib tersedia pada ${vp}px`);
-    assert.ok(pasteClipboardBtn.textContent.includes('Tempel dari Clipboard'));
+    assert.ok(pasteClipboardBtn, `Tombol Tempel dari Papan Klip wajib tersedia pada ${vp}px`);
+    assert.ok(
+      pasteClipboardBtn.textContent.includes('Tempel dari Papan Klip') ||
+      pasteClipboardBtn.textContent.includes('Tempel dari Clipboard')
+    );
     assert.ok(clearBtn && sampleBtn && feedbackEl);
   }
 

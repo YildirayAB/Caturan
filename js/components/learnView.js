@@ -174,7 +174,7 @@ export function renderLearnView(container, { summary, activeCategoryFilter = 'al
           <span class="app-pill">KURIKULUM TERSTRUKTUR • 6 LEVEL</span>
           <h1 class="page-main-title">Belajar Catur</h1>
           <p class="page-main-subtitle">
-            Pelajari teori catur secara bertahap dari pengenalan papan hingga teknik babak akhir (Endgame). Seluruh materi dilengkapi papan latihan interaktif dan tidak mengunci eksplorasi Anda.
+            Pelajari teori catur secara bertahap dari pengenalan papan hingga babak akhir (Endgame) dengan papan latihan interaktif.
           </p>
         </div>
         <div class="curriculum-global-summary">

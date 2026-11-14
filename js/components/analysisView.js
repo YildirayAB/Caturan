@@ -32,6 +32,11 @@ import {
   ANALYSIS_ENGINE_STATES,
   ANALYSIS_ENGINE_STATE_LABELS
 } from '../services/chessAnalysisEngineService.js';
+import {
+  chessGameReview,
+  GAME_REVIEW_STATUS
+} from '../services/chessGameReviewService.js';
+import { GameReviewPanelComponent } from './gameReviewView.js';
 
 export const MOBILE_ANALYSIS_BREAKPOINT = 600;
 
@@ -51,6 +56,7 @@ export const PGN_TEXTAREA_PLACEHOLDER =
 let activeReplayBoardInstance = null;
 let activeAnalysisEngineInstance = null;
 let activeEngineStatusUnsubscribe = null;
+let activeGameReviewPanelInstance = null;
 
 export function destroyActiveAnalysisBoard({ terminateEngine = true } = {}) {
   if (typeof activeEngineStatusUnsubscribe === 'function') {
@@ -61,6 +67,23 @@ export function destroyActiveAnalysisBoard({ terminateEngine = true } = {}) {
     }
   }
   activeEngineStatusUnsubscribe = null;
+
+  if (activeGameReviewPanelInstance) {
+    try {
+      activeGameReviewPanelInstance.destroy();
+    } catch {
+      // Abaikan jika sudah dibersihkan
+    }
+    activeGameReviewPanelInstance = null;
+  }
+
+  if (chessGameReview && typeof chessGameReview.stopGameReview === 'function') {
+    try {
+      chessGameReview.stopGameReview('board_destroyed');
+    } catch {
+      // Abaikan
+    }
+  }
 
   if (terminateEngine) {
     if (
@@ -159,7 +182,11 @@ export function createInitialAnalysisSessionState() {
     analysisError: null,
     lastKnownBoardFen: null,
     lastAnalyzedFen: null,
-    clipboardFeedback: null
+    clipboardFeedback: null,
+    gameReviewStatus: GAME_REVIEW_STATUS.IDLE,
+    gameReviewProgress: { current: 0, total: 0, percent: 0, currentPly: 0 },
+    gameReviewReport: null,
+    gameReviewGraphData: null
     // clipboardFeedback initialized above
   };
 }
@@ -187,6 +214,10 @@ export function resetAnalysisExplorationState(state, { preserveCleanupNotice = f
   state.analysisError = null;
   state.lastKnownBoardFen = null;
   state.lastAnalyzedFen = null;
+  state.gameReviewStatus = GAME_REVIEW_STATUS.IDLE;
+  state.gameReviewProgress = { current: 0, total: 0, percent: 0, currentPly: 0 };
+  state.gameReviewReport = null;
+  state.gameReviewGraphData = null;
   if (!preserveCleanupNotice) {
     state.sessionCleanupNotice = '';
   }
@@ -478,11 +509,12 @@ export function renderAnalysisView(container, sessionState, callbacks = {}) {
                 id="pgn-paste-textarea"
                 class="analysis-textarea"
                 rows="8"
-                spellcheck="false"
+                inputmode="text"
                 spellcheck="false"
                 autocomplete="off"
                 autocorrect="off"
                 autocapitalize="off"
+                placeholder="[Event ...]\n1. e4 e5 2. Nf3 Nc6..."
                 data-testid="pgn-paste-textarea"
               ></textarea>
               <!-- Tombol aksi paste PGN -->
@@ -507,7 +539,7 @@ export function renderAnalysisView(container, sessionState, callbacks = {}) {
                   ${state.isValidating ? 'disabled' : ''}
                 >
                   ${UI_ICONS.copy}
-                  <span>Tempel dari Clipboard</span>
+                  <span>Tempel dari Papan Klip</span>
                 </button>
                 <button
                   type="button"
@@ -708,7 +740,7 @@ export function renderAnalysisView(container, sessionState, callbacks = {}) {
                       <path d="M9 14 4 9l5-5" />
                       <path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11" />
                     </svg>
-                    <span>Undo Langkah</span>
+                    <span>Batal Langkah</span>
                   </button>
                 </div>
 
@@ -922,7 +954,7 @@ export function renderAnalysisView(container, sessionState, callbacks = {}) {
                   data-testid="analysis-analyze-btn"
                 >
                   ${UI_ICONS.zap}
-                  <span data-testid="analysis-analyze-btn-label">Analyze Position</span>
+                  <span data-testid="analysis-analyze-btn-label">Analisis Posisi</span>
                 </button>
                 <button
                   type="button"
@@ -931,7 +963,7 @@ export function renderAnalysisView(container, sessionState, callbacks = {}) {
                   data-testid="analysis-stop-btn"
                   disabled
                 >
-                  <span>Stop Analysis</span>
+                  <span>Hentikan Analisis</span>
                 </button>
                 <button
                   type="button"
@@ -940,7 +972,7 @@ export function renderAnalysisView(container, sessionState, callbacks = {}) {
                   data-testid="analysis-reanalyze-btn"
                 >
                   ${UI_ICONS.restart}
-                  <span>Analyze Again</span>
+                  <span>Analisis Ulang</span>
                 </button>
               </div>
 
@@ -950,7 +982,7 @@ export function renderAnalysisView(container, sessionState, callbacks = {}) {
                 data-testid="analysis-engine-empty"
               >
                 <p class="analysis-engine-empty-text" data-testid="analysis-engine-empty-text">
-                  Tekan "Analyze Position" untuk menganalisis posisi aktif pada papan menggunakan Stockfish 19 Lite.
+                  Tekan "Analisis Posisi" untuk menganalisis posisi aktif dengan Stockfish 19 Lite.
                 </p>
               </div>
 
@@ -989,7 +1021,7 @@ export function renderAnalysisView(container, sessionState, callbacks = {}) {
               >
                 <div class="analysis-engine-top-metrics">
                   <div class="analysis-eval-card" data-testid="analysis-eval-card">
-                    <span class="analysis-meta-label">Position Evaluation (Perspektif Putih)</span>
+                    <span class="analysis-meta-label">Evaluasi Posisi (Perspektif Putih)</span>
                     <div class="analysis-eval-main-row">
                       <strong class="analysis-eval-score" data-testid="analysis-eval-score"></strong>
                       <span class="badge analysis-depth-badge" data-testid="analysis-depth-value"></span>
@@ -998,7 +1030,7 @@ export function renderAnalysisView(container, sessionState, callbacks = {}) {
                   </div>
 
                   <div class="analysis-best-move-card" data-testid="analysis-best-move-card">
-                    <span class="analysis-meta-label">Best Move (Langkah Terbaik)</span>
+                    <span class="analysis-meta-label">Langkah Terbaik</span>
                     <strong class="analysis-best-move-san" data-testid="analysis-best-move-san"></strong>
                     <span class="analysis-best-move-squares" data-testid="analysis-best-move-squares"></span>
                   </div>
@@ -1006,13 +1038,16 @@ export function renderAnalysisView(container, sessionState, callbacks = {}) {
 
                 <div class="analysis-pv-card" data-testid="analysis-pv-card">
                   <div class="analysis-pv-header">
-                    <span class="analysis-meta-label">Principal Variation (PV)</span>
+                    <span class="analysis-meta-label">Variasi Utama (PV)</span>
                     <span class="analysis-pv-sub" data-testid="analysis-pv-count"></span>
                   </div>
                   <div class="analysis-pv-line" data-testid="analysis-pv-line"></div>
                 </div>
               </div>
             </div>
+
+            <!-- MVP 5.5: GAME REVIEW & EVALUATION GRAPH MOUNT POINT -->
+            <div id="game-review-panel-mount" data-testid="game-review-panel-mount"></div>
 
             <div class="analysis-moves-panel-header">
               <div>
@@ -1067,8 +1102,8 @@ export function renderAnalysisView(container, sessionState, callbacks = {}) {
               ></div>
             </div>
 
-            <div class="analysis-annotation-box" data-testid="analysis-move-annotation">
-              <span class="analysis-meta-label">Catatan / Komentar Langkah</span>
+            <div class="analysis-annotation-box hidden" data-testid="analysis-move-annotation">
+              <span class="analysis-meta-label" data-testid="analysis-move-annotation-label">Komentar PGN</span>
               <p class="analysis-annotation-text" data-testid="analysis-move-annotation-text"></p>
             </div>
 
@@ -1310,6 +1345,7 @@ function _populateGamePreviewDom(container, state, callbacks = {}) {
       activeLineId: state.activeLineId || 'mainline',
       variationCounter: Number(state.variationCounter) || 1,
       recommendedMove: initialRecommendedMove,
+      gameReviewReport: state.gameReviewReport || null,
       onPlyChange: replayState => {
         const prevFen = state.lastKnownBoardFen;
         const nextFen = replayState.currentFen;
@@ -1623,7 +1659,7 @@ function _renderVariationManagerDom(container, state, replayState) {
     emptyEl.className = 'analysis-variation-empty';
     emptyEl.setAttribute('data-testid', 'analysis-variation-empty');
     emptyEl.textContent =
-      'Belum ada variasi. Aktifkan mode "Jelajahi Posisi" lalu mainkan langkah alternatif di papan untuk membuat cabang baru.';
+      'Belum ada variasi. Aktifkan Jelajahi Posisi untuk membuat cabang baru.';
     varListEl.appendChild(emptyEl);
     return;
   }
@@ -1771,6 +1807,10 @@ function _renderVariationManagerDom(container, state, replayState) {
 function _syncReplayStatusDom(container, state, replayState) {
   const game = state.parsedGame;
   if (!game || !replayState) return;
+
+  if (activeReplayBoardInstance && state.gameReviewReport && activeReplayBoardInstance.gameReviewReport !== state.gameReviewReport) {
+    activeReplayBoardInstance.setGameReviewReport(state.gameReviewReport, { render: false });
+  }
 
   const meta = game.metadata || {};
   const whiteName = safeDisplayValue(meta.white, 'Tidak diketahui');
@@ -2043,6 +2083,8 @@ function _syncReplayStatusDom(container, state, replayState) {
   }
 
   // Update komentar / NAG untuk langkah aktif (Desktop & Mobile)
+  const annotationBoxEl = container.querySelector('[data-testid="analysis-move-annotation"]');
+  const annotationLabelEl = container.querySelector('[data-testid="analysis-move-annotation-label"]');
   const annotationTextEl = container.querySelector('[data-testid="analysis-move-annotation-text"]');
   const mobileCommentBarEl = container.querySelector('[data-testid="analysis-mobile-comment-bar"]');
   const mobileCommentTextEl = container.querySelector('[data-testid="analysis-mobile-comment-text"]');
@@ -2066,13 +2108,11 @@ function _syncReplayStatusDom(container, state, replayState) {
     }
   }
 
-  if (annotationTextEl) {
+  if (annotationBoxEl && annotationTextEl) {
+    let commentContent = '';
     if (replayState.currentPly === 0) {
       if (activeAuthenticComments.length > 0) {
-        annotationTextEl.textContent = activeAuthenticComments.join(' | ');
-      } else {
-        annotationTextEl.textContent =
-          'Posisi awal permainan. Pilih langkah atau klik Berikutnya untuk memutar ulang partai.';
+        commentContent = activeAuthenticComments.join(' | ');
       }
     } else if (replayState.activeMove) {
       const m = replayState.activeMove;
@@ -2086,16 +2126,27 @@ function _syncReplayStatusDom(container, state, replayState) {
         parts.push(m.comments.join(' '));
       }
       if (parts.length > 0) {
-        annotationTextEl.textContent = parts.join(' — ');
-      } else {
-        const sideLabel = m.color === 'w' ? 'Putih' : 'Hitam';
-        annotationTextEl.textContent = `Langkah ${m.moveNumber} (${sideLabel}): ${m.san} (${m.from} → ${m.to}). Tidak ada komentar tambahan pada langkah ini.`;
+        commentContent = parts.join(' — ');
       }
+    }
+
+    if (commentContent.trim()) {
+      annotationBoxEl.classList.remove('hidden');
+      if (annotationLabelEl) {
+        annotationLabelEl.textContent = 'Komentar PGN';
+      }
+      annotationTextEl.textContent = commentContent;
+    } else {
+      annotationBoxEl.classList.add('hidden');
+      annotationTextEl.textContent = '';
     }
   }
 
   // MVP 5.4: Sinkronkan Panel Analisis Stockfish 19
   _renderEngineAnalysisPanelDom(container, state, replayState);
+
+  // MVP 5.5: Sinkronkan Panel Game Review & Evaluation Graph
+  _renderGameReviewPanelDom(container, state, replayState);
 }
 
 /**
@@ -2174,7 +2225,42 @@ function _renderEngineAnalysisPanelDom(container, state, replayState) {
 
   hideAllBoxes();
 
-  const res = state.analysisResult;
+  // Sinkronkan badge klasifikasi dan rekomendasi best move pada papan jika Game Review sudah selesai
+  const hasGameReviewReport = Boolean(
+    state.gameReviewReport &&
+      state.gameReviewReport.snapshots &&
+      Array.isArray(state.gameReviewReport.snapshots)
+  );
+
+  let gameReviewActiveMoveReview = null;
+  if (
+    hasGameReviewReport &&
+    replayState.currentPly > 0 &&
+    state.gameReviewReport.moveReviewList
+  ) {
+    gameReviewActiveMoveReview = state.gameReviewReport.moveReviewList.find(
+      m => m.ply === replayState.currentPly
+    );
+  }
+
+  if (activeReplayBoardInstance) {
+    if (state.gameReviewReport && activeReplayBoardInstance.gameReviewReport !== state.gameReviewReport) {
+      activeReplayBoardInstance.setGameReviewReport(state.gameReviewReport, { render: false });
+    }
+  }
+
+  // Jika belum ada analisis manual, periksa apakah Game Review memiliki data snapshot untuk posisi ini
+  let reviewSnapshotData = null;
+  if (hasGameReviewReport && replayState.currentPly >= 0) {
+    const snap = state.gameReviewReport.snapshots.find(
+      s => s.ply === replayState.currentPly
+    );
+    if (snap && snap.analysis) {
+      reviewSnapshotData = snap.analysis;
+    }
+  }
+
+  const res = state.analysisResult || (reviewSnapshotData && !state.analysisStale ? reviewSnapshotData : null);
   const hasValidFinalResult = Boolean(
     res &&
       res.ok &&
@@ -2447,6 +2533,148 @@ export function stopAnalysisForActivePosition(container, state, callbacks = {}) 
   }
 }
 
+/**
+ * Merender atau memperbarui GameReviewPanelComponent (MVP 5.5).
+ */
+function _renderGameReviewPanelDom(container, state, replayState) {
+  if (!container || !state || !state.parsedGame) return;
+  const mountEl = container.querySelector('#game-review-panel-mount');
+  if (!mountEl) return;
+
+  if (!activeGameReviewPanelInstance) {
+    activeGameReviewPanelInstance = new GameReviewPanelComponent({
+      container: mountEl,
+      onSelectPly: (ply) => {
+        if (activeReplayBoardInstance) {
+          activeReplayBoardInstance.goToPly(ply, { silent: true });
+        }
+      },
+      onStartGameAnalysis: () => {
+        runGameReviewAnalysis(container, state);
+      },
+      onStopGameAnalysis: () => {
+        stopGameReviewAnalysis(container, state);
+      }
+    });
+  } else {
+    activeGameReviewPanelInstance.container = mountEl;
+  }
+
+  activeGameReviewPanelInstance.updateState({
+    status: state.gameReviewStatus || GAME_REVIEW_STATUS.IDLE,
+    progress: state.gameReviewProgress || { current: 0, total: 0, percent: 0, currentPly: 0 },
+    report: state.gameReviewReport || null,
+    graphData: state.gameReviewGraphData || null,
+    activePly: replayState.currentPly || 0
+  });
+}
+
+/**
+ * Memulai analisis satu pertandingan utuh (Game Review & Evaluation Graph)
+ */
+export async function runGameReviewAnalysis(container, state) {
+  if (!container || !state || !state.parsedGame) return null;
+
+  // Jika sedang menganalisis posisi tunggal di MVP 5.4, hentikan terlebih dahulu
+  stopAnalysisForActivePosition(container, state);
+
+  const engine = getActiveAnalysisEngine();
+
+  const handleProgress = (progressInfo) => {
+    state.gameReviewStatus = GAME_REVIEW_STATUS.ANALYZING;
+    state.gameReviewProgress = progressInfo;
+    if (activeGameReviewPanelInstance) {
+      activeGameReviewPanelInstance.updateState({
+        status: state.gameReviewStatus,
+        progress: state.gameReviewProgress
+      });
+    }
+  };
+
+  const handlePositionEvaluated = (evaluatedSnapshot) => {
+    // Bangun data grafik parsial secara in-flight agar visualisasi langsung hidup
+    // dan update jika diperlukan
+  };
+
+  state.gameReviewStatus = GAME_REVIEW_STATUS.PREPARING;
+  state.gameReviewProgress = { current: 0, total: (state.parsedGame.totalPlies || 0) + 1, percent: 0, currentPly: 0 };
+  if (activeGameReviewPanelInstance) {
+    activeGameReviewPanelInstance.updateState({
+      status: state.gameReviewStatus,
+      progress: state.gameReviewProgress
+    });
+  }
+
+  const result = await chessGameReview.analyzeFullGame(state.parsedGame, {
+    engineService: engine,
+    onProgress: handleProgress,
+    onPositionEvaluated: handlePositionEvaluated
+  });
+
+  if (!result || !result.ok) {
+    if (result && result.status === GAME_REVIEW_STATUS.STOPPED) {
+      state.gameReviewStatus = GAME_REVIEW_STATUS.STOPPED;
+    } else {
+      state.gameReviewStatus = GAME_REVIEW_STATUS.ERROR;
+    }
+    if (activeGameReviewPanelInstance) {
+      activeGameReviewPanelInstance.updateState({
+        status: state.gameReviewStatus,
+        progress: state.gameReviewProgress
+      });
+    }
+    return result;
+  }
+
+  state.gameReviewStatus = GAME_REVIEW_STATUS.COMPLETED;
+  state.gameReviewReport = result.report;
+  state.gameReviewGraphData = result.graphData;
+  state.gameReviewProgress = {
+    current: result.totalPositions,
+    total: result.totalPositions,
+    percent: 100,
+    currentPly: (state.parsedGame.totalPlies || 0)
+  };
+
+  if (activeReplayBoardInstance) {
+    activeReplayBoardInstance.setGameReviewReport(result.report, { render: true });
+  }
+
+  if (activeGameReviewPanelInstance) {
+    activeGameReviewPanelInstance.updateState({
+      status: state.gameReviewStatus,
+      progress: state.gameReviewProgress,
+      report: state.gameReviewReport,
+      graphData: state.gameReviewGraphData,
+      activePly: state.currentPly
+    });
+  }
+
+  if (activeReplayBoardInstance) {
+    _syncReplayStatusDom(container, state, activeReplayBoardInstance.getReplayState());
+  }
+
+  return result;
+}
+
+/**
+ * Menghentikan proses analisis Game Review yang sedang berlangsung
+ */
+export function stopGameReviewAnalysis(container, state) {
+  if (chessGameReview && typeof chessGameReview.stopGameReview === 'function') {
+    chessGameReview.stopGameReview('stopped_by_user');
+  }
+
+  if (state) {
+    state.gameReviewStatus = GAME_REVIEW_STATUS.STOPPED;
+    if (activeGameReviewPanelInstance) {
+      activeGameReviewPanelInstance.updateState({
+        status: state.gameReviewStatus
+      });
+    }
+  }
+}
+
 function _applyPgnValidationResult(container, state, validationResult, rawText, callbacks) {
   state.isValidating = false;
 
@@ -2526,7 +2754,7 @@ function _executeValidateAndStartReview(container, state, rawText, callbacks) {
 
   state.isValidating = true;
   state.validationCount = (Number(state.validationCount) || 0) + 1;
-  const validation = validateAndParsePgn(trimmedCandidate);
+  const validation = validateAndParsePgn(trimmedCandidate, { source: 'paste', allowVariations: true });
   return _applyPgnValidationResult(container, state, validation, trimmedCandidate, callbacks);
 }
 
@@ -2580,7 +2808,7 @@ async function _handleFileSelectionAndImport(file, container, state, callbacks) 
     state.selectedFileMeta.rawContent = content;
     state.rawPgnText = content;
     state.validationCount = (Number(state.validationCount) || 0) + 1;
-    const validation = validateAndParsePgn(content);
+    const validation = validateAndParsePgn(content, { source: 'file', fileName: file.name, fileSize: file.size, allowVariations: true });
     return _applyPgnValidationResult(container, state, validation, content, callbacks);
   } catch {
     state.isValidating = false;
