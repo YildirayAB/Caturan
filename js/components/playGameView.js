@@ -34,6 +34,7 @@ import {
   formatPlayTerminationLabel
 } from '../services/progress.js';
 import { COLOR_CHOICES } from './playView.js';
+import { generatePgnFromGame, validateAndParsePgn } from '../services/pgnService.js';
 
 let activePlayBoardInstance = null;
 
@@ -94,7 +95,8 @@ export function renderPlayGameView(
     onBackToPlayDashboard,
     onUpdateSettings,
     onGameStarted,
-    onGameEnd
+    onGameEnd,
+    onAnalyzeGame
   } = {}
 ) {
   if (!container) return null;
@@ -669,10 +671,28 @@ export function renderPlayGameView(
           </div>
         </div>
 
-        <div class="puzzle-completion-actions">
+        <div class="puzzle-completion-actions play-game-over-actions">
           <button
             type="button"
             class="btn btn-primary"
+            data-action="analyze-game"
+            data-testid="play-analyze-game-btn"
+          >
+            ${UI_ICONS.activity || UI_ICONS.chart || UI_ICONS.analysis}
+            <span>Analisis Permainan</span>
+          </button>
+          <button
+            type="button"
+            class="btn btn-secondary"
+            data-action="copy-game-pgn"
+            data-testid="play-copy-pgn-btn"
+          >
+            ${UI_ICONS.copy}
+            <span data-testid="play-copy-pgn-label">Salin PGN</span>
+          </button>
+          <button
+            type="button"
+            class="btn btn-secondary"
             data-action="play-again"
             data-testid="play-again-btn"
           >
@@ -691,6 +711,68 @@ export function renderPlayGameView(
         </div>
       </div>
     `;
+
+    const analyzeGameBtn = resultSlot.querySelector('[data-action="analyze-game"]');
+    if (analyzeGameBtn) {
+      analyzeGameBtn.addEventListener('click', () => {
+        if (!activePlayBoardInstance || !activePlayBoardInstance.chess) return;
+        const generatedPgn = generatePgnFromGame(activePlayBoardInstance.chess, {
+          gameResult,
+          playerColor: gameResult.playerColor || currentSettings.colorPreference || 'white',
+          difficulty: gameResult.difficulty || currentSettings.difficulty || 'beginner'
+        });
+        const parseResult = validateAndParsePgn(generatedPgn);
+        const isOk = Boolean(parseResult && (parseResult.ok || parseResult.valid || parseResult.isValid));
+        const parsedGame = parseResult ? (parseResult.data || parseResult.game || parseResult) : null;
+        if (isOk && parsedGame && typeof onAnalyzeGame === 'function') {
+          onAnalyzeGame({
+            pgnText: generatedPgn,
+            parsedGame,
+            initialFen: parsedGame.initialFen || null,
+            gameResult
+          });
+        } else {
+          console.error('[PlayGameView] PGN validation failed for generated game:', parseResult);
+        }
+      });
+    }
+
+    const copyPgnBtn = resultSlot.querySelector('[data-action="copy-game-pgn"]');
+    const copyPgnLabel = resultSlot.querySelector('[data-testid="play-copy-pgn-label"]');
+    if (copyPgnBtn) {
+      copyPgnBtn.addEventListener('click', async () => {
+        if (!activePlayBoardInstance || !activePlayBoardInstance.chess) return;
+        const generatedPgn = generatePgnFromGame(activePlayBoardInstance.chess, {
+          gameResult,
+          playerColor: gameResult.playerColor || currentSettings.colorPreference || 'white',
+          difficulty: gameResult.difficulty || currentSettings.difficulty || 'beginner'
+        });
+
+        try {
+          if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+            await navigator.clipboard.writeText(generatedPgn);
+          } else {
+            const tempArea = document.createElement('textarea');
+            tempArea.value = generatedPgn;
+            tempArea.style.position = 'fixed';
+            tempArea.style.opacity = '0';
+            document.body.appendChild(tempArea);
+            tempArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(tempArea);
+          }
+          if (copyPgnLabel) {
+            const originalText = copyPgnLabel.textContent;
+            copyPgnLabel.textContent = 'Tersalin!';
+            setTimeout(() => {
+              copyPgnLabel.textContent = originalText;
+            }, 2000);
+          }
+        } catch (err) {
+          console.warn('[PlayGameView] Failed to copy PGN to clipboard:', err);
+        }
+      });
+    }
 
     const playAgainBtn = resultSlot.querySelector('[data-action="play-again"]');
     if (playAgainBtn) {

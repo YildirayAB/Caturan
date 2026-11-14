@@ -22,12 +22,14 @@ export class GameReviewPanelComponent {
     container,
     onSelectPly = null,
     onStartGameAnalysis = null,
-    onStopGameAnalysis = null
+    onStopGameAnalysis = null,
+    onSaveAnalysis = null
   } = {}) {
     this.container = container;
     this.onSelectPly = onSelectPly;
     this.onStartGameAnalysis = onStartGameAnalysis;
     this.onStopGameAnalysis = onStopGameAnalysis;
+    this.onSaveAnalysis = onSaveAnalysis;
 
     this._activeTab = 'graph'; // 'graph' | 'stats' | 'critical'
     this._status = GAME_REVIEW_STATUS.IDLE;
@@ -36,6 +38,11 @@ export class GameReviewPanelComponent {
     this._graphData = null;
     this._activePly = 0;
     this._graphComponent = null;
+
+    // State Simpan Analisis (MVP 5.6)
+    this._saveStatus = 'idle'; // 'idle' | 'saving' | 'saved' | 'error'
+    this._saveErrorMsg = null;
+    this._savedHistoryId = null;
   }
 
   updateState({
@@ -43,11 +50,22 @@ export class GameReviewPanelComponent {
     progress,
     report,
     graphData,
-    activePly
+    activePly,
+    saveStatus,
+    saveErrorMsg,
+    savedHistoryId
   } = {}) {
+    if (saveStatus !== undefined) this._saveStatus = saveStatus;
+    if (saveErrorMsg !== undefined) this._saveErrorMsg = saveErrorMsg;
+    if (savedHistoryId !== undefined) this._savedHistoryId = savedHistoryId;
+
     const isOnlyActivePlyChange =
       activePly !== undefined &&
       status === undefined &&
+      progress === undefined &&
+      report === undefined &&
+      graphData === undefined &&
+      saveStatus === undefined;
       progress === undefined &&
       report === undefined &&
       graphData === undefined;
@@ -159,7 +177,36 @@ export class GameReviewPanelComponent {
               <span>Stop Game Analysis</span>
             </button>
           `}
+
+          ${isCompleted ? `
+            <button
+              type="button"
+              class="btn btn-sm analysis-touch-btn game-review-btn game-review-save-btn ${this._saveStatus === 'saved' ? 'btn-success is-saved' : 'btn-outline-primary'}"
+              data-action="game-review-save"
+              data-testid="game-review-save-btn"
+              ${this._saveStatus === 'saving' || this._saveStatus === 'saved' ? 'disabled' : ''}
+              title="${this._saveStatus === 'saved' ? 'Analisis telah tersimpan di cloud' : 'Simpan hasil analisis ke akun Anda'}"
+            >
+              ${this._saveStatus === 'saving' ? `
+                <span class="analysis-engine-spinner" style="width:14px;height:14px;margin-right:4px;"></span>
+                <span>Menyimpan...</span>
+              ` : this._saveStatus === 'saved' ? `
+                ${UI_ICONS.check}
+                <span>Tersimpan di Cloud</span>
+              ` : `
+                ${UI_ICONS.save || UI_ICONS.cloud}
+                <span>Simpan Analisis</span>
+              `}
+            </button>
+          ` : ''}
         </div>
+
+        ${this._saveStatus === 'error' && this._saveErrorMsg ? `
+          <div class="game-review-save-error" data-testid="game-review-save-error" role="alert">
+            <span class="save-error-icon">${UI_ICONS.alertTriangle}</span>
+            <span class="save-error-text">${this._saveErrorMsg}</span>
+          </div>
+        ` : ''}
 
         <!-- Tab Selector: Grafik Evaluasi | Statistik | Momen Penting -->
         <div class="game-review-tabs" role="tablist" aria-label="Pilihan Tampilan Game Review">
@@ -412,6 +459,17 @@ export class GameReviewPanelComponent {
       stopBtn.addEventListener('click', () => {
         if (typeof this.onStopGameAnalysis === 'function') {
           this.onStopGameAnalysis();
+        }
+      });
+    }
+
+    // Save Analysis button (MVP 5.6)
+    const saveBtn = this.container.querySelector('[data-action="game-review-save"]');
+    if (saveBtn) {
+      saveBtn.addEventListener('click', () => {
+        if (this._saveStatus === 'saving' || this._saveStatus === 'saved') return;
+        if (typeof this.onSaveAnalysis === 'function') {
+          this.onSaveAnalysis();
         }
       });
     }

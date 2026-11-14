@@ -37,6 +37,8 @@ import {
   GAME_REVIEW_STATUS
 } from '../services/chessGameReviewService.js';
 import { GameReviewPanelComponent } from './gameReviewView.js';
+import { analysisHistoryService } from '../services/analysisHistoryService.js';
+import { authService } from '../services/auth.js';
 
 export const MOBILE_ANALYSIS_BREAKPOINT = 600;
 
@@ -186,7 +188,10 @@ export function createInitialAnalysisSessionState() {
     gameReviewStatus: GAME_REVIEW_STATUS.IDLE,
     gameReviewProgress: { current: 0, total: 0, percent: 0, currentPly: 0 },
     gameReviewReport: null,
-    gameReviewGraphData: null
+    gameReviewGraphData: null,
+    gameReviewSaveStatus: 'idle', // 'idle' | 'saving' | 'saved' | 'error'
+    gameReviewSaveError: null,
+    savedHistoryId: null
     // clipboardFeedback initialized above
   };
 }
@@ -218,6 +223,9 @@ export function resetAnalysisExplorationState(state, { preserveCleanupNotice = f
   state.gameReviewProgress = { current: 0, total: 0, percent: 0, currentPly: 0 };
   state.gameReviewReport = null;
   state.gameReviewGraphData = null;
+  state.gameReviewSaveStatus = 'idle';
+  state.gameReviewSaveError = null;
+  state.savedHistoryId = null;
   if (!preserveCleanupNotice) {
     state.sessionCleanupNotice = '';
   }
@@ -2554,6 +2562,9 @@ function _renderGameReviewPanelDom(container, state, replayState) {
       },
       onStopGameAnalysis: () => {
         stopGameReviewAnalysis(container, state);
+      },
+      onSaveAnalysis: () => {
+        saveGameReviewToCloud(container, state);
       }
     });
   } else {
@@ -2565,7 +2576,10 @@ function _renderGameReviewPanelDom(container, state, replayState) {
     progress: state.gameReviewProgress || { current: 0, total: 0, percent: 0, currentPly: 0 },
     report: state.gameReviewReport || null,
     graphData: state.gameReviewGraphData || null,
-    activePly: replayState.currentPly || 0
+    activePly: replayState.currentPly || 0,
+    saveStatus: state.gameReviewSaveStatus || 'idle',
+    saveErrorMsg: state.gameReviewSaveError || null,
+    savedHistoryId: state.savedHistoryId || null
   });
 }
 
@@ -2655,6 +2669,93 @@ export async function runGameReviewAnalysis(container, state) {
   }
 
   return result;
+}
+
+/**
+ * Menyimpan hasil Game Review yang selesai ke cloud Supabase (MVP 5.6)
+ */
+export async function saveGameReviewToCloud(container, state) {
+  if (!state || !state.parsedGame || !state.gameReviewReport) return;
+
+  if (state.gameReviewStatus !== GAME_REVIEW_STATUS.COMPLETED) {
+    state.gameReviewSaveStatus = 'error';
+    state.gameReviewSaveError = 'Game Review harus berstatus selesai sebelum dapat disimpan.';
+    if (activeGameReviewPanelInstance) {
+      activeGameReviewPanelInstance.updateState({
+        saveStatus: state.gameReviewSaveStatus,
+        saveErrorMsg: state.gameReviewSaveError
+      });
+    }
+    return;
+  }
+
+  // Jika sudah tersimpan, cegah duplikasi
+  if (state.gameReviewSaveStatus === 'saved' || state.gameReviewSaveStatus === 'saving') {
+    return;
+  }
+
+  const user = authService.getUser();
+  if (!user || !user.id) {
+    state.gameReviewSaveStatus = 'error';
+    state.gameReviewSaveError = 'Silakan masuk ke akun Anda terlebih dahulu untuk menyimpan analisis ke cloud.';
+    if (activeGameReviewPanelInstance) {
+      activeGameReviewPanelInstance.updateState({
+        saveStatus: state.gameReviewSaveStatus,
+        saveErrorMsg: state.gameReviewSaveError
+      });
+    }
+    return;
+  }
+
+  state.gameReviewSaveStatus = 'saving';
+  state.gameReviewSaveError = null;
+  if (activeGameReviewPanelInstance) {
+    activeGameReviewPanelInstance.updateState({
+      saveStatus: state.gameReviewSaveStatus,
+      saveErrorMsg: null
+    });
+  }
+
+  try {
+    const rawPgn = state.rawPgnText || state.parsedGame.normalizedPgn || '';
+    const snapshots = chessGameReview.getSnapshots();
+
+    const saveResult = await analysisHistoryService.saveAnalysis({
+      title: `${state.parsedGame.headers?.White || 'Putih'} vs ${state.parsedGame.headers?.Black || 'Hitam'}`,
+      pgnText: rawPgn,
+      parsedGame: state.parsedGame,
+      gameReviewReport: state.gameReviewReport,
+      gameReviewGraphData: state.gameReviewGraphData,
+      gameReviewSnapshots: snapshots,
+      analysisSettings: {
+        depth: 16,
+        moveTimeMs: 250,
+        isMobile: isMobileAnalysisViewport()
+      }
+    });
+
+    state.gameReviewSaveStatus = 'saved';
+    state.gameReviewSaveError = null;
+    state.savedHistoryId = saveResult.id;
+
+    if (activeGameReviewPanelInstance) {
+      activeGameReviewPanelInstance.updateState({
+        saveStatus: 'saved',
+        saveErrorMsg: null,
+        savedHistoryId: saveResult.id
+      });
+    }
+  } catch (err) {
+    console.error('[AnalysisView] Gagal menyimpan review:', err);
+    state.gameReviewSaveStatus = 'error';
+    state.gameReviewSaveError = err instanceof Error ? err.message : 'Gagal menyimpan analisis ke cloud. Silakan coba lagi.';
+    if (activeGameReviewPanelInstance) {
+      activeGameReviewPanelInstance.updateState({
+        saveStatus: 'error',
+        saveErrorMsg: state.gameReviewSaveError
+      });
+    }
+  }
 }
 
 /**
