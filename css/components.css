@@ -6743,6 +6743,689 @@
     padding: 8px 10px;
     gap: 8px;
   }
-    grid-template-columns: minmax(0, 1fr);
+}
+
+/* ==========================================================================
+   MVP 5.5: EVALUATION GRAPH & GAME REVIEW STYLES (No Gradients, Solid Colors)
+   ========================================================================== */
+
+.game-review-card {
+  margin-top: 16px;
+  padding: 16px;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.game-review-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.game-review-title-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.game-review-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  background-color: var(--accent-subtle, rgba(233, 130, 50, 0.12));
+  color: var(--accent-main, #E98232);
+}
+
+.game-review-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.game-review-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--text-main);
+  line-height: 1.2;
+}
+
+.game-review-subtitle {
+  margin: 2px 0 0 0;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  line-height: 1.3;
+}
+
+.game-review-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 4px 10px;
+}
+
+.game-review-status-badge.is-idle {
+  background-color: var(--bg-subtle);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+}
+
+.game-review-status-badge.is-stopped {
+  background-color: var(--bg-muted);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+}
+
+.game-review-status-badge.is-analyzing {
+  background-color: rgba(233, 130, 50, 0.15);
+  color: var(--accent-main, #E98232);
+  border: 1px solid var(--accent-main, #E98232);
+}
+
+.game-review-progress-box {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  background-color: var(--bg-subtle);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+}
+
+.game-review-progress-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.game-review-progress-bar-bg {
+  width: 100%;
+  height: 8px;
+  background-color: var(--border-color);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.game-review-progress-bar-fill {
+  height: 100%;
+  background-color: var(--accent-main, #E98232);
+  transition: width 0.15s ease-out;
+}
+
+.game-review-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.game-review-btn {
+  width: 100%;
+  font-weight: 700;
+}
+
+.game-review-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  background-color: var(--bg-subtle);
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+}
+
+.game-review-tab-btn {
+  padding: 6px 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  background-color: transparent;
+  border: none;
+  border-radius: var(--radius-xs, 4px);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+  text-align: center;
+}
+
+.game-review-tab-btn:hover {
+  color: var(--text-main);
+}
+
+.game-review-tab-btn.active {
+  background-color: var(--accent-main, #E98232);
+  color: #FFFFFF;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+[data-theme="dark"] .game-review-tabs {
+  background-color: #1E304F;
+  border-color: #263854;
+}
+
+[data-theme="dark"] .game-review-tab-btn {
+  color: #CBD5E1;
+}
+
+[data-theme="dark"] .game-review-tab-btn:hover {
+  color: #F5F3EF;
+}
+
+[data-theme="dark"] .game-review-tab-btn.active {
+  background-color: #E98232;
+  color: #FFFFFF;
+}
+
+.game-review-tab-pane {
+  display: block;
+}
+
+.game-review-tab-pane.hidden {
+  display: none !important;
+}
+
+.game-review-empty-state {
+  padding: 20px 12px;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  background-color: var(--bg-subtle);
+  border-radius: var(--radius-sm);
+  border: 1px dashed var(--border-color);
+}
+
+/* Evaluation Graph Component */
+.eval-graph-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background-color: var(--bg-surface);
+}
+
+.eval-graph-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.eval-graph-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.85rem;
+}
+
+.eval-graph-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.eval-graph-title {
+  font-size: 0.875rem;
+  font-weight: 800;
+  color: var(--text-main);
+}
+
+.eval-graph-subtitle-info {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-muted);
+  cursor: help;
+}
+
+.eval-graph-badge {
+  font-size: 0.775rem;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  background-color: rgba(233, 130, 50, 0.15);
+  color: var(--accent-main, #E98232);
+  border: 1px solid var(--accent-main, #E98232);
+}
+
+.eval-graph-svg-container,
+.eval-graph-svg-wrapper {
+  position: relative;
+  width: 100%;
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-color);
+  overflow: hidden;
+}
+
+.eval-graph-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  user-select: none;
+}
+
+/* SVG Elements Styling */
+.eval-graph-axis-text {
+  fill: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 600;
+  font-family: var(--font-sans);
+}
+
+[data-theme="dark"] .eval-graph-axis-text {
+  fill: #C5D0DE;
+}
+
+.eval-graph-grid-line line {
+  stroke: var(--border-color);
+}
+
+[data-theme="dark"] .eval-graph-grid-line line {
+  stroke: #40536D;
+}
+
+.eval-graph-grid-zero line,
+.eval-graph-zero-line line {
+  stroke: var(--text-muted);
+}
+
+[data-theme="dark"] .eval-graph-grid-zero line,
+[data-theme="dark"] .eval-graph-zero-line line {
+  stroke: #71839B;
+}
+
+.eval-graph-path {
+  stroke: var(--accent-main, #E98232);
+}
+
+.eval-graph-point {
+  cursor: pointer;
+  transition: r 0.15s ease, stroke-width 0.15s ease;
+}
+
+.eval-graph-point:hover {
+  r: 6;
+  stroke-width: 2.5;
+}
+
+.eval-graph-point.is-selected {
+  stroke: var(--text-main);
+  stroke-width: 2.5;
+}
+
+.eval-graph-point.is-mate {
+  fill: var(--status-danger-text, #EF4444);
+}
+
+.eval-graph-tooltip {
+  position: absolute;
+  pointer-events: none;
+  background-color: var(--bg-surface);
+  color: var(--text-main);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  box-shadow: var(--shadow-card);
+  z-index: 20;
+  transform: translate(-50%, -100%);
+  white-space: nowrap;
+}
+
+.eval-graph-tooltip.hidden {
+  display: none !important;
+}
+
+.eval-tooltip-val {
+  font-weight: 700;
+  color: var(--accent-main, #E98232);
+}
+
+[data-theme="dark"] .eval-graph-tooltip {
+  background-color: #172943;
+  color: #F5F3EF;
+  border-color: #374E70;
+}
+
+.eval-graph-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 140px;
+  padding: 16px;
+  text-align: center;
+  background-color: var(--bg-subtle);
+  border: 1px dashed var(--border-color);
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+/* Stats Table */
+.game-review-stats-table {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.game-review-stats-header {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  padding: 6px 8px;
+  background-color: var(--bg-subtle);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  font-size: 0.825rem;
+  color: var(--text-main);
+}
+
+.game-review-player-col {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.game-review-player-col.text-right {
+  justify-content: flex-end;
+}
+
+.game-review-vs-label {
+  font-weight: 700;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.game-review-stat-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.game-review-stat-row {
+  display: grid;
+  grid-template-columns: 44px 1fr 44px;
+  align-items: center;
+  padding: 6px 8px;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+}
+
+.game-review-stat-val {
+  font-size: 0.85rem;
+  font-weight: 800;
+  text-align: center;
+  color: var(--text-main);
+}
+
+.game-review-stat-label-wrap {
+  display: flex;
+  justify-content: center;
+}
+
+.game-review-stat-pill {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+}
+
+/* Critical Moments */
+.game-review-critical-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.game-review-critical-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.game-review-critical-item:hover {
+  background-color: var(--bg-subtle);
+  border-color: var(--accent-main, #E98232);
+}
+
+.game-review-critical-item.is-selected {
+  border-color: var(--accent-main, #E98232);
+  background-color: rgba(233, 130, 50, 0.12);
+}
+
+.critical-item-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.825rem;
+  color: var(--text-main);
+}
+
+.critical-item-details {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.775rem;
+  color: var(--text-secondary);
+}
+
+/* Move Review List */
+.game-review-moves-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-color);
+}
+
+.game-review-moves-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.825rem;
+  font-weight: 800;
+  color: var(--text-main);
+}
+
+.game-review-moves-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 180px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.move-review-item {
+  display: grid;
+  grid-template-columns: 36px 54px 1fr 48px;
+  align-items: center;
+  padding: 5px 8px;
+  font-size: 0.8rem;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background-color 0.12s ease, border-color 0.12s ease;
+}
+
+.move-review-item:hover {
+  background-color: var(--bg-subtle);
+}
+
+.move-review-item.is-selected {
+  border-color: var(--accent-main, #E98232);
+  background-color: rgba(233, 130, 50, 0.12);
+  font-weight: 700;
+}
+
+.move-review-num {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.move-review-san {
+  color: var(--text-main);
+  font-weight: 700;
+}
+
+.move-review-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  justify-self: start;
+  padding: 2px 6px;
+  border-radius: var(--radius-xs, 4px);
+}
+
+.move-review-loss {
+  text-align: right;
+  font-size: 0.725rem;
+  color: var(--text-muted);
+  font-family: monospace;
+}
+
+/* Badge Classification Colors (Solid Caturan Palette, No Gradients) */
+.badge-move-best {
+  background-color: #059669;
+  color: #FFFFFF;
+}
+
+.badge-move-excellent {
+  background-color: #10B981;
+  color: #FFFFFF;
+}
+
+.badge-move-good {
+  background-color: #3B82F6;
+  color: #FFFFFF;
+}
+
+.badge-move-inaccuracy {
+  background-color: #EAB308;
+  color: #1F2937;
+}
+
+.badge-move-mistake {
+  background-color: #F97316;
+  color: #FFFFFF;
+}
+
+.badge-move-blunder {
+  background-color: #EF4444;
+  color: #FFFFFF;
+}
+
+@media (max-width: 600px) {
+  .game-review-tabs {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .game-review-tab-btn {
+    font-size: 0.75rem;
+    padding: 6px 4px;
+  }
+}
+
+
+/* ==========================================================================
+   MVP 5.5: Move Classification Badges on Board Pieces & Mobile Textarea Fix
+   ========================================================================== */
+
+.piece-classification-badge {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 999px;
+  font-size: 0.65rem;
+  font-weight: 800;
+  line-height: 18px;
+  text-align: center;
+  color: #FFFFFF;
+  z-index: 5;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.piece-classification-badge.badge-move-best {
+  background-color: var(--accent-main, #E98232);
+}
+
+.piece-classification-badge.badge-move-excellent {
+  background-color: #10B981;
+}
+
+.piece-classification-badge.badge-move-good {
+  background-color: #3B82F6;
+}
+
+.piece-classification-badge.badge-move-inaccuracy {
+  background-color: #EAB308;
+  color: #1E293B;
+}
+
+.piece-classification-badge.badge-move-mistake {
+  background-color: #F97316;
+}
+
+.piece-classification-badge.badge-move-blunder {
+  background-color: #EF4444;
+}
+
+/* Mobile & Touch Textarea Optimizations */
+.analysis-textarea {
+  user-select: text;
+  -webkit-user-select: text;
+  -webkit-touch-callout: default;
+  pointer-events: auto;
+  font-size: 15px;
+  line-height: 1.45;
+  touch-action: manipulation;
+}
+
+@media (max-width: 640px) {
+  .piece-classification-badge {
+    min-width: 15px;
+    height: 15px;
+    font-size: 0.55rem;
+    line-height: 15px;
+    padding: 0 3px;
+    top: 2px;
+    right: 2px;
+  }
+
+  .analysis-textarea {
+    font-size: 16px;
   }
 }

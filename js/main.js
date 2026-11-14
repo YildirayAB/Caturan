@@ -346,7 +346,7 @@ export class CaturanApp {
   async handleLogout() {
     this.closeMobileSidebar();
     await authService.signOut();
-    this.renderAuthGate(null, 'Anda telah berhasil keluar dari akun Caturan.');
+    this.renderAuthGate(null, 'Berhasil keluar dari akun.');
   }
 
   async handleRetrySync() {

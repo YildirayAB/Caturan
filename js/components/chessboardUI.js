@@ -4299,6 +4299,8 @@ export class AnalysisReplayBoard {
     this.lastMove = null;
     this.recommendedMove = null; // { from, to, san, uci, promotion, fen }
     this.feedback = null; // { type: 'info' | 'warning' | 'success', message: string }
+    this.gameReviewReport = options.gameReviewReport || null;
+    this.classificationBadge = options.classificationBadge || null;
     this.inspectedSquareInfo =
       this.mode === 'explore'
         ? 'Mode Jelajahi Posisi aktif: pilih bidak pada papan untuk mencoba langkah alternatif.'
@@ -4562,6 +4564,78 @@ export class AnalysisReplayBoard {
     return null;
   }
 
+  setGameReviewReport(report, { render = true } = {}) {
+    this.gameReviewReport = report || null;
+    if (render) {
+      this.render();
+    }
+    return this.gameReviewReport;
+  }
+
+  clearGameReviewReport({ render = true } = {}) {
+    const hadReport = Boolean(this.gameReviewReport);
+    this.gameReviewReport = null;
+    if (hadReport && render) {
+      this.render();
+    }
+    return null;
+  }
+
+  setClassificationBadge(badgeInfo, { render = true } = {}) {
+    this.classificationBadge = badgeInfo || null;
+    if (render) {
+      this.render();
+    }
+    return this.classificationBadge;
+  }
+
+  clearClassificationBadge({ render = true } = {}) {
+    const hadBadge = Boolean(this.classificationBadge);
+    this.classificationBadge = null;
+    if (hadBadge && render) {
+      this.render();
+    }
+    return null;
+  }
+
+  getActiveClassification() {
+    if (this.mode !== 'review' || this.currentPly <= 0) {
+      return null;
+    }
+    const activeMove = this._getMoveAtPly(this.activeLineId, this.currentPly);
+    const targetSquare = activeMove ? activeMove.to : (this.lastMove ? this.lastMove.to : null);
+
+    if (
+      this.gameReviewReport &&
+      Array.isArray(this.gameReviewReport.moveReviewList)
+    ) {
+      const match = this.gameReviewReport.moveReviewList.find(
+        m => m.ply === this.currentPly
+      );
+      if (match) {
+        return {
+          id: match.classification,
+          name: match.classificationMeta?.name || match.classification,
+          label: match.classificationMeta?.label || match.classification,
+          symbol: match.classificationMeta?.symbol || '★',
+          badgeClass:
+            match.classificationMeta?.badgeClass || `badge-move-${match.classification}`,
+          square: targetSquare,
+          ply: this.currentPly
+        };
+      }
+    }
+
+    if (this.classificationBadge) {
+      return {
+        ...this.classificationBadge,
+        square: this.classificationBadge.square || targetSquare,
+        ply: this.currentPly
+      };
+    }
+    return null;
+  }
+
   getRecommendedMove() {
     return this.recommendedMove ? { ...this.recommendedMove } : null;
   }
@@ -4701,7 +4775,7 @@ export class AnalysisReplayBoard {
     }
   }
 
-  goToPly(targetPly) {
+  goToPly(targetPly, { silent = false } = {}) {
     this.totalPlies = this._getLineTotalPlies(this.activeLineId);
     const clamped = Math.max(0, Math.min(this.totalPlies, Number(targetPly) || 0));
     const previousPly = this.currentPly;
@@ -4713,7 +4787,7 @@ export class AnalysisReplayBoard {
     if (activeMove) {
       const sideLabel = activeMove.color === 'w' ? 'Putih' : 'Hitam';
       this.inspectedSquareInfo = `Langkah ${activeMove.moveNumber} (${sideLabel}): ${activeMove.san} (${activeMove.from} → ${activeMove.to})`;
-      if (clamped > previousPly) {
+      if (clamped > previousPly && !silent) {
         this._pendingMoveExperience = {
           move: activeMove,
           source: 'analysis_replay',
@@ -5550,6 +5624,8 @@ export class AnalysisReplayBoard {
       }
     }
 
+    const activeClassification = this.getActiveClassification();
+
     let squaresHtml = '';
 
     for (let visualRowIdx = 0; visualRowIdx < 8; visualRowIdx += 1) {
@@ -5611,6 +5687,30 @@ export class AnalysisReplayBoard {
           bestMoveIndicatorHtml = `<span class="best-move-target-ring" data-testid="analysis-best-move-target" aria-hidden="true"></span>`;
         }
 
+        let classificationBadgeHtml = '';
+        if (
+          this.mode === 'review' &&
+          this.currentPly > 0 &&
+          activeClassification &&
+          (activeClassification.square === sq ||
+            (!activeClassification.square && isLastTo))
+        ) {
+          const badgeClass =
+            activeClassification.badgeClass || `badge-move-${activeClassification.id || 'best'}`;
+          const badgeSymbol = activeClassification.symbol || '★';
+          const badgeTitle =
+            activeClassification.name || activeClassification.label || 'Move Classification';
+          classificationBadgeHtml = `
+            <span
+              class="piece-classification-badge ${badgeClass}"
+              data-testid="piece-classification-badge"
+              data-classification="${activeClassification.id || ''}"
+              title="${badgeTitle}"
+              aria-label="${badgeTitle}"
+            >${badgeSymbol}</span>
+          `;
+        }
+
         const isDraggable = Boolean(
           this.mode === 'explore' &&
             piece &&
@@ -5644,6 +5744,7 @@ export class AnalysisReplayBoard {
             }
             ${legalIndicatorHtml}
             ${bestMoveIndicatorHtml}
+            ${classificationBadgeHtml}
           </button>
         `;
       }

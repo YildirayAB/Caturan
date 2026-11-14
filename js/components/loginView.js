@@ -63,7 +63,7 @@ export function renderLoginView(
             <span class="app-pill">AKSES PRIVAT CATURAN</span>
             <h1 id="login-heading" class="auth-title">Selamat Datang Kembali</h1>
             <p class="auth-subtitle">
-              Masuk ke akun Caturan Anda untuk memuat dan menyinkronkan progres belajar catur lintas perangkat.
+              Masuk untuk melanjutkan dan menyinkronkan progres belajar catur lintas perangkat.
             </p>
           </div>
 
