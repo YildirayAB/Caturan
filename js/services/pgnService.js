@@ -1517,13 +1517,15 @@ export function validateAndParsePgn(rawPgnText, options = {}) {
     return {
       ok: true,
       valid: true,
+      isValid: true,
       errorCode: null,
       errorTitle: null,
       errorMessage: null,
       details: null,
       errorDetails: null,
       ...parsedData,
-      data: parsedData
+      data: parsedData,
+      game: parsedData
     };
   } catch (err) {
     return createErrorResponse(
@@ -1531,6 +1533,83 @@ export function validateAndParsePgn(rawPgnText, options = {}) {
       'Terjadi kesalahan saat memproses format PGN. Pastikan notasi dan struktur PGN sesuai standar catur.'
     );
   }
+}
+
+/**
+ * Membentuk teks PGN lengkap dan legal dari histori permainan chess.js dan metadata.
+ *
+ * @param {Object} chessInstance - Instance Chess dari permainan yang selesai
+ * @param {Object} options - Metadata tambahan { white, black, event, site, date, result, termination, timeControl, initialFen }
+ * @returns {string} Teks PGN lengkap dengan standard header tags dan movetext
+ */
+export function generatePgnFromGame(chessInstance, options = {}) {
+  if (!chessInstance) return '';
+
+  const now = new Date();
+  const defaultDateStr = `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, '0')}.${String(now.getDate()).padStart(2, '0')}`;
+
+  const event = options.event || 'Caturan vs Stockfish';
+  const site = options.site || 'Caturan';
+  const date = options.date || defaultDateStr;
+  const white = options.white || 'Putih';
+  const black = options.black || 'Hitam';
+  let result = options.result || '*';
+
+  // Sinkronkan token result jika result diberikan dalam bentuk win/loss/draw
+  if (result === '1-0' || result === '0-1' || result === '1/2-1/2' || result === '*') {
+    // sudah valid format PGN
+  } else if (options.winnerColor === 'white' || options.winnerColor === 'w') {
+    result = '1-0';
+  } else if (options.winnerColor === 'black' || options.winnerColor === 'b') {
+    result = '0-1';
+  } else if (options.result === 'draw') {
+    result = '1/2-1/2';
+  } else if (chessInstance.isCheckmate && typeof chessInstance.isCheckmate === 'function' && chessInstance.isCheckmate()) {
+    result = chessInstance.turn() === WHITE ? '0-1' : '1-0';
+  } else if (chessInstance.isDraw && typeof chessInstance.isDraw === 'function' && chessInstance.isDraw()) {
+    result = '1/2-1/2';
+  }
+
+  const headers = [];
+  headers.push(`[Event "${escapePgnHeaderValue(event)}"]`);
+  headers.push(`[Site "${escapePgnHeaderValue(site)}"]`);
+  headers.push(`[Date "${escapePgnHeaderValue(date)}"]`);
+  headers.push(`[Round "-"]`);
+  headers.push(`[White "${escapePgnHeaderValue(white)}"]`);
+  headers.push(`[Black "${escapePgnHeaderValue(black)}"]`);
+  headers.push(`[Result "${result}"]`);
+
+  if (options.termination) {
+    headers.push(`[Termination "${escapePgnHeaderValue(options.termination)}"]`);
+  }
+  if (options.timeControl) {
+    headers.push(`[TimeControl "${escapePgnHeaderValue(options.timeControl)}"]`);
+  }
+
+  const initialFen = options.initialFen || (typeof chessInstance.initialFen === 'function' ? chessInstance.initialFen() : null);
+  if (initialFen && initialFen !== DEFAULT_POSITION) {
+    headers.push(`[SetUp "1"]`);
+    headers.push(`[FEN "${escapePgnHeaderValue(initialFen)}"]`);
+  }
+
+  // Generate movetext dari histori langkah chess.js
+  let movetext = '';
+  if (typeof chessInstance.pgn === 'function') {
+    movetext = chessInstance.pgn();
+  }
+
+  // Jika movetext belum memuat result token di ujungnya, tambahkan
+  const trimmedMovetext = movetext ? movetext.trim() : '';
+  const fullMovetext = trimmedMovetext
+    ? (trimmedMovetext.endsWith(result) ? trimmedMovetext : `${trimmedMovetext} ${result}`)
+    : result;
+
+  return `${headers.join('\n')}\n\n${fullMovetext}\n`;
+}
+
+function escapePgnHeaderValue(val) {
+  if (val === null || val === undefined) return '';
+  return String(val).replace(/["\\]/g, '');
 }
 
 export const pgnService = {
@@ -1541,7 +1620,8 @@ export const pgnService = {
   formatFileSize,
   formatPgnResultLabel,
   validatePgnFileMeta,
-  validateAndParsePgn
+  validateAndParsePgn,
+  generatePgnFromGame
 };
 
 export default pgnService;

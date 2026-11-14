@@ -98,6 +98,12 @@ export const NAV_ITEMS = [
     label: 'Analisis',
     icon: UI_ICONS.analysis,
     activeInMvp: true
+  },
+  {
+    id: 'analysis-history',
+    label: 'Riwayat Analisis',
+    icon: UI_ICONS.folder || UI_ICONS.history,
+    activeInMvp: true
   }
 ];
 

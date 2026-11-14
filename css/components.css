@@ -7429,3 +7429,675 @@
     font-size: 16px;
   }
 }
+
+
+/* ==========================================================================
+   MVP 5.6: Analysis History & Cloud Save Components
+   ========================================================================== */
+
+.analysis-history-page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 10px 0 40px;
+}
+
+.analysis-history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.history-header-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.history-header-icon-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--accent-main);
+  flex-shrink: 0;
+}
+
+.analysis-history-title {
+  font-size: 1.45rem;
+  font-weight: 800;
+  color: var(--text-main);
+  margin: 0 0 2px;
+  line-height: 1.25;
+}
+
+.analysis-history-subtitle {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.analysis-new-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+}
+
+/* Controls Bar (Search & Sort) */
+.history-controls-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.history-search-group {
+  position: relative;
+  flex: 1;
+  min-width: 240px;
+  display: flex;
+  align-items: center;
+}
+
+.history-search-icon {
+  position: absolute;
+  left: 12px;
+  color: var(--text-muted);
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+}
+
+.history-search-input {
+  padding-left: 38px;
+  padding-right: 36px;
+  height: 42px;
+  width: 100%;
+  border-radius: var(--radius-md);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+}
+
+.history-search-clear-btn {
+  position: absolute;
+  right: 10px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+}
+
+.history-search-clear-btn:hover {
+  color: var(--text-main);
+}
+
+.history-sort-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.history-sort-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.history-sort-select {
+  height: 42px;
+  min-width: 130px;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-main);
+  font-size: 0.9rem;
+}
+
+/* History Content Container & Cards */
+.history-content-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.history-list-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.history-card {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 16px 20px;
+  position: relative;
+  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.history-card:hover {
+  border-color: var(--accent-main);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
+.history-card.is-opening {
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.history-card-left {
+  cursor: pointer;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Chessboard Thumbnail Styles (MVP 5.6 Enlarge Refinement) */
+.chessboard-thumbnail-wrapper {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-card-header);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.14);
+  overflow: hidden;
+  flex-shrink: 0;
+  width: 128px;
+  height: 128px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.history-card:hover .chessboard-thumbnail-wrapper {
+  transform: scale(1.02);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.18);
+}
+
+.chessboard-thumbnail-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.cb-thumb-light-sq {
+  fill: var(--board-light-sq);
+}
+
+.cb-thumb-dark-sq {
+  fill: var(--board-dark-sq);
+}
+
+.cb-thumb-border {
+  stroke: var(--board-border);
+}
+
+.history-card-icon {
+  width: 128px;
+  height: 128px;
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-card-header);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.history-card-main {
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.history-card-top-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.history-card-title {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--text-main);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.history-card-badge {
+  font-size: 0.725rem;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+
+.history-card-players {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.history-players-vs {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.history-card-event {
+  color: var(--text-muted);
+}
+
+.history-card-result {
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.history-card-meta-row {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.history-card-actions {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.history-menu-btn {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  border-radius: var(--radius-sm);
+}
+
+.history-menu-btn:hover {
+  background-color: var(--bg-hover);
+  color: var(--text-main);
+}
+
+.history-item-menu-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  min-width: 140px;
+  z-index: 50;
+  overflow: hidden;
+}
+
+.history-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-main);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  transition: background-color 0.1s ease;
+}
+
+.history-menu-item:hover {
+  background-color: var(--bg-hover);
+}
+
+.history-menu-item.is-delete {
+  color: #EF4444;
+}
+
+.history-menu-item.is-delete:hover {
+  background-color: rgba(239, 68, 68, 0.1);
+}
+
+/* Empty, Error, Loading States */
+.history-empty-card,
+.history-loading-card,
+.history-error-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 48px 24px;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  gap: 12px;
+}
+
+.history-empty-icon,
+.history-error-icon {
+  font-size: 2.2rem;
+  color: var(--text-muted);
+}
+
+.history-error-icon {
+  color: #EF4444;
+}
+
+.history-empty-title,
+.history-error-title {
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: var(--text-main);
+  margin: 0;
+}
+
+.history-empty-desc,
+.history-error-desc {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  max-width: 440px;
+  margin: 0;
+}
+
+/* Pagination Bar */
+.history-pagination-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 8px;
+  flex-wrap: wrap;
+}
+
+.history-pagination-info {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.history-pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.history-page-btn,
+.history-page-num {
+  min-width: 34px;
+  height: 34px;
+  padding: 0 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  font-weight: 700;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-main);
+}
+
+.history-page-num.is-active {
+  background-color: var(--accent-main);
+  color: #FFFFFF;
+  border-color: var(--accent-main);
+}
+
+.history-page-ellipsis {
+  padding: 0 4px;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+/* Modals */
+.history-modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+  padding: 16px;
+}
+
+.history-modal-dialog {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  width: 100%;
+  max-width: 480px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.history-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.history-modal-title {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--text-main);
+  margin: 0;
+}
+
+.history-modal-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+}
+
+.history-modal-close:hover {
+  color: var(--text-main);
+}
+
+.history-modal-body {
+  padding: 20px;
+  font-size: 0.925rem;
+  color: var(--text-main);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.history-modal-warning {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.history-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--border-color);
+  background-color: var(--bg-card-header);
+}
+
+.btn-danger {
+  background-color: #EF4444;
+  color: #FFFFFF;
+  border: 1px solid #DC2626;
+  font-weight: 700;
+}
+
+.btn-danger:hover {
+  background-color: #DC2626;
+}
+
+/* Save button & error alerts in Game Review */
+.game-review-save-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+}
+
+.game-review-save-btn.is-saved {
+  background-color: #10B981;
+  color: #FFFFFF;
+  border-color: #10B981;
+  cursor: default;
+}
+
+.game-review-save-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background-color: rgba(239, 68, 68, 0.12);
+  border: 1px solid #EF4444;
+  border-radius: var(--radius-sm);
+  color: #EF4444;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-top: 8px;
+}
+
+/* Tablet (601px - 1024px) */
+@media (min-width: 601px) and (max-width: 1024px) {
+  .history-card {
+    padding: 14px 16px;
+    gap: 16px;
+  }
+
+  .chessboard-thumbnail-wrapper,
+  .history-card-icon {
+    width: 104px;
+    height: 104px;
+  }
+}
+
+/* Mobile (<= 600px) */
+@media (max-width: 600px) {
+  .analysis-history-page {
+    gap: 16px;
+    padding: 6px 0 24px;
+  }
+
+  .analysis-history-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .history-header-right .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .history-controls-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .history-sort-group {
+    justify-content: space-between;
+  }
+
+  .history-card {
+    padding: 12px 14px;
+    gap: 12px;
+    align-items: flex-start;
+  }
+
+  .history-card-icon,
+  .history-card-left .chessboard-thumbnail-wrapper {
+    width: 92px !important;
+    height: 92px !important;
+  }
+
+  .history-card-title {
+    font-size: 0.95rem;
+    line-height: 1.3;
+  }
+
+  .history-card-players {
+    font-size: 0.8rem;
+  }
+
+  .history-card-meta-row {
+    font-size: 0.75rem;
+  }
+
+  .history-pagination-bar {
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+}
+
+/* Extra small mobile screen (<= 360px) */
+@media (max-width: 360px) {
+  .history-card {
+    padding: 10px;
+    gap: 10px;
+  }
+
+  .history-card-icon,
+  .history-card-left .chessboard-thumbnail-wrapper {
+    width: 80px !important;
+    height: 80px !important;
+  }
+
+  .history-card-title {
+    font-size: 0.9rem;
+  }
+
+  .history-card-players {
+    font-size: 0.75rem;
+  }
+
+  .history-card-meta-row {
+    font-size: 0.7rem;
+    flex-wrap: wrap;
+  }
+}

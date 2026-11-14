@@ -43,8 +43,11 @@ import { renderOpeningPracticeView } from './components/openingPracticeView.js';
 import {
   renderAnalysisView,
   destroyActiveAnalysisBoard,
-  createInitialAnalysisSessionState
+  createInitialAnalysisSessionState,
+  runGameReviewAnalysis
 } from './components/analysisView.js';
+import { GAME_REVIEW_STATUS } from './services/chessGameReviewService.js';
+import { renderAnalysisHistoryView } from './components/analysisHistoryView.js';
 import {
   renderLessonDetailView,
   updateLessonCompletionUI,
@@ -495,6 +498,9 @@ export class CaturanApp {
         return;
       }
       this.navigate('analysis', false);
+      return;
+    } else if (hash === 'analysis-history') {
+      this.navigate('analysis-history', false);
       return;
     } else if (hash === 'play-game') {
       // Jika halaman direfresh saat berada di #play-game, arahkan ke #play dengan bersih
@@ -1188,7 +1194,8 @@ export class CaturanApp {
           };
         },
         onGameStarted: snapshot => this._markActivePlaySession(snapshot),
-        onGameEnd: gameResult => this.handlePlayGameEnded(gameResult)
+        onGameEnd: gameResult => this.handlePlayGameEnded(gameResult),
+        onAnalyzeGame: payload => this.startInstantGameReview(payload)
       });
     } else if (this.currentRoute === 'opening-trainer') {
       renderOpeningDashboardView(this.mainContainer, {
@@ -1239,7 +1246,82 @@ export class CaturanApp {
         onBackFromStudio: () => this.navigate(this.previousRoute || 'dashboard'),
         onMobileScreenChange: screen => this._syncAnalysisMobileHash(screen)
       });
+    } else if (this.currentRoute === 'analysis-history') {
+      renderAnalysisHistoryView(this.mainContainer, {
+        onNavigateToStudio: () => this.navigate('analysis'),
+        onOpenAnalysis: ({ historyId, title, pgnText, parsedGame, restoredReview, isCompatible }) => {
+          this.openSavedAnalysis({ historyId, title, pgnText, parsedGame, restoredReview, isCompatible });
+        }
+      });
     }
+  }
+
+  /**
+   * MVP 5.6 Instant Stockfish Game Review:
+   * Membuka game review langsung setelah partai melawan komputer selesai
+   * Mentransfer state pertandingan secara in-memory murni tanpa melalui localStorage atau URL.
+   */
+  startInstantGameReview({ pgnText, parsedGame, initialFen, gameResult } = {}) {
+    if (!pgnText || !parsedGame) return;
+
+    // Bersihkan sesi aktif board lainnya
+    destroyActivePuzzleBoard();
+    destroyActivePlayBoard({ terminateEngine: true });
+    this._destroyActiveOpeningBoard();
+    destroyActiveAnalysisBoard();
+    this.closeMobileSidebar();
+
+    // Inisialisasi session state untuk Analysis Studio dari partai yang baru saja selesai
+    this.analysisSessionState = createInitialAnalysisSessionState();
+    this.analysisSessionState.rawPgnText = pgnText;
+    this.analysisSessionState.lastValidatedRawPgn = pgnText;
+    this.analysisSessionState.parsedGame = parsedGame;
+    this.analysisSessionState.mobileScreen = 'review';
+    this.analysisSessionState.savedHistoryId = null;
+    this.analysisSessionState.gameReviewSaveStatus = 'idle';
+    this.analysisSessionState.gameReviewStatus = GAME_REVIEW_STATUS.IDLE;
+
+    // Arahkan ke halaman Analysis Studio
+    this.navigate('analysis', true);
+
+    // Otomatis picu Game Review satu kali penuh di memori
+    setTimeout(() => {
+      if (this.currentRoute === 'analysis' && this.mainContainer) {
+        runGameReviewAnalysis(this.mainContainer, this.analysisSessionState);
+      }
+    }, 50);
+  }
+
+  openSavedAnalysis({ historyId, title, pgnText, parsedGame, restoredReview, isCompatible }) {
+    destroyActiveLessonBoard();
+    destroyActivePuzzleBoard();
+    destroyActivePlayBoard({ terminateEngine: true });
+    this._destroyActiveOpeningBoard();
+    destroyActiveAnalysisBoard();
+    this.closeMobileSidebar();
+
+    // Inisialisasi session state untuk Analysis Studio dari record riwayat yang dibuka
+    this.analysisSessionState = createInitialAnalysisSessionState();
+    this.analysisSessionState.rawPgnText = pgnText;
+    this.analysisSessionState.lastValidatedRawPgn = pgnText;
+    this.analysisSessionState.parsedGame = parsedGame;
+    this.analysisSessionState.mobileScreen = 'review';
+    this.analysisSessionState.savedHistoryId = historyId;
+    this.analysisSessionState.gameReviewSaveStatus = 'saved';
+
+    if (isCompatible && restoredReview) {
+      this.analysisSessionState.gameReviewStatus = GAME_REVIEW_STATUS.COMPLETED;
+      this.analysisSessionState.gameReviewReport = restoredReview.report;
+      this.analysisSessionState.gameReviewGraphData = restoredReview.graphData;
+      this.analysisSessionState.gameReviewProgress = {
+        current: restoredReview.snapshots.length,
+        total: restoredReview.snapshots.length,
+        percent: 100,
+        currentPly: parsedGame.totalPlies || 0
+      };
+    }
+
+    this.navigate('analysis', true);
   }
 
   _syncAnalysisMobileHash(screen) {
