@@ -4270,7 +4270,7 @@ export class AnalysisReplayBoard {
       : [];
     this.moves = this.mainlineMoves;
 
-    this.mode = options.mode === 'explore' ? 'explore' : 'review';
+    this.mode = options.mode ? options.mode : (options.gameReviewReport ? 'review' : 'explore');
     this.variations = Array.isArray(options.variations) ? options.variations : [];
     this.activeLineId =
       options.activeLineId &&
@@ -4599,7 +4599,7 @@ export class AnalysisReplayBoard {
   }
 
   getActiveClassification() {
-    if (this.mode !== 'review' || this.currentPly <= 0) {
+    if (this.currentPly <= 0) {
       return null;
     }
     const activeMove = this._getMoveAtPly(this.activeLineId, this.currentPly);
@@ -4765,7 +4765,8 @@ export class AnalysisReplayBoard {
       legalMovesForSelected: [...this.legalMovesForSelected],
       pendingPromotion: this.pendingPromotion ? { ...this.pendingPromotion } : null,
       feedback: this.feedback ? { ...this.feedback } : null,
-      lineMovePairs
+      lineMovePairs,
+      movePairs: lineMovePairs
     };
   }
 
@@ -4810,6 +4811,10 @@ export class AnalysisReplayBoard {
     return this.goToPly(0);
   }
 
+  goToStart() {
+    return this.firstMove();
+  }
+
   resetToStart() {
     return this.goToPly(0);
   }
@@ -4819,10 +4824,18 @@ export class AnalysisReplayBoard {
     return this.goToPly(this.currentPly - 1);
   }
 
+  stepBackward() {
+    return this.prevMove();
+  }
+
   nextMove() {
     this.totalPlies = this._getLineTotalPlies(this.activeLineId);
     if (this.currentPly >= this.totalPlies) return this.getReplayState();
     return this.goToPly(this.currentPly + 1);
+  }
+
+  stepForward() {
+    return this.nextMove();
   }
 
   lastMovePosition() {
@@ -5689,7 +5702,6 @@ export class AnalysisReplayBoard {
 
         let classificationBadgeHtml = '';
         if (
-          this.mode === 'review' &&
           this.currentPly > 0 &&
           activeClassification &&
           (activeClassification.square === sq ||
@@ -5867,7 +5879,6 @@ export class AnalysisReplayBoard {
             <span class="turn-label">${turnText}</span>
           </div>
           <div class="board-status-badges">
-            ${modeBadgeHtml}
             ${lineBadgeHtml}
             <span class="board-state-badge badge-step" data-testid="analysis-current-move-indicator"></span>
             <span class="board-state-badge" data-testid="analysis-orientation-indicator">${orientationLabel}</span>
@@ -5903,57 +5914,57 @@ export class AnalysisReplayBoard {
         <div class="chessboard-controls analysis-replay-controls" role="toolbar" aria-label="Navigasi Replay PGN">
           <button
             type="button"
-            class="btn btn-secondary btn-sm analysis-nav-btn"
+            class="btn btn-secondary btn-sm analysis-nav-btn icon-only-btn"
             data-action="analysis-first"
             data-testid="analysis-btn-first"
+            title="Posisi Awal"
             aria-label="Posisi Awal"
             ${isAtStart ? 'disabled' : ''}
           >
             ${UI_ICONS.skipBack}
-            <span>Awal</span>
           </button>
           <button
             type="button"
-            class="btn btn-secondary btn-sm analysis-nav-btn"
+            class="btn btn-secondary btn-sm analysis-nav-btn icon-only-btn"
             data-action="analysis-prev"
             data-testid="analysis-btn-prev"
+            title="Langkah Sebelumnya"
             aria-label="Langkah Sebelumnya"
             ${isAtStart ? 'disabled' : ''}
           >
             ${UI_ICONS.chevronLeft}
-            <span>Sebelumnya</span>
           </button>
           <button
             type="button"
-            class="btn btn-primary btn-sm analysis-nav-btn"
+            class="btn btn-primary btn-sm analysis-nav-btn icon-only-btn"
             data-action="analysis-next"
             data-testid="analysis-btn-next"
+            title="Langkah Berikutnya"
             aria-label="Langkah Berikutnya"
             ${isAtEnd ? 'disabled' : ''}
           >
-            <span>Berikutnya</span>
             ${UI_ICONS.chevronRight}
           </button>
           <button
             type="button"
-            class="btn btn-secondary btn-sm analysis-nav-btn"
+            class="btn btn-secondary btn-sm analysis-nav-btn icon-only-btn"
             data-action="analysis-last"
             data-testid="analysis-btn-last"
+            title="Posisi Akhir"
             aria-label="Posisi Akhir"
             ${isAtEnd ? 'disabled' : ''}
           >
-            <span>Akhir</span>
             ${UI_ICONS.skipForward}
           </button>
           <button
             type="button"
-            class="btn btn-secondary btn-sm analysis-nav-btn"
+            class="btn btn-secondary btn-sm analysis-nav-btn icon-only-btn"
             data-action="analysis-flip"
             data-testid="analysis-btn-flip"
+            title="Balik Papan"
             aria-label="Balik Papan"
           >
             ${UI_ICONS.flip}
-            <span>Balik Papan</span>
           </button>
         </div>
       </div>

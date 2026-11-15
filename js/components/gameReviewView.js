@@ -66,9 +66,6 @@ export class GameReviewPanelComponent {
       report === undefined &&
       graphData === undefined &&
       saveStatus === undefined;
-      progress === undefined &&
-      report === undefined &&
-      graphData === undefined;
 
     if (status !== undefined) this._status = status;
     if (progress !== undefined) this._progress = progress;

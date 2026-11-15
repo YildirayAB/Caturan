@@ -195,14 +195,25 @@ export class CaturanApp {
       });
     }
 
-    // 8. Sinkronkan state sidebar ketika ukuran layar berubah
+    // 8. Sinkronkan state sidebar ketika ukuran layar berubah (Hanya saat breakpoint lebar berubah)
+    this._lastViewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1024;
     if (typeof window !== 'undefined' && window.addEventListener) {
       window.addEventListener('resize', () => {
+        const currentWidth = window.innerWidth;
+        const widthChanged = Math.abs(currentWidth - this._lastViewportWidth) > 0;
+        const isMobileNow = currentWidth <= 600;
+        const wasMobile = this._lastViewportWidth <= 600;
+        const crossedBreakpoint = isMobileNow !== wasMobile;
+        this._lastViewportWidth = currentWidth;
+
         if (!this.isMobileViewport() && this.isMobileSidebarOpen) {
           this.isMobileSidebarOpen = false;
         }
         this._syncSidebarDOM();
-        if (this.currentRoute === 'analysis' && this.mainContainer) {
+
+        // PENTING (Fix Android Keyboard Drop): Jangan me-render ulang Analysis Studio saat tinggi viewport berubah karena keyboard virtual!
+        // Hanya render ulang jika breakpoint lebar berubah (misal rotasi orientasi layar).
+        if (crossedBreakpoint && this.currentRoute === 'analysis' && this.mainContainer) {
           renderAnalysisView(this.mainContainer, this.analysisSessionState, {
             onBackFromStudio: () => this.navigate(this.previousRoute || 'dashboard'),
             onMobileScreenChange: screen => this._syncAnalysisMobileHash(screen)
