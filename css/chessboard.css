@@ -730,8 +730,16 @@
 }
 
 @media (max-width: 600px) {
-  /* Pada Mobile Screen 2 (Game Review), kontrol navigasi berada di Bottom Toolbar
-     sehingga kontrol internal AnalysisReplayBoard disembunyikan agar fokus pada papan 1:1 */
+  /* Pada Mobile Analysis Studio, kontrol navigasi, status bar, dan topbar internal
+     disembunyikan karena sudah dihandle oleh UI Analysis Studio Mobile.
+     Ini menjaga papan catur tetap 1:1 murni dan tidak pernah terpotong rank/filenya. */
+  .analysis-board-column.mobile-page-board .analysis-replay-board-widget .analysis-replay-controls,
+  .analysis-board-column.mobile-page-board .analysis-replay-board-widget .chessboard-topbar,
+  .analysis-board-column.mobile-page-board .analysis-replay-board-widget .chessboard-coord-statusbar,
+  .analysis-board-column.mobile-page-board .analysis-replay-board-widget .chessboard-feedback {
+    display: none !important;
+  }
+
   .analysis-replay-board-widget .analysis-replay-controls {
     display: none !important;
   }

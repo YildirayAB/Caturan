@@ -1129,7 +1129,7 @@ class ChessAudioService {
       const targetOutputGain = clampNumber(
         preset && preset.outputGain,
         0.1,
-        5.0,
+        10.0,
         PRESET_OUTPUT_GAIN_MULTIPLIER
       );
       if (bus.gain) {

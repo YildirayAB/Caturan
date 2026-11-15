@@ -7310,6 +7310,11 @@
 }
 
 /* Badge Classification Colors (Solid Caturan Palette, No Gradients) */
+.badge-move-brilliant {
+  background-color: #06B6D4;
+  color: #FFFFFF;
+}
+
 .badge-move-best {
   background-color: #059669;
   color: #FFFFFF;
@@ -8100,4 +8105,445 @@
     font-size: 0.7rem;
     flex-wrap: wrap;
   }
+}
+
+/* ==========================================================================
+   MVP 5.7: Analysis Studio UX Redesign & Mobile-First 3-Page Navigation
+   ========================================================================== */
+
+/* Icon-Only Buttons */
+.icon-only-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  min-height: 40px;
+  padding: 6px !important;
+  border-radius: var(--radius-sm, 8px);
+}
+
+.icon-only-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* Mobile Top Action Bar & Button */
+.analysis-mobile-top-action-bar {
+  margin-bottom: 8px;
+  width: 100%;
+}
+
+.analysis-mobile-top-analyze-btn {
+  width: 100%;
+  min-height: 42px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: var(--radius-md, 12px);
+  background-color: var(--accent-main);
+  border-color: var(--accent-main);
+  color: #FFFFFF;
+  transition: all 0.2s ease;
+}
+
+.analysis-mobile-top-analyze-btn.btn-danger {
+  background-color: var(--status-danger-bg, #FDECEC) !important;
+  border-color: var(--status-danger-border, #F5B7B1) !important;
+  color: var(--status-danger-text, #B42318) !important;
+}
+
+[data-theme="dark"] .analysis-mobile-top-analyze-btn.btn-danger {
+  background-color: var(--status-danger-bg, #381D24) !important;
+  border-color: var(--status-danger-border, #7A2832) !important;
+  color: var(--status-danger-text, #FCA5A5) !important;
+}
+
+/* Mobile Board Bottom Container */
+.analysis-mobile-board-bottom-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.analysis-mobile-subpage-nav-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  width: 100%;
+}
+
+.analysis-mobile-subpage-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 42px;
+  font-weight: 700;
+  font-size: 0.85rem;
+  border-radius: var(--radius-md, 12px);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+}
+
+.analysis-mobile-subpage-btn:hover {
+  background-color: var(--bg-subtle);
+  border-color: var(--accent-main);
+}
+
+/* Mobile Subpages (Graph & Moves) Topbars */
+.analysis-mobile-subpage-topbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md, 12px);
+  color: var(--text-main);
+}
+
+.analysis-mobile-board-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 12px;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md, 12px);
+}
+
+.analysis-mobile-header-title {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--text-main);
+  margin: 0;
+  text-align: center;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.analysis-mobile-subpage-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.analysis-mobile-return-bottom-bar {
+  width: 100%;
+  margin-top: auto;
+  padding-top: 8px;
+  z-index: 10;
+}
+
+.analysis-mobile-return-btn {
+  width: 100%;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  border-radius: var(--radius-md, 12px);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--accent-main);
+  color: var(--accent-main);
+  box-shadow: var(--shadow-card);
+}
+
+.analysis-mobile-return-btn:hover {
+  background-color: var(--accent-soft);
+}
+
+.analysis-moves-panel-mobile {
+  padding: 12px;
+  background-color: var(--bg-surface);
+  border-radius: var(--radius-md, 12px);
+  border: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  gap: 8px;
+}
+
+.analysis-moves-panel-mobile .analysis-moves-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.analysis-moves-panel-mobile .analysis-moves-panel-header .card-title {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--text-main);
+  margin: 0;
+}
+
+.analysis-moves-panel-mobile .analysis-moves-panel-header .card-subtitle {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin: 2px 0 0 0;
+}
+
+@media (min-width: 601px) {
+  .analysis-mobile-only {
+    display: none !important;
+  }
+}
+
+@media (max-width: 600px) {
+  .analysis-desktop-only {
+    display: none !important;
+  }
+
+  /* Single-Screen 100dvh Layout for Analysis Studio */
+  .analysis-studio-page:not(.mobile-screen-import) {
+    height: calc(100dvh - var(--header-height, 56px) - 16px);
+    max-height: calc(100dvh - var(--header-height, 56px) - 16px);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 6px 10px;
+    box-sizing: border-box;
+    gap: 6px;
+  }
+
+  .analysis-preview-section {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding-bottom: 0;
+  }
+
+  .analysis-workspace-grid {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .analysis-board-column.mobile-page-board {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    overflow: hidden;
+    gap: 4px;
+    padding: 0;
+  }
+
+  .analysis-board-column.mobile-page-board #analysis-replay-board-mount {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  .analysis-board-column.mobile-page-board .chessboard-frame,
+  .analysis-board-column.mobile-page-board #analysis-replay-board-mount > .chessboard-container {
+    width: min(calc(100vw - 20px), calc(100dvh - 275px), 100%);
+    height: min(calc(100vw - 20px), calc(100dvh - 275px), 100%);
+    max-width: min(calc(100vw - 20px), calc(100dvh - 275px), 100%);
+    max-height: min(calc(100vw - 20px), calc(100dvh - 275px), 100%);
+    aspect-ratio: 1 / 1;
+    margin: 0 auto;
+    box-sizing: border-box;
+  }
+
+  .analysis-board-column.mobile-page-board .analysis-player-strip {
+    min-height: 28px;
+    padding: 3px 8px;
+    font-size: 0.78rem;
+  }
+
+  .analysis-mobile-move-strip {
+    padding: 4px 6px;
+    min-height: 40px;
+  }
+
+  .analysis-mobile-strip-nav-btn {
+    min-width: 34px;
+    min-height: 34px;
+  }
+
+  .analysis-mobile-strip-pill {
+    min-height: 32px;
+    padding: 4px 8px;
+    font-size: 0.78rem;
+  }
+
+  .analysis-mobile-bottom-toolbar {
+    padding: 4px;
+    gap: 4px;
+  }
+
+  .analysis-mobile-bottom-toolbar .analysis-mobile-toolbar-btn {
+    min-height: 38px;
+    padding: 4px !important;
+  }
+
+  /* Subpage Graph */
+  .mobile-page-graph {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .mobile-page-graph #game-review-panel-mount-mobile {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Subpage Moves */
+  .mobile-page-moves {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .mobile-page-moves .analysis-moves-panel-mobile {
+    flex: 1 1 0%;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    gap: 8px;
+  }
+
+  .mobile-page-moves .analysis-move-list-scroll {
+    flex: 1 1 0%;
+    min-height: 0;
+    height: 50%;
+    max-height: none;
+    overflow-y: auto;
+  }
+
+  .mobile-page-moves .analysis-variation-manager {
+    flex: 1 1 0%;
+    min-height: 0;
+    height: 50%;
+    max-height: none;
+    overflow-y: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .mobile-page-moves .analysis-variation-list {
+    flex: 1 1 0%;
+    min-height: 0;
+    max-height: none;
+    overflow-y: auto;
+  }
+}
+
+/* Analysis Variation Manager & Cards (Desktop & Mobile) */
+.analysis-variation-manager {
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md, 12px);
+  padding: 12px;
+  box-sizing: border-box;
+}
+
+.analysis-variation-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  gap: 12px;
+}
+
+.analysis-variation-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+}
+
+.analysis-variation-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background-color: var(--bg-elevated, var(--bg-surface));
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm, 8px);
+  gap: 12px;
+  box-sizing: border-box;
+  transition: border-color var(--transition-fast, 0.15s ease);
+}
+
+.analysis-variation-card.active {
+  border-color: var(--accent-main, #d97706);
+  background-color: var(--accent-soft, rgba(217, 119, 6, 0.08));
+}
+
+.analysis-variation-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 12px;
+}
+
+.analysis-variation-card .analysis-variation-name {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text-main);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.analysis-variation-card button[data-action="select-variation"] {
+  min-width: 68px;
+  min-height: 34px;
+  padding: 4px 12px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  border-radius: var(--radius-sm, 6px);
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.analysis-empty-variations {
+  margin: 0;
+  padding: 12px;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+  text-align: center;
 }
